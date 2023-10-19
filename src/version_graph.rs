@@ -42,13 +42,12 @@ impl VersionGraph {
 			.clone()
 	}
 
-	pub fn resolve() -> Result<VersionGraph> {
-		let mut graph: Graph<Version, VersionDiff> = Graph::new();
+	pub fn resolve(dir: &Path) -> Result<VersionGraph> {
+		let mut graph: Graph<Version, Diffs> = Graph::new();
 
 		let mut root = None;
 
 		let format = Format::TinyV2;
-		let dir = Path::new("mappings/mappings");
 		let mut versions = HashMap::new();
 
 		Self::iterate_versions(
