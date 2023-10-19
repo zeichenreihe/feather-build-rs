@@ -1,5 +1,6 @@
 use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, Read};
+use std::marker::PhantomData;
 
 pub mod tiny_v2;
 pub mod tiny_v2_diff;
@@ -27,8 +28,8 @@ fn try_read_optional<'a>(iter: &mut impl Iterator<Item=&'a str>) -> Result<Optio
     }
 }
 
-pub trait ParseEntry {
-    fn from_iter<'a>(iter: &mut impl Iterator<Item=&'a str>) -> Result<Self> where Self: Sized;
+pub trait ParseEntry: Sized {
+    fn from_iter<'a>(iter: &mut impl Iterator<Item=&'a str>) -> Result<Self>;
 }
 pub trait SetDoc<J> {
     fn set_doc(&mut self, doc: J);
@@ -45,7 +46,7 @@ pub struct Parse<D, C, F, M, P, J> {
     field: Option<F>,
     method: Option<M>,
     parameter: Option<P>,
-    j: Option<J>,
+    phantom_data: PhantomData<J>,
 }
 
 impl<D, C, F, M, P, J> Parse<D, C, F, M, P, J>
@@ -65,7 +66,7 @@ where
     fn set_field(&mut self, field: Option<F>) -> Result<()> {
         if let Some(f) = std::mem::replace(&mut self.field, field) {
             self.class.as_mut()
-                .ok_or_else(|| anyhow!("cannot read field mapping: not in a class?"))?
+                .context("cannot read field mapping: not in a class?")?
                 .add_member(f)
         }
         Ok(())
@@ -73,7 +74,7 @@ where
     fn set_method(&mut self, method: Option<M>) -> Result<()> {
         if let Some(m) = std::mem::replace(&mut self.method, method) {
             self.class.as_mut()
-                .ok_or_else(|| anyhow!("cannot read method mapping: not in a class?"))?
+                .context("cannot read method mapping: not in a class?")?
                 .add_member(m);
         }
         Ok(())
@@ -81,7 +82,7 @@ where
     fn set_parameter(&mut self, parameter: Option<P>) -> Result<()> {
         if let Some(p) = std::mem::replace(&mut self.parameter, parameter) {
             self.method.as_mut()
-                .ok_or_else(|| anyhow!("cannot read parameter mapping: not in a method?"))?
+                .context("cannot read parameter mapping: not in a method?")?
                 .add_member(p);
         }
         Ok(())
@@ -187,7 +188,7 @@ where
         field: None,
         method: None,
         parameter: None,
-        j: None,
+        phantom_data: PhantomData,
     };
 
     for (line_number, line) in lines {
