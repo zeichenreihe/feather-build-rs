@@ -16,35 +16,65 @@ pub fn read(path: impl AsRef<Path> + Debug) -> Result<Diffs> {
 pub trait ApplyDiff<T> {
 	fn apply_to(&self, target: T) -> Result<()>;
 }
+
+trait OperationExecution<T>
+where
+	T: Sized,
+{
+	fn get_operation(&self) -> Operation;
+	fn apply_inner(&self, inner: &mut T) -> Result<()>;
+	fn apply_change(inner: &mut T, dst_a: &String, dst_b: &String) -> Result<()>;
+	fn apply_add(&self, dst: String) -> Result<T>;
+	fn apply_remove(inner: T, dst_a: &String) -> Result<()>;
+}
+
 trait GetKey<V> {
 	fn get_key(&self) -> V;
 }
 
 impl<'a, T, U> ApplyDiff<&'a mut Option<U>> for Option<T>
-	where
-		T: ApplyDiff<&'a mut Option<U>>,
-{
-	fn apply_to(&self, target: &'a mut Option<U>) -> Result<()> {
-		match self {
-			Some(x) => x.apply_to(target)?,
-			None => *target = None,
-		}
-		Ok(())
-	}
-}
-
-impl<'a, T, U, V> ApplyDiff<Entry<'a, U, V>> for Option<T>
 where
-	T: ApplyDiff<Entry<'a, U, V>>,
+	T: OperationExecution<U>,
+	U: Debug,
 {
-	fn apply_to(&self, entry: Entry<'a, U, V>) -> Result<()> {
+	fn apply_to(&self, inner: &'a mut Option<U>) -> Result<()> {
 		match self {
-			Some(x) => x.apply_to(entry)?,
-			None => {
-				if let Entry::Occupied(entry) = entry {
-					entry.remove();
+			Some(x) => {
+				match x.get_operation() {
+					Operation::None => {
+						if let Some(y) = inner {
+							x.apply_inner(y)?;
+						}
+					},
+					Operation::Change(dst_a, dst_b) => {
+						if let Some(y) = inner {
+							T::apply_change(y, dst_a, dst_b)?;
+							x.apply_inner(y)?;
+						} else {
+							bail!("Cannot change item {dst_a} to {dst_b}: no item given")
+						}
+					},
+					Operation::Add(dst_b) => {
+						if let Some(y) = inner {
+							bail!("Cannot add item {dst_b}: already existing: {y:?}")
+						} else {
+							let mut v = x.apply_add(dst_b.clone())?;
+
+							x.apply_inner(&mut v)?;
+
+							*inner = Some(v);
+						}
+					},
+					Operation::Remove(dst_a) => {
+						if let Some(y) = inner.take() {
+							T::apply_remove(y, dst_a)?;
+						} else {
+							bail!("Cannot remove item {dst_a}: no item given")
+						}
+					},
 				}
 			},
+			None => *inner = None,
 		}
 		Ok(())
 	}
@@ -52,13 +82,48 @@ where
 
 impl<T, U, V> ApplyDiff<&mut HashMap<V, U>> for Vec<T>
 where
-	T: for<'a> ApplyDiff<Entry<'a, V, U>> + GetKey<V>,
-	U: Clone,
-	V: Eq + Hash,
+	T: GetKey<V> + OperationExecution<U>,
+	U: Debug + Clone,
+	V: Debug + Eq + Hash,
 {
 	fn apply_to(&self, target: &mut HashMap<V, U>) -> Result<()> {
 		for diff in self {
-			diff.apply_to(target.entry(diff.get_key()))?;
+			let entry = target.entry(diff.get_key());
+
+			match diff.get_operation() {
+				Operation::None => {
+					if let Entry::Occupied(mut entry) = entry {
+						diff.apply_inner(entry.get_mut())?;
+					}
+				},
+				Operation::Change(dst_a, dst_b) => {
+					if let Entry::Occupied(mut entry) = entry {
+						T::apply_change(entry.get_mut(), dst_a, dst_b)?;
+						diff.apply_inner(entry.get_mut())?;
+					} else {
+						bail!("Cannot change item {dst_a} to {dst_b}: no item given")
+					}
+				},
+				Operation::Add(dst_b) => {
+					match entry {
+						Entry::Occupied(entry) => bail!("Cannot add item {dst_b}: already existing: {entry:?}"),
+						Entry::Vacant(entry) => {
+							let mut v = diff.apply_add(dst_b.clone())?;
+
+							diff.apply_inner(&mut v)?;
+
+							entry.insert(v);
+						},
+					}
+				},
+				Operation::Remove(dst_a) => {
+					if let Entry::Occupied(entry) = entry {
+						T::apply_remove(entry.remove(), dst_a)?;
+					} else {
+						bail!("Cannot remove item {dst_a}: no item given")
+					}
+				},
+			}
 		}
 
 		Ok(())
@@ -152,59 +217,33 @@ impl AddMember<MethodDiff> for ClassDiff {
 		self.methods.push(member)
 	}
 }
-impl<T: Debug> ApplyDiff<Entry<'_, T, ClassMapping>> for ClassDiff {
-	fn apply_to(&self, entry: Entry<'_, T, ClassMapping>) -> Result<()> {
-		match entry {
-			Entry::Occupied(mut entry) => {
-				match Operation::of(&self.dst_a, &self.dst_b) {
-					Operation::None => {
-						self.jav.apply_to(&mut entry.get_mut().jav)?;
-						self.fields.apply_to(&mut entry.get_mut().fields)?;
-						self.methods.apply_to(&mut entry.get_mut().methods)?;
-					},
-					Operation::Change(dst_a, dst_b) => {
-						if &entry.get().dst != dst_a {
-							bail!("Cannot change: got {:?} but expected {dst_a}, to map to {dst_b}", entry.get())
-						}
-						entry.get_mut().dst = dst_b.to_owned();
+impl OperationExecution<ClassMapping> for ClassDiff {
+	fn get_operation(&self) -> Operation {
+		Operation::of(&self.dst_a, &self.dst_b)
+	}
 
-						self.jav.apply_to(&mut entry.get_mut().jav)?;
-						self.fields.apply_to(&mut entry.get_mut().fields)?;
-						self.methods.apply_to(&mut entry.get_mut().methods)?;
-					},
-					Operation::Add(dst_b) => {
-						bail!("Cannot add item {dst_b}: already existing: {entry:?}")
-					},
-					Operation::Remove(dst_a) => {
-						if &entry.get().dst != dst_a {
-							bail!("Cannot remove: got {:?} but expected {dst_a}", entry.get());
-						}
-						entry.remove();
-					},
-				}
-			},
-			Entry::Vacant(entry) => {
-				match Operation::of(&self.dst_a, &self.dst_b) {
-					Operation::None => {},
-					Operation::Change(dst_a, dst_b) => {
-						bail!("Cannot change item {dst_a} to {dst_b}: no item given")
-					},
-					Operation::Add(dst_b) => {
-						let mut v = ClassMapping::new(self.src.clone(), dst_b.clone());
+	fn apply_inner(&self, inner: &mut ClassMapping) -> Result<()> {
+		self.jav.apply_to(&mut inner.jav)?;
+		self.fields.apply_to(&mut inner.fields)?;
+		self.methods.apply_to(&mut inner.methods)
+	}
 
-						self.jav.apply_to(&mut v.jav)?;
-						self.fields.apply_to(&mut v.fields)?;
-						self.methods.apply_to(&mut v.methods)?;
-
-						entry.insert(v);
-					},
-					Operation::Remove(dst_a) => {
-						bail!("Cannot remove item {dst_a}: no item given")
-					},
-				}
-			},
+	fn apply_change(inner: &mut ClassMapping, dst_a: &String, dst_b: &String) -> Result<()> {
+		if &inner.dst != dst_a {
+			bail!("Cannot change: got {inner:?} but expected {dst_a}, to map to {dst_b}")
 		}
+		inner.dst = dst_b.to_owned();
+		Ok(())
+	}
 
+	fn apply_add(&self, dst: String) -> Result<ClassMapping> {
+		Ok(ClassMapping::new(self.src.clone(), dst))
+	}
+
+	fn apply_remove(inner: ClassMapping, dst_a: &String) -> Result<()> {
+		if &inner.dst != dst_a {
+			bail!("Cannot remove: got {inner:?} but expected {dst_a}");
+		}
 		Ok(())
 	}
 }
@@ -241,50 +280,31 @@ impl SetDoc<JavadocDiff> for FieldDiff {
 		self.jav = Some(doc);
 	}
 }
-impl<T: Debug> ApplyDiff<Entry<'_, T, FieldMapping>> for FieldDiff {
-	fn apply_to(&self, entry: Entry<'_, T, FieldMapping>) -> Result<()> {
-		match entry {
-			Entry::Occupied(mut entry) => {
-				match Operation::of(&self.dst_a, &self.dst_b) {
-					Operation::None => {
-						self.jav.apply_to(&mut entry.get_mut().jav)?;
-					},
-					Operation::Change(dst_a, dst_b) => {
-						if &entry.get().dst != dst_a {
-							bail!("Cannot change: got {:?} but expected {dst_a}, to map to {dst_b}", entry.get())
-						}
-						entry.get_mut().dst = dst_b.to_owned();
-						self.jav.apply_to(&mut entry.get_mut().jav)?;
-					},
-					Operation::Add(dst_b) => {
-						bail!("Cannot add item {dst_b}: already existing: {entry:?}")
-					},
-					Operation::Remove(dst_a) => {
-						if &entry.get().dst != dst_a {
-							bail!("Cannot remove: got {:?} but expected {dst_a}", entry.get());
-						}
-						entry.remove();
-					},
-				}
-			},
-			Entry::Vacant(entry) => {
-				match Operation::of(&self.dst_a, &self.dst_b) {
-					Operation::None => {},
-					Operation::Change(dst_a, dst_b) => {
-						bail!("Cannot change item {dst_a} to {dst_b}: no item given")
-					},
-					Operation::Add(dst_b) => {
-						let mut f = FieldMapping::new(self.desc.clone(), self.src.clone(), dst_b.clone());
-						self.jav.apply_to(&mut f.jav)?;
-						entry.insert(f);
-					},
-					Operation::Remove(dst_a) => {
-						bail!("Cannot remove item {dst_a}: no item given")
-					},
-				}
-			},
-		}
+impl OperationExecution<FieldMapping> for FieldDiff {
+	fn get_operation(&self) -> Operation {
+		Operation::of(&self.dst_a, &self.dst_b)
+	}
 
+	fn apply_inner(&self, inner: &mut FieldMapping) -> Result<()> {
+		self.jav.apply_to(&mut inner.jav)
+	}
+
+	fn apply_change(inner: &mut FieldMapping, dst_a: &String, dst_b: &String) -> Result<()> {
+		if &inner.dst != dst_a {
+			bail!("Cannot change: got {inner:?} but expected {dst_a}, to map to {dst_b}")
+		}
+		inner.dst = dst_b.to_owned();
+		Ok(())
+	}
+
+	fn apply_add(&self, dst: String) -> Result<FieldMapping> {
+		Ok(FieldMapping::new(self.desc.clone(), self.src.clone(), dst))
+	}
+
+	fn apply_remove(inner: FieldMapping, dst_a: &String) -> Result<()> {
+		if &inner.dst != dst_a {
+			bail!("Cannot remove: got {inner:?} but expected {dst_a}");
+		}
 		Ok(())
 	}
 }
@@ -329,55 +349,32 @@ impl AddMember<ParameterDiff> for MethodDiff {
 		self.parameters.push(member)
 	}
 }
-impl<T: Debug> ApplyDiff<Entry<'_, T, MethodMapping>> for MethodDiff {
-	fn apply_to(&self, entry: Entry<'_, T, MethodMapping>) -> Result<()> {
-		match entry {
-			Entry::Occupied(mut entry) => {
-				match Operation::of(&self.dst_a, &self.dst_b) {
-					Operation::None => {
-						self.jav.apply_to(&mut entry.get_mut().jav)?;
-						self.parameters.apply_to(&mut entry.get_mut().parameters)?;
-					},
-					Operation::Change(dst_a, dst_b) => {
-						if &entry.get().dst != dst_a {
-							bail!("Cannot change: got {:?} but expected {dst_a}, to map to {dst_b}", entry.get())
-						}
-						entry.get_mut().dst = dst_b.to_owned();
-						self.jav.apply_to(&mut entry.get_mut().jav)?;
-						self.parameters.apply_to(&mut entry.get_mut().parameters)?;
-					},
-					Operation::Add(dst_b) => {
-						bail!("Cannot add item {dst_b}: already existing: {entry:?}")
-					},
-					Operation::Remove(dst_a) => {
-						if &entry.get().dst != dst_a {
-							bail!("Cannot remove: got {:?} but expected {dst_a}", entry.get());
-						}
-						entry.remove();
-					},
-				}
-			},
-			Entry::Vacant(entry) => {
-				match Operation::of(&self.dst_a, &self.dst_b) {
-					Operation::None => {},
-					Operation::Change(dst_a, dst_b) => {
-						bail!("Cannot change item {dst_a} to {dst_b}: no item given")
-					},
-					Operation::Add(dst_b) => {
-						let mut v = MethodMapping::new(self.desc.clone(), self.src.clone(), dst_b.clone());
+impl OperationExecution<MethodMapping> for MethodDiff {
+	fn get_operation(&self) -> Operation {
+		Operation::of(&self.dst_a, &self.dst_b)
+	}
 
-						self.jav.apply_to(&mut v.jav)?;
-						self.parameters.apply_to(&mut v.parameters)?;
+	fn apply_inner(&self, inner: &mut MethodMapping) -> Result<()> {
+		self.jav.apply_to(&mut inner.jav)?;
+		self.parameters.apply_to(&mut inner.parameters)
+	}
 
-						entry.insert(v);
-					},
-					Operation::Remove(dst_a) => {
-						bail!("Cannot remove item {dst_a}: no item given")
-					},
-				}
-			},
+	fn apply_change(inner: &mut MethodMapping, dst_a: &String, dst_b: &String) -> Result<()> {
+		if &inner.dst != dst_a {
+			bail!("Cannot change: got {inner:?} but expected {dst_a}, to map to {dst_b}")
 		}
+		inner.dst = dst_b.to_owned();
+		Ok(())
+	}
 
+	fn apply_add(&self, dst: String) -> Result<MethodMapping> {
+		Ok(MethodMapping::new(self.desc.clone(), self.src.clone(), dst))
+	}
+
+	fn apply_remove(inner: MethodMapping, dst_a: &String) -> Result<()> {
+		if &inner.dst != dst_a {
+			bail!("Cannot remove: got {inner:?} but expected {dst_a}");
+		}
 		Ok(())
 	}
 }
@@ -416,48 +413,31 @@ impl SetDoc<JavadocDiff> for ParameterDiff {
 		self.jav = Some(doc);
 	}
 }
-impl<T: Debug> ApplyDiff<Entry<'_, T, ParameterMapping>> for ParameterDiff {
-	fn apply_to(&self, entry: Entry<'_, T, ParameterMapping>) -> Result<()> {
-		match entry {
-			Entry::Occupied(mut entry) => {
-				match Operation::of(&self.dst_a, &self.dst_b) {
-					Operation::None => self.jav.apply_to(&mut entry.get_mut().jav)?,
-					Operation::Change(dst_a, dst_b) => {
-						if &entry.get().dst != dst_a {
-							bail!("Cannot change: got {:?} but expected {dst_a}, to map to {dst_b}", entry.get())
-						}
-						entry.get_mut().dst = dst_b.to_owned();
-						self.jav.apply_to(&mut entry.get_mut().jav)?;
-					},
-					Operation::Add(dst_b) => {
-						bail!("Cannot add item {dst_b}: already existing: {entry:?}")
-					},
-					Operation::Remove(dst_a) => {
-						if &entry.get().dst != dst_a {
-							bail!("Cannot remove: got {:?} but expected {dst_a}", entry.get());
-						}
-						entry.remove();
-					},
-				}
-			},
-			Entry::Vacant(entry) => {
-				match Operation::of(&self.dst_a, &self.dst_b) {
-					Operation::None => {},
-					Operation::Change(dst_a, dst_b) => {
-						bail!("Cannot change item {dst_a} to {dst_b}: no item given")
-					},
-					Operation::Add(dst_b) => {
-						let mut v = ParameterMapping::new(self.index, self.src.clone(), dst_b.clone());
-						self.jav.apply_to(&mut v.jav)?;
-						entry.insert(v);
-					},
-					Operation::Remove(dst_a) => {
-						bail!("Cannot remove item {dst_a}: no item given")
-					},
-				}
-			},
-		}
+impl OperationExecution<ParameterMapping> for ParameterDiff {
+	fn get_operation(&self) -> Operation {
+		Operation::of(&self.dst_a, &self.dst_b)
+	}
 
+	fn apply_inner(&self, inner: &mut ParameterMapping) -> Result<()> {
+		self.jav.apply_to(&mut inner.jav)
+	}
+
+	fn apply_change(inner: &mut ParameterMapping, dst_a: &String, dst_b: &String) -> Result<()> {
+		if &inner.dst != dst_a {
+			bail!("Cannot change: got {inner:?} but expected {dst_a}, to map to {dst_b}")
+		}
+		inner.dst = dst_b.to_owned();
+		Ok(())
+	}
+
+	fn apply_add(&self, dst: String) -> Result<ParameterMapping> {
+		Ok(ParameterMapping::new(self.index, self.src.clone(), dst))
+	}
+
+	fn apply_remove(inner: ParameterMapping, dst_a: &String) -> Result<()> {
+		if &inner.dst != dst_a {
+			bail!("Cannot remove: got {inner:?} but expected {dst_a}");
+		}
 		Ok(())
 	}
 }
@@ -481,42 +461,31 @@ impl ParseEntry for JavadocDiff {
 		})
 	}
 }
-impl ApplyDiff<&mut Option<JavadocMapping>> for JavadocDiff {
-	fn apply_to(&self, target: &mut Option<JavadocMapping>) -> Result<()> {
-		match Operation::of(&self.jav_a, &self.jav_b) {
-			Operation::None => {},
-			Operation::Change(dst_a, dst_b) => {
-				if let Some(target) = target {
-					if &target.jav != dst_a {
-						bail!("Cannot change: got {:?} but expected {dst_a}, to map to {dst_b}", target)
-					}
-					target.jav = dst_b.to_owned()
-				} else {
-					bail!("Cannot change item: no item given")
-				}
-			},
-			Operation::Add(dst_b) => {
-				if let Some(target) = target {
-					bail!("Cannot add item {dst_b}: already existing: {target:?}")
-				} else {
-					*target = Some(JavadocMapping {
-						jav: dst_b.to_owned(),
-					})
-				}
-			},
-			Operation::Remove(dst_a) => {
-				if target.is_some() {
-					// TODO:
-					//if &target.get().dst != dst_a {
-					//	bail!("Cannot remove: got {:?} but expected {dst_a}", entry.get());
-					//}
-					*target = None;
-				} else {
-					bail!("Cannot remove item {dst_a}: no item given")
-				}
-			},
-		}
+impl OperationExecution<JavadocMapping> for JavadocDiff {
+	fn get_operation(&self) -> Operation {
+		Operation::of(&self.jav_a, &self.jav_b)
+	}
 
+	fn apply_inner(&self, inner: &mut JavadocMapping) -> Result<()> {
+		Ok(())
+	}
+
+	fn apply_change(inner: &mut JavadocMapping, dst_a: &String, dst_b: &String) -> Result<()> {
+		if &inner.jav != dst_a {
+			bail!("Cannot change: got {inner:?} but expected {dst_a}, to map to {dst_b}")
+		}
+		inner.jav = dst_b.to_owned();
+		Ok(())
+	}
+
+	fn apply_add(&self, dst: String) -> Result<JavadocMapping> {
+		Ok(JavadocMapping { jav: dst })
+	}
+
+	fn apply_remove(inner: JavadocMapping, dst_a: &String) -> Result<()> {
+		if &inner.jav != dst_a {
+			bail!("Cannot remove: got {inner:?} but expected {dst_a}");
+		}
 		Ok(())
 	}
 }
