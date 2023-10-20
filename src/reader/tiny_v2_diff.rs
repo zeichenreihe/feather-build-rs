@@ -10,7 +10,7 @@ use crate::reader::tiny_v2::{ClassMapping, FieldMapping, JavadocMapping, Mapping
 
 pub fn read(path: impl AsRef<Path> + Debug) -> Result<Diffs> {
 	parse::<Diffs, ClassDiff, FieldDiff, MethodDiff, ParameterDiff, JavadocDiff>(File::open(&path)?)
-		.with_context(|| anyhow!("Failed to read file {path:?}"))
+		.with_context(|| anyhow!("Failed to read diff file {path:?}"))
 }
 
 pub trait ApplyDiff<T> {

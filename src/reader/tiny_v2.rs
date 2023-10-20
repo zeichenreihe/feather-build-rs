@@ -7,7 +7,7 @@ use crate::reader::{AddMember, parse, ParseEntry, SetDoc, try_read, try_read_opt
 
 pub fn read(path: impl AsRef<Path> + Debug) -> Result<Mappings> {
 	parse::<Mappings, ClassMapping, FieldMapping, MethodMapping, ParameterMapping, JavadocMapping>(File::open(&path)?)
-		.with_context(|| anyhow!("Failed to read file {path:?}"))
+		.with_context(|| anyhow!("Failed to read mappings file {path:?}"))
 }
 
 #[derive(Debug, Clone)]
