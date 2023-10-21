@@ -3,6 +3,7 @@ use anyhow::Result;
 use petgraph::dot::Dot;
 use crate::version_graph::VersionGraph;
 
+mod tiny;
 mod reader;
 mod version_graph;
 
