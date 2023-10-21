@@ -1,9 +1,11 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fs::File;
+use std::io::Write;
 use std::path::Path;
 use anyhow::{anyhow, Context, Result};
-use crate::reader::{AddMember, parse, ParseEntry, SetDoc, try_read, try_read_optional};
+use indexmap::IndexMap;
+use crate::reader::{parse, ParseEntry, try_read, try_read_optional};
+use crate::tiny::{AddMember, RemoveDummy, SetDoc};
 
 pub fn read(path: impl AsRef<Path> + Debug) -> Result<Mappings> {
 	parse::<Mappings, ClassMapping, FieldMapping, MethodMapping, ParameterMapping, JavadocMapping>(File::open(&path)?)
@@ -15,7 +17,47 @@ pub struct Mappings {
 	pub src: String,
 	pub dst: String,
 	/// Maps from `src` to the mapping
-	pub classes: HashMap<String, ClassMapping>,
+	pub classes: IndexMap<String, ClassMapping>,
+}
+
+impl Mappings {
+	pub fn write(&self, writer: &mut impl Write) -> Result<()> {
+		writeln!(writer, "tiny\t2\t0\t{}\t{}", self.src, self.dst)?;
+
+		for c in self.classes.values() {
+			writeln!(writer, "c\t{}\t{}", c.src, c.dst)?;
+
+			if let Some(ref c) = c.jav {
+				writeln!(writer, "\tc\t{}", c.jav)?;
+			}
+
+			for f in c.fields.values() {
+				writeln!(writer, "\tf\t{}\t{}\t{}", f.desc, f.src, f.dst)?;
+
+				if let Some(ref c) = f.jav {
+					writeln!(writer, "\t\tc\t{}", c.jav)?;
+				}
+			}
+
+			for m in c.methods.values() {
+				writeln!(writer, "\tm\t{}\t{}\t{}", m.desc, m.src, m.dst)?;
+
+				if let Some(ref c) = m.jav {
+					writeln!(writer, "\t\tc\t{}", c.jav)?;
+				}
+
+				for p in m.parameters.values() {
+					writeln!(writer, "\t\tp\t{}\t{}\t{}", p.index, p.src, p.dst)?;
+
+					if let Some(ref c) = p.jav {
+						writeln!(writer, "\t\t\tc\t{}", c.jav)?;
+					}
+				}
+			}
+		}
+
+		Ok(())
+	}
 }
 
 impl ParseEntry for Mappings {
@@ -27,13 +69,18 @@ impl ParseEntry for Mappings {
 			dst: iter.next()
 				.ok_or_else(|| anyhow!("expected two namespaces"))?
 				.to_owned(),
-			classes: HashMap::new(),
+			classes: IndexMap::new(),
 		})
 	}
 }
 impl AddMember<ClassMapping> for Mappings {
 	fn add_member(&mut self, member: ClassMapping) {
 		self.classes.insert(member.src.clone(), member);
+	}
+}
+impl RemoveDummy for Mappings {
+	fn remove_dummy(&mut self) -> bool {
+		self.classes.remove_dummy()
 	}
 }
 
@@ -44,8 +91,8 @@ pub struct ClassMapping {
 
 	pub jav: Option<JavadocMapping>,
 
-	pub fields: HashMap<(String, String), FieldMapping>,
-	pub methods: HashMap<(String, String), MethodMapping>,
+	pub fields: IndexMap<(String, String), FieldMapping>,
+	pub methods: IndexMap<(String, String), MethodMapping>,
 }
 
 impl ClassMapping {
@@ -53,8 +100,8 @@ impl ClassMapping {
 		ClassMapping {
 			src, dst,
 			jav: None,
-			fields: HashMap::new(),
-			methods: HashMap::new(),
+			fields: IndexMap::new(),
+			methods: IndexMap::new(),
 		}
 	}
 }
@@ -76,6 +123,14 @@ impl AddMember<FieldMapping> for ClassMapping {
 impl AddMember<MethodMapping> for ClassMapping {
 	fn add_member(&mut self, member: MethodMapping) {
 		self.methods.insert((member.desc.clone(), member.src.clone()), member);
+	}
+}
+impl RemoveDummy for ClassMapping {
+	fn remove_dummy(&mut self) -> bool {
+		self.jav.remove_dummy()
+			& self.fields.remove_dummy()
+			& self.methods.remove_dummy()
+			&& ( self.dst.starts_with("C_") || self.dst.starts_with("net/minecraft/unmapped/C_") )
 	}
 }
 
@@ -107,6 +162,12 @@ impl SetDoc<JavadocMapping> for FieldMapping {
 		self.jav = Some(doc);
 	}
 }
+impl RemoveDummy for FieldMapping {
+	fn remove_dummy(&mut self) -> bool {
+		self.jav.remove_dummy()
+			&& self.dst.starts_with("f_")
+	}
+}
 
 #[derive(Debug, Clone)]
 pub struct MethodMapping {
@@ -117,7 +178,7 @@ pub struct MethodMapping {
 
 	pub jav: Option<JavadocMapping>,
 
-	pub parameters: HashMap<usize, ParameterMapping>,
+	pub parameters: IndexMap<usize, ParameterMapping>,
 }
 
 impl MethodMapping {
@@ -125,7 +186,7 @@ impl MethodMapping {
 		MethodMapping {
 			desc, src, dst,
 			jav: None,
-			parameters: HashMap::new(),
+			parameters: IndexMap::new(),
 		}
 	}
 }
@@ -142,6 +203,13 @@ impl SetDoc<JavadocMapping> for MethodMapping {
 impl AddMember<ParameterMapping> for MethodMapping {
 	fn add_member(&mut self, member: ParameterMapping) {
 		self.parameters.insert(member.index, member);
+	}
+}
+impl RemoveDummy for MethodMapping {
+	fn remove_dummy(&mut self) -> bool {
+		self.jav.remove_dummy()
+			& self.parameters.remove_dummy()
+			&& ( self.dst.starts_with("m_") || self.dst == "<init>" || self.dst == "<clinit>" )
 	}
 }
 
@@ -178,6 +246,12 @@ impl SetDoc<JavadocMapping> for ParameterMapping {
 		self.jav = Some(doc);
 	}
 }
+impl RemoveDummy for ParameterMapping {
+	fn remove_dummy(&mut self) -> bool {
+		self.jav.remove_dummy()
+			&& self.dst.starts_with("p_")
+	}
+}
 
 #[derive(Debug, Clone)]
 pub struct JavadocMapping {
@@ -189,5 +263,11 @@ impl ParseEntry for JavadocMapping {
 		Ok(JavadocMapping {
 			jav: try_read(iter)?,
 		})
+	}
+}
+impl RemoveDummy for JavadocMapping {
+	fn remove_dummy(&mut self) -> bool {
+		assert!(!self.jav.is_empty(), "{}", self.jav);
+		false
 	}
 }

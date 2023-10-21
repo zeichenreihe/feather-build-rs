@@ -1,12 +1,13 @@
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fs::File;
 use std::hash::Hash;
 use std::path::Path;
 use anyhow::{anyhow, bail, Context, Result};
-use crate::reader::{AddMember, parse, ParseEntry, SetDoc, try_read, try_read_optional};
-use crate::reader::tiny_v2::{ClassMapping, FieldMapping, JavadocMapping, Mappings, MethodMapping, ParameterMapping};
+use indexmap::IndexMap;
+use indexmap::map::Entry;
+use crate::reader::{parse, ParseEntry, try_read, try_read_optional};
+use crate::tiny::{AddMember, SetDoc};
+use crate::tiny::v2::{ClassMapping, FieldMapping, JavadocMapping, Mappings, MethodMapping, ParameterMapping};
 
 pub fn read(path: impl AsRef<Path> + Debug) -> Result<Diffs> {
 	parse::<Diffs, ClassDiff, FieldDiff, MethodDiff, ParameterDiff, JavadocDiff>(File::open(&path)?)
@@ -28,8 +29,11 @@ where
 	fn apply_remove(inner: T, dst_a: &String) -> Result<()>;
 }
 
-trait GetKey<V> {
-	fn get_key(&self) -> V;
+trait GetKey<K, V>
+where
+	K: Sized,
+{
+	fn get_key(&self) -> K;
 }
 
 impl<'a, T, U> ApplyDiff<&'a mut Option<U>> for Option<T>
@@ -80,15 +84,15 @@ where
 	}
 }
 
-impl<T, U, V> ApplyDiff<&mut HashMap<V, U>> for Vec<T>
+impl<T, K, V> ApplyDiff<&mut IndexMap<K, V>> for Vec<T>
 where
-	T: GetKey<V> + OperationExecution<U>,
-	U: Debug + Clone,
-	V: Debug + Eq + Hash,
+	T: OperationExecution<V> + GetKey<K, V>,
+	K: Debug + Hash + Eq,
+	V: Debug,
 {
-	fn apply_to(&self, target: &mut HashMap<V, U>) -> Result<()> {
+	fn apply_to(&self, map: &mut IndexMap<K, V>) -> Result<()> {
 		for diff in self {
-			let entry = target.entry(diff.get_key());
+			let entry = map.entry(diff.get_key());
 
 			match diff.get_operation() {
 				Operation::None => {
@@ -247,7 +251,7 @@ impl OperationExecution<ClassMapping> for ClassDiff {
 		Ok(())
 	}
 }
-impl GetKey<String> for ClassDiff {
+impl GetKey<String, ClassMapping> for ClassDiff {
 	fn get_key(&self) -> String {
 		self.src.clone()
 	}
@@ -308,7 +312,7 @@ impl OperationExecution<FieldMapping> for FieldDiff {
 		Ok(())
 	}
 }
-impl GetKey<(String, String)> for FieldDiff {
+impl GetKey<(String, String), FieldMapping> for FieldDiff {
 	fn get_key(&self) -> (String, String) {
 		(self.desc.clone(), self.src.clone())
 	}
@@ -378,7 +382,7 @@ impl OperationExecution<MethodMapping> for MethodDiff {
 		Ok(())
 	}
 }
-impl GetKey<(String, String)> for MethodDiff {
+impl GetKey<(String, String), MethodMapping> for MethodDiff {
 	fn get_key(&self) -> (String, String) {
 		(self.desc.clone(), self.src.clone())
 	}
@@ -441,7 +445,7 @@ impl OperationExecution<ParameterMapping> for ParameterDiff {
 		Ok(())
 	}
 }
-impl GetKey<usize> for ParameterDiff {
+impl GetKey<usize, ParameterMapping> for ParameterDiff {
 	fn get_key(&self) -> usize {
 		self.index
 	}

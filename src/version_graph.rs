@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use petgraph::{Direction, Graph};
 use petgraph::graph::NodeIndex;
-use crate::reader::tiny_v2::Mappings;
-use crate::reader::tiny_v2_diff::{ApplyDiff, Diffs};
+use crate::tiny::v2::Mappings;
+use crate::tiny::v2_diff::{ApplyDiff, Diffs};
 
 
 #[derive(Debug, Clone)]
@@ -61,7 +61,7 @@ impl VersionGraph {
 					let v = Self::add_node(&mut versions, &mut graph, version);
 					let p = Self::add_node(&mut versions, &mut graph, parent);
 
-					let diff = crate::reader::tiny_v2_diff::read(&path)
+					let diff = crate::tiny::v2_diff::read(&path)
 						.with_context(|| anyhow!("Failed to parse version diff from {path:?}"))?;
 
 					graph.add_edge(p, v, diff);
@@ -72,7 +72,7 @@ impl VersionGraph {
 
 					let v = Self::add_node(&mut versions, &mut graph, version);
 
-					let root_mapping = crate::reader::tiny_v2::read(&path)
+					let root_mapping = crate::tiny::v2::read(&path)
 						.with_context(|| anyhow!("Failed to parse version mapping from {path:?}"))?;
 
 					graph[v].mapping = Some(root_mapping);

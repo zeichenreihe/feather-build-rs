@@ -1,11 +1,9 @@
 use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, Read};
 use std::marker::PhantomData;
+use crate::tiny::{AddMember, SetDoc};
 
-pub mod tiny_v2;
-pub mod tiny_v2_diff;
-
-fn try_read<'a>(iter: &mut impl Iterator<Item=&'a str>) -> Result<String> {
+pub fn try_read<'a>(iter: &mut impl Iterator<Item=&'a str>) -> Result<String> {
     if let Some(x) = iter.next() {
         if x.is_empty() {
             bail!("Entry may not be empty")
@@ -16,7 +14,7 @@ fn try_read<'a>(iter: &mut impl Iterator<Item=&'a str>) -> Result<String> {
         bail!("No item given")
     }
 }
-fn try_read_optional<'a>(iter: &mut impl Iterator<Item=&'a str>) -> Result<Option<String>> {
+pub fn try_read_optional<'a>(iter: &mut impl Iterator<Item=&'a str>) -> Result<Option<String>> {
     if let Some(x) = iter.next() {
         if x.is_empty() {
             Ok(None)
@@ -30,13 +28,6 @@ fn try_read_optional<'a>(iter: &mut impl Iterator<Item=&'a str>) -> Result<Optio
 
 pub trait ParseEntry: Sized {
     fn from_iter<'a>(iter: &mut impl Iterator<Item=&'a str>) -> Result<Self>;
-}
-pub trait SetDoc<J> {
-    fn set_doc(&mut self, doc: J);
-}
-
-pub trait AddMember<M> {
-    fn add_member(&mut self, member: M);
 }
 
 #[derive(Debug)]
