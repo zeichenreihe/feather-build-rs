@@ -140,9 +140,16 @@ impl VersionGraph {
 		Ok(())
 	}
 
-	pub fn get(&self, s: &str) -> Result<NodeIndex> {
-		self.versions.get(s).cloned()
-			.with_context(|| anyhow!("Failed to get version `{s}`"))
+	pub fn versions(&self) -> impl Iterator<Item=NodeIndex> + '_ {
+		self.graph.node_indices()
+	}
+
+	pub fn get(&self, s: NodeIndex) -> Result<&Version> {
+		Ok(&self.graph[s])
+	}
+
+	pub fn get_node(&self, string: &str) -> Option<NodeIndex> {
+		self.versions.get(string).cloned()
 	}
 
 	pub fn get_diffs_from_root(&self, to: NodeIndex) -> Result<Vec<(NodeIndex, NodeIndex, &Diffs)>> {
