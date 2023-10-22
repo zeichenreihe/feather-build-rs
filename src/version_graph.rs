@@ -1,5 +1,6 @@
 use anyhow::{anyhow, bail, Context, Result};
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 use std::path::{Path, PathBuf};
 use petgraph::{Direction, Graph};
 use petgraph::graph::NodeIndex;
@@ -21,10 +22,15 @@ impl Format {
 	}
 }
 
-#[derive(Debug)]
 pub struct Version {
-	name: String,
+	pub name: String,
 	mapping: Option<Mappings>,
+}
+
+impl Debug for Version {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		f.write_str(&self.name)
+	}
 }
 
 #[derive(Debug)]
@@ -139,7 +145,7 @@ impl VersionGraph {
 			.with_context(|| anyhow!("Failed to get version `{s}`"))
 	}
 
-	pub fn get_diffs_from_root(&self, to: NodeIndex) -> Result<Vec<&Diffs>> {
+	pub fn get_diffs_from_root(&self, to: NodeIndex) -> Result<Vec<(NodeIndex, NodeIndex, &Diffs)>> {
 		let mut diffs = Vec::new();
 
 		petgraph::algo::astar(
@@ -155,7 +161,7 @@ impl VersionGraph {
 			.try_fold(None, |acc, item| {
 				if let Some(last) = acc {
 					if let Some(edge) = self.graph.find_edge(last, item.clone()) {
-						diffs.push(&self.graph[edge]);
+						diffs.push((last, item, &self.graph[edge]));
 					} else {
 						bail!("there is no edge between {last:?} and {item:?}");
 					}
@@ -173,8 +179,11 @@ impl VersionGraph {
 			.clone()
 			.context("No mapping for root node")?;
 
-		for diff in diffs {
-			diff.apply_to(&mut m)?;
+		for (diff_from, diff_to, diff) in diffs {
+			diff.apply_to(&mut m)
+				.with_context(|| anyhow!("Failed to apply diff (from version {} to version {}) to mappings, for version {}",
+					self.graph[diff_from].name, self.graph[diff_to].name, self.graph[to].name
+				))?;
 		}
 
 		Ok(m)

@@ -55,12 +55,12 @@ where
 							T::apply_change(y, dst_a, dst_b)?;
 							x.apply_inner(y)?;
 						} else {
-							bail!("Cannot change item {dst_a} to {dst_b}: no item given")
+							bail!("Cannot change item {dst_a:?} to {dst_b:?}: no item given")
 						}
 					},
 					Operation::Add(dst_b) => {
 						if let Some(y) = inner {
-							bail!("Cannot add item {dst_b}: already existing: {y:?}")
+							bail!("Cannot add item {dst_b:?}: already existing: {y:?}")
 						} else {
 							let mut v = x.apply_add(dst_b.clone())?;
 
@@ -73,7 +73,7 @@ where
 						if let Some(y) = inner.take() {
 							T::apply_remove(y, dst_a)?;
 						} else {
-							bail!("Cannot remove item {dst_a}: no item given")
+							bail!("Cannot remove item {dst_a:?}: no item given")
 						}
 					},
 				}
@@ -105,7 +105,7 @@ where
 						T::apply_change(entry.get_mut(), dst_a, dst_b)?;
 						diff.apply_inner(entry.get_mut())?;
 					} else {
-						bail!("Cannot change item {dst_a} to {dst_b}: no item given")
+						bail!("Cannot change item {dst_a:?} to {dst_b:?}: no item given")
 					}
 				},
 				Operation::Add(dst_b) => {
@@ -124,7 +124,7 @@ where
 					if let Entry::Occupied(entry) = entry {
 						T::apply_remove(entry.remove(), dst_a)?;
 					} else {
-						bail!("Cannot remove item {dst_a}: no item given")
+						bail!("Cannot remove item {dst_a:?}: no item given")
 					}
 				},
 			}
@@ -177,7 +177,7 @@ impl AddMember<ClassDiff> for Diffs {
 impl ApplyDiff<&mut Mappings> for Diffs {
 	fn apply_to(&self, target: &mut Mappings) -> Result<()> {
 		self.classes.apply_to(&mut target.classes)
-			.with_context(|| anyhow!("Failed on applying diff to mapping `{}` `{}`", target.src, target.dst))?;
+			.with_context(|| anyhow!("Failed to apply diff on mapping {:?} {:?}", target.src, target.dst))?;
 		Ok(())
 	}
 }
@@ -227,14 +227,17 @@ impl OperationExecution<ClassMapping> for ClassDiff {
 	}
 
 	fn apply_inner(&self, inner: &mut ClassMapping) -> Result<()> {
-		self.jav.apply_to(&mut inner.jav)?;
-		self.fields.apply_to(&mut inner.fields)?;
+		self.jav.apply_to(&mut inner.jav)
+			.with_context(|| anyhow!("Failed to apply diff on javadoc of class {:?} {:?}", inner.src, inner.dst))?;
+		self.fields.apply_to(&mut inner.fields)
+			.with_context(|| anyhow!("Failed to apply diff on field of class {:?} {:?}", inner.src, inner.dst))?;
 		self.methods.apply_to(&mut inner.methods)
+			.with_context(|| anyhow!("Failed to apply diff on method of class {:?} {:?}", inner.src, inner.dst))
 	}
 
 	fn apply_change(inner: &mut ClassMapping, dst_a: &String, dst_b: &String) -> Result<()> {
 		if &inner.dst != dst_a {
-			bail!("Cannot change: got {inner:?} but expected {dst_a}, to map to {dst_b}")
+			bail!("Cannot change: got {:?} but expected {dst_a:?}, to map to {dst_b:?}", inner.dst)
 		}
 		inner.dst = dst_b.to_owned();
 		Ok(())
@@ -246,7 +249,7 @@ impl OperationExecution<ClassMapping> for ClassDiff {
 
 	fn apply_remove(inner: ClassMapping, dst_a: &String) -> Result<()> {
 		if &inner.dst != dst_a {
-			bail!("Cannot remove: got {inner:?} but expected {dst_a}");
+			bail!("Cannot remove: got {:?} but expected {dst_a:?}", inner.dst);
 		}
 		Ok(())
 	}
@@ -291,11 +294,12 @@ impl OperationExecution<FieldMapping> for FieldDiff {
 
 	fn apply_inner(&self, inner: &mut FieldMapping) -> Result<()> {
 		self.jav.apply_to(&mut inner.jav)
+			.with_context(|| anyhow!("Failed to apply diff on javadoc of field {:?} {:?}", inner.src, inner.dst))
 	}
 
 	fn apply_change(inner: &mut FieldMapping, dst_a: &String, dst_b: &String) -> Result<()> {
 		if &inner.dst != dst_a {
-			bail!("Cannot change: got {inner:?} but expected {dst_a}, to map to {dst_b}")
+			bail!("Cannot change: got {:?} but expected {dst_a:?}, to map to {dst_b:?}", inner.dst)
 		}
 		inner.dst = dst_b.to_owned();
 		Ok(())
@@ -307,7 +311,7 @@ impl OperationExecution<FieldMapping> for FieldDiff {
 
 	fn apply_remove(inner: FieldMapping, dst_a: &String) -> Result<()> {
 		if &inner.dst != dst_a {
-			bail!("Cannot remove: got {inner:?} but expected {dst_a}");
+			bail!("Cannot remove: got {:?} but expected {dst_a:?}", inner.dst);
 		}
 		Ok(())
 	}
@@ -359,13 +363,15 @@ impl OperationExecution<MethodMapping> for MethodDiff {
 	}
 
 	fn apply_inner(&self, inner: &mut MethodMapping) -> Result<()> {
-		self.jav.apply_to(&mut inner.jav)?;
+		self.jav.apply_to(&mut inner.jav)
+			.with_context(|| anyhow!("Failed to apply diff on javadoc of method {:?} {:?}", inner.src, inner.dst))?;
 		self.parameters.apply_to(&mut inner.parameters)
+			.with_context(|| anyhow!("Failed to apply diff on parameters of method {:?} {:?}", inner.src, inner.dst))
 	}
 
 	fn apply_change(inner: &mut MethodMapping, dst_a: &String, dst_b: &String) -> Result<()> {
 		if &inner.dst != dst_a {
-			bail!("Cannot change: got {inner:?} but expected {dst_a}, to map to {dst_b}")
+			bail!("Cannot change: got {:?} but expected {dst_a:?}, to map to {dst_b:?}", inner.dst)
 		}
 		inner.dst = dst_b.to_owned();
 		Ok(())
@@ -377,7 +383,7 @@ impl OperationExecution<MethodMapping> for MethodDiff {
 
 	fn apply_remove(inner: MethodMapping, dst_a: &String) -> Result<()> {
 		if &inner.dst != dst_a {
-			bail!("Cannot remove: got {inner:?} but expected {dst_a}");
+			bail!("Cannot remove: got {:?} but expected {dst_a:?}", inner.dst);
 		}
 		Ok(())
 	}
@@ -424,11 +430,12 @@ impl OperationExecution<ParameterMapping> for ParameterDiff {
 
 	fn apply_inner(&self, inner: &mut ParameterMapping) -> Result<()> {
 		self.jav.apply_to(&mut inner.jav)
+			.with_context(|| anyhow!("Failed to apply diff on javadoc of parameter {:?} {:?} {:?}", inner.index, inner.src, inner.dst))
 	}
 
 	fn apply_change(inner: &mut ParameterMapping, dst_a: &String, dst_b: &String) -> Result<()> {
 		if &inner.dst != dst_a {
-			bail!("Cannot change: got {inner:?} but expected {dst_a}, to map to {dst_b}")
+			bail!("Cannot change: got {:?} but expected {dst_a:?}, to map to {dst_b:?}", inner.dst)
 		}
 		inner.dst = dst_b.to_owned();
 		Ok(())
@@ -440,7 +447,7 @@ impl OperationExecution<ParameterMapping> for ParameterDiff {
 
 	fn apply_remove(inner: ParameterMapping, dst_a: &String) -> Result<()> {
 		if &inner.dst != dst_a {
-			bail!("Cannot remove: got {inner:?} but expected {dst_a}");
+			bail!("Cannot remove: got {:?} but expected {dst_a:?}", inner.dst);
 		}
 		Ok(())
 	}
@@ -476,7 +483,7 @@ impl OperationExecution<JavadocMapping> for JavadocDiff {
 
 	fn apply_change(inner: &mut JavadocMapping, dst_a: &String, dst_b: &String) -> Result<()> {
 		if &inner.jav != dst_a {
-			bail!("Cannot change: got {inner:?} but expected {dst_a}, to map to {dst_b}")
+			bail!("Cannot change: got {:?} but expected {dst_a:?}, to map to {dst_b:?}", inner.jav)
 		}
 		inner.jav = dst_b.to_owned();
 		Ok(())
@@ -488,7 +495,7 @@ impl OperationExecution<JavadocMapping> for JavadocDiff {
 
 	fn apply_remove(inner: JavadocMapping, dst_a: &String) -> Result<()> {
 		if &inner.jav != dst_a {
-			bail!("Cannot remove: got {inner:?} but expected {dst_a}");
+			bail!("Cannot remove: got {:?} but expected {dst_a:?}", inner.jav);
 		}
 		Ok(())
 	}
