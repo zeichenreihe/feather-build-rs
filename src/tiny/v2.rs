@@ -1,15 +1,19 @@
 use std::fmt::Debug;
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::Path;
 use anyhow::{anyhow, Context, Result};
 use indexmap::IndexMap;
 use crate::reader::{parse, ParseEntry, try_read, try_read_optional};
 use crate::tiny::{AddMember, RemoveDummy, SetDoc};
 
-pub fn read(path: impl AsRef<Path> + Debug) -> Result<Mappings> {
-	parse::<Mappings, ClassMapping, FieldMapping, MethodMapping, ParameterMapping, JavadocMapping>(File::open(&path)?)
+pub fn read_file(path: impl AsRef<Path> + Debug) -> Result<Mappings> {
+	read(File::open(&path)?)
 		.with_context(|| anyhow!("Failed to read mappings file {path:?}"))
+}
+
+pub(crate) fn read(reader: impl Read) -> Result<Mappings> {
+	parse::<Mappings, ClassMapping, FieldMapping, MethodMapping, ParameterMapping, JavadocMapping>(reader)
 }
 
 #[derive(Debug, Clone)]
