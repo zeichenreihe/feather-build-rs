@@ -1,18 +1,29 @@
 use std::fs::File;
+use std::io::{BufReader, Cursor, Read};
 use std::path::Path;
-use anyhow::Result;
+use anyhow::{anyhow, bail, Context, Result};
+use bytes::Buf;
 use petgraph::dot::Dot;
 use petgraph::graph::NodeIndex;
+use zip::read::ZipFile;
+use zip::ZipArchive;
+use crate::download::version_details::VersionDetails;
+use crate::download::version_manifest::VersionManifest;
+use crate::download::versions_manifest::VersionsManifest;
 use crate::tiny::RemoveDummy;
 use crate::tiny::v2::Mappings;
-use crate::version_graph::VersionGraph;
+use crate::version_graph::{Version, VersionGraph};
 
 mod tiny;
 mod reader;
 mod version_graph;
 mod writer;
+mod download;
 
 #[derive(Debug)]
+struct Jar;
+
+#[derive(Debug, PartialEq)]
 enum Environment {
     Merged,
     Client,
@@ -30,11 +41,11 @@ impl Environment {
         matches!(self, Environment::Merged) || matches!(self, Environment::Server)
     }
 
-    fn parse(id: &str) -> Environment {
-        if id.ends_with("-client") {
+    fn parse(id: &Version) -> Environment {
+        if id.0.ends_with("-client") {
             return Environment::Client;
         }
-        if id.ends_with("-server") {
+        if id.0.ends_with("-server") {
             return Environment::Server;
         }
         Environment::Merged
@@ -50,121 +61,229 @@ impl Environment {
 }
 
 struct Downloader {
-
+    versions_manifest: Option<VersionsManifest>,
 }
 
 impl Downloader {
-    fn versions_manifest() {
-        // create a file
-        //  TMP/version_manifest_v2.json
-        // download from
-        //  https://skyrising.github.io/mc-versions/version_manifest.json
-        // that is the file that is returned
-        // do not cache that file
-        todo!()
+    fn new() -> Downloader {
+        Downloader {
+            versions_manifest: None,
+        }
     }
-    fn wanted_version_manifest() {
-        // get the manifest version from
-        Self::versions_manifest();
-        // this also needs the mc version we want
-        // Note for doing this we look at the mc version in the
-        // manifest json we want, and look at the first entry for
-        // getting the date
-        let manifest_version = 0;
+    async fn versions_manifest(&mut self) -> Result<&VersionsManifest> {
+        if let Some(ref version_manifest) = self.versions_manifest {
+            Ok(version_manifest)
+        } else {
+            let url = "https://skyrising.github.io/mc-versions/version_manifest.json";
 
-        // we cache based on the releaseTime???
+            let body = download::get(&url).await?;
 
-        // give back
+            let versions_manifest: VersionsManifest = serde_json::from_str(&body)?;
 
-        // TODO: write docs
+            Ok(self.versions_manifest.insert(versions_manifest))
+        }
+    }
+
+    async fn wanted_version_manifest(&mut self, version: &Version) -> Result<VersionManifest> {
+        let manifest = self.versions_manifest().await?;
+
+        let manifest_version = manifest
+            .versions
+            .iter()
+            .find(|it| &it.id == version);
+
+        if let Some(manifest_version) = manifest_version {
+            let url = &manifest_version.url;
+
+            let body = download::get(&url).await?;
+
+            let version_manifest: VersionManifest = serde_json::from_str(&body)
+                .with_context(|| anyhow!("Failed to parse version manifest for version {:?} from {:?}", version, url))?;
+
+            Ok(version_manifest)
+        } else {
+            bail!("No version data for Minecraft version {:?}", version);
+        }
+    }
+    async fn version_details(&mut self, version: &Version, environment: &Environment) -> Result<VersionDetails> {
+        let manifest = self.versions_manifest().await?;
+
+        let manifest_version = manifest
+            .versions
+            .iter()
+            .find(|it| &it.id == version);
+
+        if let Some(manifest_version) = manifest_version {
+            let url = &manifest_version.details;
+
+            let body = download::get(&url).await?;
+
+            let version_details: VersionDetails = serde_json::from_str(&body)
+                .with_context(|| anyhow!("Failed to parse version details for version {:?} from {:?}", version, url))?;
+
+            if version_details.shared_mappings {
+                if &Environment::Merged != environment {
+                    bail!("Minecraft version {:?} is only available as merged but was requested for {:?}", version, environment);
+                }
+            } else {
+                match environment {
+                    Environment::Merged => {
+                        bail!("Minecraft version {:?} cannot be merged - please select either the client or server environment!", version);
+                    },
+                    Environment::Client if !version_details.client => {
+                        bail!("Minecraft version {:?} does not have a client jar!", version);
+                    },
+                    Environment::Server if !version_details.server => {
+                        bail!("Minecraft version {:?} does not have a server jar", version);
+                    },
+                    _ => {},
+                }
+            }
+
+            Ok(version_details)
+        } else {
+            bail!("No version details for Minecraft version {:?}", version);
+        }
+    }
+
+    #[deprecated]
+    async fn calamus(&mut self, version: &Version) -> Result<String> {
+        let url = format!("https://github.com/OrnitheMC/calamus/raw/main/mappings/{}.tiny", version.0);
+
+        let body = download::get(&url).await?;
+
+        Ok(body)
+    }
+    async fn calamus_v2(&mut self, version: &Version) -> Result<Mappings> {
+        let url = format!("https://maven.ornithemc.net/releases/net/ornithemc/calamus-intermediary/{}/calamus-intermediary-{}-v2.jar", version.0, version.0);
+
+        let response = reqwest::get(&url)
+            .await?;
+
+        if !response.status().is_success() {
+            bail!("Got a \"{}\" for {:?}", response.status(), &url);
+        }
+
+        let body: &[u8] = &response.bytes().await?;
+
+        let reader = Cursor::new(body);
+
+        let mut zip = ZipArchive::new(reader)?;
+
+        let mappings = zip.by_name("mappings/mappings.tiny")
+            .with_context(|| anyhow!("Cannot find mappings in zip file from {:?}", url))?;
+
+        tiny::v2::read(mappings)
+            .with_context(|| anyhow!("Failed to read mappings from mappings/mappings.tiny of {:?}", url))
+    }
+    async fn mc_libs(&mut self, version: &Version) -> Result<Vec<Jar>> {
+        let version_file = self.wanted_version_manifest(version).await?;
+
+        let mut libs = Vec::new();
+
+        for lib in version_file.libraries {
+            if let Some(artifact) = lib.downloads.artifact {
+                let url = &artifact.url;
+
+                let jar = self.get_jar(&url).await?;
+
+                libs.push(jar);
+            }
+        }
+
+        Ok(libs)
+    }
+
+    async fn get_jar(&mut self, url: &str) -> Result<Jar> {
+        // TODO: download + cache jar
 
 
-        todo!()
-    }
-    fn version_details() {
-        Self::versions_manifest();
-        todo!()
-    }
-    fn mc_jars() {
-        Self::version_details();
-        todo!()
-    }
-    fn calamus() {
-        // download from (replacing version_id and namespace)
-        let url = "https://github.com/OrnitheMC/calamus/raw/main/mappings/${version_id}.tiny";
-        // but escape it before doing that
-        // then return the contents
-        todo!()
-    }
-    fn calamus_v2() {
-        // download from (replacing version_id and namespace)
-        let url = "https://maven.ornithemc.net/releases/net/ornithemc/calamus-${namespace}/${version_id}/calamus-${namespace}-${version_id}-v2.jar";
-        // but escape it before doing that
-        // then go in the jar to
-        //  mappings/mappings.tiny
-        // and extract that out and return it
-        todo!()
-    }
-    fn mc_libs() {
-        // pare the
-        Self::wanted_version_manifest();
-        // as a json. then take the "libraries" tag and iterate
-        // on all elements
-        // and try to get ".downloads" from it
-        // if that exists, and the artifact ".download.artifact" != null
-        // then download from url ".download.artifact.url", to a file given by the
+        // from libs:
+        // to a file given by the
         // part after the last slash into a libraries folder (ensuring that we don't overwrite a file)
-        todo!()
+
+        Ok(Jar)
     }
 }
 
 struct Build {
+    version: Version,
     mappings: Mappings,
 }
 
 impl Build {
-    fn create(version_graph: &VersionGraph, version: NodeIndex) -> Result<Build> {
-        let mut mappings = version_graph.apply_diffs(version)?;
+    fn create(version_graph: &VersionGraph, node: NodeIndex) -> Result<Build> {
+        let mut mappings = version_graph.apply_diffs(node)?;
 
         mappings.remove_dummy();
 
+        let version = version_graph.get(node)?.clone();
+
         Ok(Build {
+            version,
             mappings,
         })
     }
 
-    fn separate_mappings_for_build(&self) {
-        // just return self.mappings
-    }
-
-    fn build_feather_tiny(&self) {
-        let calamus_jar = map_calamus_jar();
-        let separate_mappings_for_build = self.separate_mappings_for_build();
+    async fn build_feather_tiny(&self) -> Result<Mappings> {
+        let calamus_jar = self.map_calamus_jar().await?;
+        let separate_mappings_for_build = &self.mappings;
 
         // run MapSpecializedMethodsCommand with the arguments
         //  calamus_jar, "tinyv2", separate_mappings_for_build, output
         // and then return `output`
 
-        todo!()
+        // TODO: impl
+
+        /*
+		new MapSpecializedMethodsCommand().run(
+				calamusJar.getAbsolutePath(),
+				"tinyv2",
+				separateMappingsForBuild.v2Output.getAbsolutePath(), // impl via field read
+				"tinyv2:intermediary:named",
+				v2Output.getAbsolutePath()
+		)
+
+         */
+
+        Ok(self.mappings.clone()) // TODO: impl
     }
 
-    fn v2_unmerged_feather_jar(&self) {
+    async fn v2_unmerged_feather_jar(&self) -> Result<()> {
         // create a jar file called
         //  feather-FEATHERVERSION-v2.jar
         // with the file (in it)
         //  mappings/mappings.tiny
         // written from the output of the
-        self.build_feather_tiny();
+        let mappings = self.build_feather_tiny().await?;
         // function
         // put that jar file into
         //  builds/libs
+        // TODO: impl
+
+        /*
+
+task v2UnmergedFeatherJar(dependsOn: buildFeatherTiny, type: Jar) {
+	def mappings = buildFeatherTiny.v2Output
+	group = "mapping build"
+	outputs.upToDateWhen { false }
+	archiveFileName = "feather-${featherVersion}-v2.jar"
+
+	from(file(mappings)) {
+		rename mappings.name, "mappings/mappings.tiny"
+	}
+	destinationDirectory.set(file("build/libs"))
+}
+         */
+
+        Ok(())
     }
 
-    fn merge_v2(&self) {
+    async fn merge_v2(&self) -> Result<()> {
         // take the output of
-        self.build_feather_tiny();
+        self.build_feather_tiny().await?;
         // and merge it with the output of
-        invert_calamus_v2();
+        self.invert_calamus_v2().await?;
         // into the file
         //   TEMP/merged-v2.tiny
         // using CommandMergeTiny, with the commands:
@@ -175,12 +294,48 @@ impl Build {
         // output of this method. the arguments to it are:
         //  "official", namespace, "named"
 
-        todo!("see mergeV2")
+        // TODO: impl
+
+        /*
+
+task mergeV2(dependsOn: ["v2UnmergedFeatherJar", "invertCalamusV2"], type: FileOutput) {
+	def mergedV2 = new File(tempDir, "merged-v2.tiny")
+
+	output = new File(tempDir, "merged-reordered-v2.tiny")
+	outputs.upToDateWhen { false }
+
+	doLast {
+		logger.lifecycle(":merging feather and calamus v2")
+		String[] args = [
+				invertCalamusV2.output.getAbsolutePath(),
+				// we can use this, since v2UnmergedFeatherJar depends on buildFeatherTiny
+				buildFeatherTiny.v2Output.getAbsolutePath(),
+				mergedV2.getAbsolutePath(),
+				namespace,
+				"official"
+		]
+
+		new CommandMergeTinyV2().run(args)
+
+		//Reorder the mappings to match the output of loom
+		args = [
+				mergedV2.getAbsolutePath(),
+				output.getAbsolutePath(),
+				"official",
+				namespace,
+				"named"
+		]
+		new CommandReorderTinyV2().run(args)
+	}
+}
+         */
+
+        Ok(())
     }
 
-    fn v2_merged_feather_jar(&self) {
+    async fn v2_merged_feather_jar(&self) -> Result<()> {
         // take the output of
-        self.merge_v2();
+        self.merge_v2().await?;
         // and store it in the jar file
         //  feather-FEATHERVERSION-mergedv2.jar
         // // TODO: ask space if that missing - is wanted: merged-v2
@@ -189,52 +344,171 @@ impl Build {
         // and put the jar file to
         //  build/libs
 
-        todo!("see v2MergedFeatherJar");
+        // TODO: impl
+        /*
+
+task v2MergedFeatherJar(dependsOn: ["mergeV2"], type: Jar) {
+	def mappings = mergeV2.output
+	group = "mapping build"
+	outputs.upToDateWhen { false }
+	archiveFileName = "feather-${featherVersion}-mergedv2.jar"
+
+	from(file(mappings)) {
+		rename mappings.name, "mappings/mappings.tiny"
+	}
+	destinationDirectory.set(file("build/libs"))
+}
+         */
+
+        Ok(())
     }
 
-    fn build(&self) {
+    async fn build(&self) -> Result<()> {
         // take the outputs of these two
-        self.v2_merged_feather_jar();
-        self.v2_unmerged_feather_jar();
+        self.v2_merged_feather_jar().await?;
+        self.v2_unmerged_feather_jar().await?;
+
+        Ok(())
+    }
+
+    async fn main_jar(&self) -> Result<Jar> {
+        let mut downloader = Downloader::new();
+
+        let environment = Environment::parse(&self.version);
+
+        let version_details = downloader.version_details(&self.version, &environment).await?;
+
+        match environment {
+            Environment::Merged => {
+                let url = &version_details.downloads.client.url;
+
+                let client = downloader.get_jar(&url).await?;
+
+                let url = &version_details.downloads.server.url;
+
+                let server = downloader.get_jar(&url).await?;
+
+                // TODO: merge the jars
+                // call the JarMerger
+                // with the following args
+                //  clientJar, serverJar, mergedJar
+                // and return mergedJar
+                // note that clientJar and serverJar are set in downloadMcJars
+
+                let jar = Jar; // merge here
+
+                Ok(jar)
+            },
+            Environment::Client => {
+                let url = &version_details.downloads.client.url;
+
+                downloader.get_jar(&url).await
+            },
+            Environment::Server => {
+                let url = &version_details.downloads.server.url;
+
+                downloader.get_jar(&url).await
+            },
+        }
+    }
+
+    async fn map_calamus_jar(&self) -> Result<Jar> {
+        let mut downloader = Downloader::new();
+
+        let main_jar = self.main_jar().await?;
+
+        // and map it with the mappings from
+        let mappings = downloader.calamus_v2(&self.version).await?;
+        // and the libs from
+        let libraries = downloader.mc_libs(&self.version).await?;
+        // and the arguments
+        //  "official", "intermediary"
+        // where you call mapJar
+        // which just call tiny remapper in some way
+
+        /*
+        // TODO: impl
+        mapJar(calamusJar, mainJar, downloadCalamus.dest, libraries, "official", "intermediary")
+         */
+
+        let map_jar = || {
+
+            /*
+	static void mapJar(File output, File input, File mappings, File DIR libraries, String from, String to) {
+
+		def remapper = TinyRemapper.newRemapper()
+				.withMappings(TinyUtils.createTinyMappingProvider(mappings.toPath(), "official", "intermediary"))
+				.renameInvalidLocals(true)
+				.rebuildSourceFilenames(true)
+				.build()
+
+		try {
+			def outputConsumerBuilder = new OutputConsumerPath.Builder(output.toPath())
+			def outputConsumer = outputConsumerBuilder.build()
+			outputConsumer.addNonClassFiles(input.toPath())
+			remapper.readInputs(input.toPath())
+
+	*/
+            for library in libraries {
+                /*
+                remapper.readClassPath(library)
+                 */
+            }
+            /*
+			remapper.apply(outputConsumer)
+			outputConsumer.close()
+			remapper.finish()
+		} catch (Exception e) {
+			remapper.finish()
+			throw new RuntimeException("Failed to remap jar", e)
+		}
+	}
+			 */
+        };
+
+        Ok(Jar)
+    }
+
+    async fn invert_calamus_v2(&self) -> Result<()> {
+        let mut downloader = Downloader::new();
+
+        let mappings = downloader.calamus_v2(&self.version).await?;
+
+        // TODO: impl
+        /*
+
+
+task invertCalamusV2(dependsOn: downloadCalamusV2, type: FileOutput) {
+	group = buildMappingGroup
+	def v2Input = new File(mappingsCacheDir, "${version_id}-calamus-v2.tiny")
+
+	output = new File(mappingsCacheDir, "${version_id}-calamus-inverted-v2.tiny")
+	outputs.file(output)
+
+	outputs.upToDateWhen { false }
+
+	doLast {
+		logger.lifecycle(":building inverted calamus v2")
+
+		String[] v2Args = [
+				v2Input.getAbsolutePath(),
+				output.getAbsolutePath(),
+				namespace, "official"
+		]
+
+		new CommandReorderTinyV2().run(v2Args)
+	}
+}
+         */
+
+        Ok(())
     }
 }
 
-fn merge_jars() {
-    Downloader::mc_jars();
+#[tokio::main]
+async fn main() -> Result<()> {
+    let mut downloader = Downloader::new();
 
-    // if the env is merged, call the JarMerger
-    // with the following args
-    //  clientJar, serverJar, mergedJar
-    // and return mergedJar
-
-    // note that clientJar and serverJar are set in downloadMcJars
-    todo!()
-}
-
-fn map_calamus_jar() {
-    // take the merged minecraft jar from
-    merge_jars();
-    // (take the client if client, server if server, this one if merged)
-    // and map it with the mappings from
-    Downloader::calamus();
-    // and the libs from
-    Downloader::mc_libs();
-    // and the arguments
-    //  "official", namespace
-    // where you call mapJar
-    // which just call tiny remapper in some way
-
-    todo!("read mapJar code!")
-}
-
-fn invert_calamus_v2() {
-    Downloader::calamus_v2();
-
-    todo!("see invertCalamusV2")
-}
-
-
-fn main() -> Result<()> {
     let dir = Path::new("mappings/mappings");
 
     let start = std::time::Instant::now();
@@ -244,44 +518,10 @@ fn main() -> Result<()> {
     let elapsed = start.elapsed();
     println!("elapsed: {elapsed:?}");
 
-    let versions = vec![
-        "1.3.1",
-        "1.3.2",
-        "1.12.2",
-        "12w30e-client",
-        "1.3-pre-07261249",
-    ];
+    let node = v.get_node("1.12.2").unwrap();
 
-    let start = std::time::Instant::now();
-
-    let mut iter = v.versions();
-    let mut iter = versions.iter().map(|s| v.get_node(s).unwrap());
-
-    for node in iter {
-        fn try_version(v: &VersionGraph, node: NodeIndex) -> Result<()> {
-            let version = v.get(node)?;
-
-            let start = std::time::Instant::now();
-
-            let build = Build::create(v, node)?;
-
-            let elapsed = start.elapsed();
-            println!("{version:?} elapsed: {elapsed:?}");
-
-            if version.name == "12w30e-client" {
-                let mut file = File::create("/tmp/12w30e-client.tiny").unwrap();
-                build.mappings.write(&mut file).unwrap();
-            }
-
-            Ok(())
-        }
-        if let Err(e) = try_version(&v, node) {
-            println!("{e:?}")
-        }
-    }
-
-    let elapsed = start.elapsed();
-    println!("elapsed: {elapsed:?}");
+    let build = Build::create(&v, node)?;
+    build.build().await?;
 
     Ok(())
 }
