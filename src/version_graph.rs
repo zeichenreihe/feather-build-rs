@@ -1,13 +1,13 @@
 use anyhow::{anyhow, bail, Context, Result};
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 use petgraph::{Direction, Graph};
 use petgraph::graph::NodeIndex;
-use petgraph::visit::IntoNodeReferences;
 use serde::{Deserialize, Serialize};
-use crate::tiny::v2::Mappings;
-use crate::tiny::v2_diff::{ApplyDiff, Diffs};
+use crate::tiny::diff::Diffs;
+use crate::tiny::tree::Mappings;
+use crate::tiny::diff::old_diffs_impl::ApplyDiffOld;
 
 
 #[derive(Debug, Clone)]
@@ -181,7 +181,7 @@ impl VersionGraph {
 		let mut m = self.root_mapping.clone();
 
 		for (diff_from, diff_to, diff) in diffs {
-			diff.apply_to(&mut m)
+			diff.apply_to_old(&mut m)
 				.with_context(|| anyhow!("Failed to apply diff (from version {:?} to version {:?}) to mappings, for version {:?}",
 					self.graph[diff_from], self.graph[diff_to], self.graph[to]
 				))?;

@@ -11,7 +11,7 @@ use crate::download::version_details::VersionDetails;
 use crate::download::version_manifest::VersionManifest;
 use crate::download::versions_manifest::VersionsManifest;
 use crate::tiny::RemoveDummy;
-use crate::tiny::v2::Mappings;
+use crate::tiny::tree::Mappings;
 use crate::version_graph::{Version, VersionGraph};
 
 mod tiny;
