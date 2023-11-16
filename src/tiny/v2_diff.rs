@@ -3,10 +3,10 @@ use std::fs::File;
 use std::hash::Hash;
 use std::path::Path;
 use anyhow::{anyhow, Context, Result};
-use crate::reader::tiny_v2::{Parse, ReadFromColumnIter, try_read_nonempty, try_read_optional};
+use crate::reader::tiny_v2_old::{Parse, ReadFromColumnIter, try_read_nonempty, try_read_optional};
 use crate::tiny::diff::{ClassDiff, Diffs, FieldDiff, JavadocDiff, MethodDiff, ParameterDiff};
 
-pub(crate) fn read(path: impl AsRef<Path> + Debug) -> Result<Diffs> {
+pub(crate) fn read_file(path: impl AsRef<Path> + Debug) -> Result<Diffs> {
 	Parse::<Diffs, ClassDiff, FieldDiff, MethodDiff, ParameterDiff, JavadocDiff>::parse(File::open(&path)?)
 		.with_context(|| anyhow!("Failed to read diff file {path:?}"))
 }

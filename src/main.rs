@@ -19,6 +19,7 @@ mod reader;
 mod version_graph;
 mod writer;
 mod download;
+mod tree;
 
 #[derive(Debug)]
 struct Jar;

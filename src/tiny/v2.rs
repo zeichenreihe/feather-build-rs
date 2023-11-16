@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use anyhow::{anyhow, Context, Result};
-use crate::reader::tiny_v2::{Parse, ReadFromColumnIter, try_read, try_read_nonempty, try_read_optional};
+use crate::reader::tiny_v2_old::{Parse, ReadFromColumnIter, try_read, try_read_nonempty, try_read_optional};
 use crate::tiny::tree::{ClassMapping, FieldMapping, JavadocMapping, Mappings, MethodMapping, ParameterMapping};
 
 pub(crate) fn read_file(path: impl AsRef<Path> + Debug) -> Result<Mappings> {
