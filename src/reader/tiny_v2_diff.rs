@@ -3,16 +3,16 @@ use std::fs::File;
 use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
+use crate::reader::diff::{Action, ClassDiff, FieldDiff, MappingInfo, MethodDiff, ParameterDiff, TinyV2Diff};
 use crate::reader::tiny_v2_line::{Line, WithMoreIdentIter};
-use crate::reader::tree::{ClassMapping, FieldMapping, MappingInfo, MethodMapping, ParameterMapping, TinyV2Mappings};
 use crate::tree::{Class, Field, Method, Parameter};
 
-pub(crate) fn read_file(path: impl AsRef<Path> + Debug) -> Result<TinyV2Mappings> {
+pub(crate) fn read_file(path: impl AsRef<Path> + Debug) -> Result<TinyV2Diff> {
 	read(File::open(&path)?)
 		.with_context(|| anyhow!("Failed to read mappings file {path:?}"))
 }
 
-pub(crate) fn read(reader: impl Read) -> Result<TinyV2Mappings> {
+pub(crate) fn read(reader: impl Read) -> Result<TinyV2Diff> {
 	let mut lines = BufReader::new(reader)
 		.lines()
 		.enumerate()
@@ -23,88 +23,73 @@ pub(crate) fn read(reader: impl Read) -> Result<TinyV2Mappings> {
 
 	let mut header = lines.next().context("No header")??;
 
-	if header.first_field != "tiny" || header.next()? != "2" || header.next()? != "0" {
+	if header.first_field != "tiny" || header.next()? != "2" || header.end()? != "0" {
 		bail!("Header version isn't tiny v2.0");
 	}
 
-	let mut mappings = TinyV2Mappings::new(MappingInfo {
-		src_namespace: header.next()?,
-		dst_namespace: header.end()?,
-	});
+	let mut mappings = TinyV2Diff::new(MappingInfo {});
 
 	let mut iter = WithMoreIdentIter::new(0, &mut lines);
 	while let Some(mut line) = iter.next().transpose()? {
 		if line.first_field == "c" {
-			let mut class = Class::new(ClassMapping {
+			let mut class = Class::new(ClassDiff {
 				src: line.next()?,
-				dst: line.end()?,
-				jav: None,
+				dst: line.action()?,
+				jav: Action::None,
 			});
 
 			let mut iter = iter.next_level();
 			while let Some(mut line) = iter.next().transpose()? {
 				if line.first_field == "f" {
-					let mut field = Field::new(FieldMapping {
+					let mut field = Field::new(FieldDiff {
 						desc: line.next()?,
 						src: line.next()?,
-						dst: line.end()?,
-						jav: None,
+						dst: line.action()?,
+						jav: Action::None,
 					});
 
 					let mut iter = iter.next_level();
-					while let Some(line) = iter.next().transpose()? {
+					while let Some(mut line) = iter.next().transpose()? {
 						if line.first_field == "c" {
-							let comment = line.end()?;
-							if field.inner_mut().jav.replace(comment).is_some() {
-								bail!("Only one comment per field is allowed");
-							}
+							field.inner_mut().jav = line.action()?;
 						}
 					}
 
 					class.add_field(field);
 				} else if line.first_field == "m" {
-					let mut method = Method::new(MethodMapping {
+					let mut method = Method::new(MethodDiff {
 						desc: line.next()?,
 						src: line.next()?,
-						dst: line.end()?,
-						jav: None,
+						dst: line.action()?,
+						jav: Action::None,
 					});
 
 					let mut iter = iter.next_level();
 					while let Some(mut line) = iter.next().transpose()? {
 						if line.first_field == "p" {
-							let mut parameter = Parameter::new(ParameterMapping {
+							let mut parameter = Parameter::new(ParameterDiff {
 								index: line.next()?.parse()?,
 								src: line.next()?,
-								dst: line.end()?,
-								jav: None,
+								dst: line.action()?,
+								jav: Action::None,
 							});
 
 							let mut iter = iter.next_level();
-							while let Some(line) = iter.next().transpose()? {
+							while let Some(mut line) = iter.next().transpose()? {
 								if line.first_field == "c" {
-									let comment = line.end()?;
-									if parameter.inner_mut().jav.replace(comment).is_some() {
-										bail!("Only one comment per parameter is allowed");
-									}
+									parameter.inner_mut().jav = line.action()?;
 								}
 							}
 
 							method.add_parameter(parameter);
 						} else if line.first_field == "c" {
-							let comment = line.end()?;
-							if method.inner_mut().jav.replace(comment).is_some() {
-								bail!("Only one comment per method is allowed");
-							}
+							method.inner_mut().jav = line.action()?;
 						}
 					}
 
 					class.add_method(method);
 				} else if line.first_field == "c" {
-					let comment = line.end()?;
-					if class.inner_mut().jav.replace(comment).is_some() {
-						bail!("Only one comment per class is allowed");
-					}
+					class.inner_mut().jav = line.action()?;
 				}
 			}
 
