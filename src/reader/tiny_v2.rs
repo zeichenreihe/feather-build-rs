@@ -5,14 +5,14 @@ use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use crate::reader::tiny_v2_line::{Line, WithMoreIdentIter};
 use crate::tree::{NodeJavadocMut, ClassNowode, FieldNowode, MethodNowode, ParameterNowode};
-use crate::tree::mappings::{ClassKey, ClassMapping, FieldKey, FieldMapping, JavadocMapping, MappingInfo, MethodKey, MethodMapping, ParameterKey, ParameterMapping, TinyV2Class, TinyV2Field, TinyV2Mappings, TinyV2Method, TinyV2Parameter};
+use crate::tree::mappings::{ClassKey, ClassMapping, FieldKey, FieldMapping, JavadocMapping, MappingInfo, MethodKey, MethodMapping, ParameterKey, ParameterMapping, ClassNowodeMapping, FieldNowodeMapping, Mappings, MethodNowodeMapping, ParameterNowodeMapping};
 
-pub(crate) fn read_file(path: impl AsRef<Path> + Debug) -> Result<TinyV2Mappings> {
+pub(crate) fn read_file(path: impl AsRef<Path> + Debug) -> Result<Mappings> {
 	read(File::open(&path)?)
 		.with_context(|| anyhow!("Failed to read mappings file {path:?}"))
 }
 
-pub(crate) fn read(reader: impl Read) -> Result<TinyV2Mappings> {
+pub(crate) fn read(reader: impl Read) -> Result<Mappings> {
 	let mut lines = BufReader::new(reader)
 		.lines()
 		.enumerate()
@@ -27,7 +27,7 @@ pub(crate) fn read(reader: impl Read) -> Result<TinyV2Mappings> {
 		bail!("Header version isn't tiny v2.0");
 	}
 
-	let mut mappings = TinyV2Mappings::new(MappingInfo {
+	let mut mappings = Mappings::new(MappingInfo {
 		src_namespace: header.next()?,
 		dst_namespace: header.end()?,
 	});
@@ -41,7 +41,7 @@ pub(crate) fn read(reader: impl Read) -> Result<TinyV2Mappings> {
 			let class_key = ClassKey { src: src.clone() };
 			let mapping = ClassMapping { src, dst };
 
-			let mut class: TinyV2Class = ClassNowode::new(mapping);
+			let mut class: ClassNowodeMapping = ClassNowode::new(mapping);
 
 			let mut iter = iter.next_level();
 			while let Some(mut line) = iter.next().transpose()? {
@@ -53,7 +53,7 @@ pub(crate) fn read(reader: impl Read) -> Result<TinyV2Mappings> {
 					let field_key = FieldKey { desc: desc.clone(), src: src.clone() };
 					let mapping = FieldMapping { desc, src, dst };
 
-					let mut field: TinyV2Field = FieldNowode::new(mapping);
+					let mut field: FieldNowodeMapping = FieldNowode::new(mapping);
 
 					let mut iter = iter.next_level();
 					while let Some(line) = iter.next().transpose()? {
@@ -75,7 +75,7 @@ pub(crate) fn read(reader: impl Read) -> Result<TinyV2Mappings> {
 					let method_key = MethodKey { desc: desc.clone(), src: src.clone() };
 					let mapping = MethodMapping { desc, src, dst };
 
-					let mut method: TinyV2Method = MethodNowode::new(mapping);
+					let mut method: MethodNowodeMapping = MethodNowode::new(mapping);
 
 					let mut iter = iter.next_level();
 					while let Some(mut line) = iter.next().transpose()? {
@@ -87,7 +87,7 @@ pub(crate) fn read(reader: impl Read) -> Result<TinyV2Mappings> {
 							let parameter_key = ParameterKey { index, src: src.clone() };
 							let mapping = ParameterMapping { index, src, dst };
 
-							let mut parameter: TinyV2Parameter = ParameterNowode::new(mapping);
+							let mut parameter: ParameterNowodeMapping = ParameterNowode::new(mapping);
 
 							let mut iter = iter.next_level();
 							while let Some(line) = iter.next().transpose()? {

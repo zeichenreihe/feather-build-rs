@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use petgraph::{Direction, Graph};
 use petgraph::graph::NodeIndex;
 use serde::{Deserialize, Serialize};
-use crate::tree::mappings_diff::TinyV2MappingsDiff;
-use crate::tree::mappings::TinyV2Mappings;
+use crate::tree::mappings_diff::MappingsDiff;
+use crate::tree::mappings::Mappings;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Format {
@@ -28,22 +28,22 @@ pub(crate) struct Version(pub(crate) String);
 #[derive(Debug)]
 pub(crate) struct VersionGraph {
 	root: NodeIndex,
-	root_mapping: TinyV2Mappings,
+	root_mapping: Mappings,
 
 	versions: HashMap<String, NodeIndex>,
 
-	graph: Graph<Version, TinyV2MappingsDiff>,
+	graph: Graph<Version, MappingsDiff>,
 }
 
 impl VersionGraph {
-	fn add_node(versions: &mut HashMap<String, NodeIndex>, graph: &mut Graph<Version, TinyV2MappingsDiff>, version: String) -> NodeIndex {
+	fn add_node(versions: &mut HashMap<String, NodeIndex>, graph: &mut Graph<Version, MappingsDiff>, version: String) -> NodeIndex {
 		versions.entry(version.clone())
 			.or_insert_with(|| graph.add_node(Version(version)))
 			.clone()
 	}
 
 	pub(crate) fn resolve(dir: &Path) -> Result<VersionGraph> {
-		let mut graph: Graph<Version, TinyV2MappingsDiff> = Graph::new();
+		let mut graph: Graph<Version, MappingsDiff> = Graph::new();
 
 		let mut root = None;
 		let mut root_mapping = None;
@@ -146,7 +146,7 @@ impl VersionGraph {
 		self.versions.get(string).cloned()
 	}
 
-	pub(crate) fn get_diffs_from_root(&self, to: NodeIndex) -> Result<Vec<(NodeIndex, NodeIndex, &TinyV2MappingsDiff)>> {
+	pub(crate) fn get_diffs_from_root(&self, to: NodeIndex) -> Result<Vec<(NodeIndex, NodeIndex, &MappingsDiff)>> {
 		let mut diffs = Vec::new();
 
 		petgraph::algo::astar(
@@ -173,7 +173,7 @@ impl VersionGraph {
 		Ok(diffs)
 	}
 
-	pub(crate) fn apply_diffs(&self, to: NodeIndex) -> Result<TinyV2Mappings> {
+	pub(crate) fn apply_diffs(&self, to: NodeIndex) -> Result<Mappings> {
 		let diffs = self.get_diffs_from_root(to)?;
 
 		let mut m = self.root_mapping.clone();

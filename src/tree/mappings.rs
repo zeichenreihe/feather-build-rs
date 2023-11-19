@@ -1,6 +1,6 @@
 use crate::tree::{ClassNowode, FieldNowode, Mapping, MethodNowode, ParameterNowode};
 
-pub(crate) type TinyV2Mappings = Mapping<
+pub(crate) type Mappings = Mapping<
 	MappingInfo,
 	ClassKey, ClassMapping,
 	FieldKey, FieldMapping,
@@ -8,20 +8,20 @@ pub(crate) type TinyV2Mappings = Mapping<
 	ParameterKey, ParameterMapping,
 	JavadocMapping
 >;
-pub(crate) type TinyV2Class = ClassNowode<
+pub(crate) type ClassNowodeMapping = ClassNowode<
 	ClassMapping,
 	FieldKey, FieldMapping,
 	MethodKey, MethodMapping,
 	ParameterKey, ParameterMapping,
 	JavadocMapping
 >;
-pub(crate) type TinyV2Field = FieldNowode<FieldMapping, JavadocMapping>;
-pub(crate) type TinyV2Method = MethodNowode<
+pub(crate) type FieldNowodeMapping = FieldNowode<FieldMapping, JavadocMapping>;
+pub(crate) type MethodNowodeMapping = MethodNowode<
 	MethodMapping,
 	ParameterKey, ParameterMapping,
 	JavadocMapping,
 >;
-pub(crate) type TinyV2Parameter = ParameterNowode<ParameterMapping, JavadocMapping>;
+pub(crate) type ParameterNowodeMapping = ParameterNowode<ParameterMapping, JavadocMapping>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct MappingInfo {
@@ -84,7 +84,7 @@ pub(crate) struct JavadocMapping {
 	pub(crate) jav: String,
 }
 
-impl TinyV2Mappings {
+impl Mappings {
 	pub (crate) fn remove_dummy(&mut self) {
 		self.classes.retain(|_, v| !{
 			v.fields.retain(|_, v| !{
