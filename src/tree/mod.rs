@@ -47,13 +47,13 @@ macro_rules! impl_as_inner_and_javadoc {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Mapping<I, Ck, C, Fk, F, Mk, M, Pk, P, J> {
+pub(crate) struct MappingNowode<I, Ck, C, Fk, F, Mk, M, Pk, P, J> {
 	inner: I,
 	javadoc: Option<J>,
 	classes: HashMap<Ck, ClassNowode<C, Fk, F, Mk, M, Pk, P, J>>
 }
 
-impl<I, Ck, C, Fk, F, Mk, M, Pk, P, J> Mapping<I, Ck, C, Fk, F, Mk, M, Pk, P, J>
+impl<I, Ck, C, Fk, F, Mk, M, Pk, P, J> MappingNowode<I, Ck, C, Fk, F, Mk, M, Pk, P, J>
 where
 	Ck: Eq + Hash + Debug,
 	C: Debug,
@@ -65,8 +65,8 @@ where
 	P: Debug,
 	J: Debug,
 {
-	pub(crate) fn new(inner: I) -> Mapping<I, Ck, C, Fk, F, Mk, M, Pk, P, J> {
-		Mapping {
+	pub(crate) fn new(inner: I) -> MappingNowode<I, Ck, C, Fk, F, Mk, M, Pk, P, J> {
+		MappingNowode {
 			inner,
 			javadoc: None,
 			classes: HashMap::new(),
@@ -90,7 +90,7 @@ where
 		self.classes.values()
 	}
 }
-impl_as_inner_and_javadoc!(<I, Ck, C, Fk, F, Mk, M, Pk, P, J>, Mapping<I, Ck, C, Fk, F, Mk, M, Pk, P, J>, I, J);
+impl_as_inner_and_javadoc!(<I, Ck, C, Fk, F, Mk, M, Pk, P, J>, MappingNowode<I, Ck, C, Fk, F, Mk, M, Pk, P, J>, I, J);
 
 #[derive(Debug, Clone)]
 pub(crate) struct ClassNowode<C, Fk, F, Mk, M, Pk, P, J> {

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use anyhow::{anyhow, bail, Context, Result};
-use crate::tree::{NodeData, ClassNowode, FieldNowode, Mapping, MethodNowode, ParameterNowode, NodeDataMut};
+use crate::tree::{NodeData, ClassNowode, FieldNowode, MappingNowode, MethodNowode, ParameterNowode, NodeDataMut};
 use crate::tree::mappings::{ClassKey, ClassMapping, FieldKey, FieldMapping, JavadocMapping, MappingInfo, MethodKey, MethodMapping, ParameterKey, ParameterMapping, Mappings};
 
 #[derive(Debug, Clone, Default)]
@@ -15,7 +15,7 @@ pub(crate) enum Action<T> {
 	None,
 }
 
-pub(crate) type MappingsDiff = Mapping<
+pub(crate) type MappingsDiff = MappingNowode<
 	Action<MappingInfo>,
 	ClassKey, Action<ClassMapping>,
 	FieldKey, Action<FieldMapping>,
@@ -30,13 +30,19 @@ pub(crate) type ClassNowodeDiff = ClassNowode<
 	ParameterKey, Action<ParameterMapping>,
 	Action<JavadocMapping>
 >;
-pub(crate) type FieldNowodeDiff = FieldNowode<Action<FieldMapping>, Action<JavadocMapping>>;
+pub(crate) type FieldNowodeDiff = FieldNowode<
+	Action<FieldMapping>,
+	Action<JavadocMapping>
+>;
 pub(crate) type MethodNowodeDiff = MethodNowode<
 	Action<MethodMapping>,
 	ParameterKey, Action<ParameterMapping>,
 	Action<JavadocMapping>
 >;
-pub(crate) type ParameterNowodeDiff = ParameterNowode<Action<ParameterMapping>, Action<JavadocMapping>>;
+pub(crate) type ParameterNowodeDiff = ParameterNowode<
+	Action<ParameterMapping>,
+	Action<JavadocMapping>
+>;
 
 
 fn apply_diff_for_option<T>(
