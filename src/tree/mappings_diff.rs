@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use anyhow::{anyhow, bail, Context, Result};
 use crate::tree::{NodeData, ClassNowode, FieldNowode, Mapping, MethodNowode, ParameterNowode, NodeDataMut};
-use crate::tree::mappings::{ClassKey, ClassMapping, FieldKey, FieldMapping, JavadocMapping, MappingInfo, MethodKey, MethodMapping, ParameterKey, ParameterMapping, TinyV2Class, TinyV2Mappings};
+use crate::tree::mappings::{ClassKey, ClassMapping, FieldKey, FieldMapping, JavadocMapping, MappingInfo, MethodKey, MethodMapping, ParameterKey, ParameterMapping, Mappings};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) enum Action<T> {
@@ -15,7 +15,7 @@ pub(crate) enum Action<T> {
 	None,
 }
 
-pub(crate) type TinyV2MappingsDiff = Mapping<
+pub(crate) type MappingsDiff = Mapping<
 	Action<MappingInfo>,
 	ClassKey, Action<ClassMapping>,
 	FieldKey, Action<FieldMapping>,
@@ -23,20 +23,20 @@ pub(crate) type TinyV2MappingsDiff = Mapping<
 	ParameterKey, Action<ParameterMapping>,
 	Action<JavadocMapping>
 >;
-pub(crate) type TinyV2ClassDiff = ClassNowode<
+pub(crate) type ClassNowodeDiff = ClassNowode<
 	Action<ClassMapping>,
 	FieldKey, Action<FieldMapping>,
 	MethodKey, Action<MethodMapping>,
 	ParameterKey, Action<ParameterMapping>,
 	Action<JavadocMapping>
 >;
-pub(crate) type TinyV2FieldDiff = FieldNowode<Action<FieldMapping>, Action<JavadocMapping>>;
-pub(crate) type TinyV2MethodDiff = MethodNowode<
+pub(crate) type FieldNowodeDiff = FieldNowode<Action<FieldMapping>, Action<JavadocMapping>>;
+pub(crate) type MethodNowodeDiff = MethodNowode<
 	Action<MethodMapping>,
 	ParameterKey, Action<ParameterMapping>,
 	Action<JavadocMapping>
 >;
-pub(crate) type TinyV2ParameterDiff = ParameterNowode<Action<ParameterMapping>, Action<JavadocMapping>>;
+pub(crate) type ParameterNowodeDiff = ParameterNowode<Action<ParameterMapping>, Action<JavadocMapping>>;
 
 
 fn apply_diff_for_option<T>(
@@ -179,8 +179,8 @@ where
 	Ok(())
 }
 
-impl TinyV2MappingsDiff {
-	pub(crate) fn apply_to(&self, target: &mut TinyV2Mappings) -> Result<()> {
+impl MappingsDiff {
+	pub(crate) fn apply_to(&self, target: &mut Mappings) -> Result<()> {
 		match self.node_data() {
 			Action::Add(a) => {
 				bail!("Cannot add {a:?} as there's already an existing target {:?}", target.node_data());

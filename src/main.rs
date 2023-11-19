@@ -1,16 +1,13 @@
-use std::fs::File;
-use std::io::{BufReader, Cursor, Read};
+use std::io::{Cursor, Read};
 use std::path::Path;
 use anyhow::{anyhow, bail, Context, Result};
 use bytes::Buf;
-use petgraph::dot::Dot;
 use petgraph::graph::NodeIndex;
-use zip::read::ZipFile;
 use zip::ZipArchive;
 use crate::download::version_details::VersionDetails;
 use crate::download::version_manifest::VersionManifest;
 use crate::download::versions_manifest::VersionsManifest;
-use crate::tree::mappings::TinyV2Mappings;
+use crate::tree::mappings::Mappings;
 use crate::version_graph::{Version, VersionGraph};
 
 mod reader;
@@ -153,7 +150,7 @@ impl Downloader {
 
         Ok(body)
     }
-    async fn calamus_v2(&mut self, version: &Version) -> Result<TinyV2Mappings> {
+    async fn calamus_v2(&mut self, version: &Version) -> Result<Mappings> {
         let url = format!("https://maven.ornithemc.net/releases/net/ornithemc/calamus-intermediary/{}/calamus-intermediary-{}-v2.jar", version.0, version.0);
 
         let response = reqwest::get(&url)
@@ -207,7 +204,7 @@ impl Downloader {
 
 struct Build {
     version: Version,
-    mappings: TinyV2Mappings,
+    mappings: Mappings,
 }
 
 impl Build {
@@ -224,8 +221,8 @@ impl Build {
         })
     }
 
-    async fn build_feather_tiny(&self) -> Result<TinyV2Mappings> {
-        let calamus_jar = self.map_calamus_jar().await?;
+    async fn build_feather_tiny(&self, downloader: &mut Downloader) -> Result<Mappings> {
+        let calamus_jar = self.map_calamus_jar(downloader).await?;
         let separate_mappings_for_build = &self.mappings;
 
         // run MapSpecializedMethodsCommand with the arguments
@@ -248,13 +245,13 @@ impl Build {
         Ok(self.mappings.clone()) // TODO: impl
     }
 
-    async fn v2_unmerged_feather_jar(&self) -> Result<()> {
+    async fn v2_unmerged_feather_jar(&self, downloader: &mut Downloader) -> Result<()> {
         // create a jar file called
         //  feather-FEATHERVERSION-v2.jar
         // with the file (in it)
         //  mappings/mappings.tiny
         // written from the output of the
-        let mappings = self.build_feather_tiny().await?;
+        let mappings = self.build_feather_tiny(downloader).await?;
         // function
         // put that jar file into
         //  builds/libs
@@ -278,63 +275,38 @@ task v2UnmergedFeatherJar(dependsOn: buildFeatherTiny, type: Jar) {
         Ok(())
     }
 
-    async fn merge_v2(&self) -> Result<()> {
-        // take the output of
-        self.build_feather_tiny().await?;
-        // and merge it with the output of
-        self.invert_calamus_v2().await?;
-        // into the file
-        //   TEMP/merged-v2.tiny
-        // using CommandMergeTiny, with the commands:
-        //  namespace, "official"
+    async fn merge_v2(&self, downloader: &mut Downloader) -> Result<()> {
+        // mergedV2 = new File(tempDir, "merged-v2.tiny")
+        // output = new File(tempDir, "merged-reordered-v2.tiny")
 
-        // then as the output:
-        // run CommandReorderTinyV2 on that file, producing the
-        // output of this method. the arguments to it are:
-        //  "official", namespace, "named"
+        let mappings_a = self.build_feather_tiny(downloader).await?;
+        let mappings_b = self.invert_calamus_v2(downloader).await?;
+
+        // new CommandMergeTinyV2().run([
+        //   invertCalamusV2.output.getAbsolutePath(),
+        //   buildFeatherTiny.v2Output.getAbsolutePath(),
+        //   mergedV2.getAbsolutePath(),
+        //   "intermediary",
+        //   "official"
+        // ])
+
+        // //Reorder the mappings to match the output of loom
+        // new CommandReorderTinyV2().run([
+        //   mergedV2.getAbsolutePath(),
+        //   output.getAbsolutePath(),
+        //   "official",
+        //   "intermediary",
+        //   "named"
+        // ])
 
         // TODO: impl
-
-        /*
-
-task mergeV2(dependsOn: ["v2UnmergedFeatherJar", "invertCalamusV2"], type: FileOutput) {
-	def mergedV2 = new File(tempDir, "merged-v2.tiny")
-
-	output = new File(tempDir, "merged-reordered-v2.tiny")
-	outputs.upToDateWhen { false }
-
-	doLast {
-		logger.lifecycle(":merging feather and calamus v2")
-		String[] args = [
-				invertCalamusV2.output.getAbsolutePath(),
-				// we can use this, since v2UnmergedFeatherJar depends on buildFeatherTiny
-				buildFeatherTiny.v2Output.getAbsolutePath(),
-				mergedV2.getAbsolutePath(),
-				namespace,
-				"official"
-		]
-
-		new CommandMergeTinyV2().run(args)
-
-		//Reorder the mappings to match the output of loom
-		args = [
-				mergedV2.getAbsolutePath(),
-				output.getAbsolutePath(),
-				"official",
-				namespace,
-				"named"
-		]
-		new CommandReorderTinyV2().run(args)
-	}
-}
-         */
 
         Ok(())
     }
 
-    async fn v2_merged_feather_jar(&self) -> Result<()> {
+    async fn v2_merged_feather_jar(&self, downloader: &mut Downloader) -> Result<()> {
         // take the output of
-        self.merge_v2().await?;
+        self.merge_v2(downloader).await?;
         // and store it in the jar file
         //  feather-FEATHERVERSION-mergedv2.jar
         // // TODO: ask space if that missing - is wanted: merged-v2
@@ -362,17 +334,15 @@ task v2MergedFeatherJar(dependsOn: ["mergeV2"], type: Jar) {
         Ok(())
     }
 
-    async fn build(&self) -> Result<()> {
+    async fn build(&self, downloader: &mut Downloader) -> Result<()> {
         // take the outputs of these two
-        self.v2_merged_feather_jar().await?;
-        self.v2_unmerged_feather_jar().await?;
+        self.v2_merged_feather_jar(downloader).await?;
+        self.v2_unmerged_feather_jar(downloader).await?;
 
         Ok(())
     }
 
-    async fn main_jar(&self) -> Result<Jar> {
-        let mut downloader = Downloader::new();
-
+    async fn main_jar(&self, downloader: &mut Downloader) -> Result<Jar> {
         let environment = Environment::parse(&self.version);
 
         let version_details = downloader.version_details(&self.version, &environment).await?;
@@ -411,10 +381,8 @@ task v2MergedFeatherJar(dependsOn: ["mergeV2"], type: Jar) {
         }
     }
 
-    async fn map_calamus_jar(&self) -> Result<Jar> {
-        let mut downloader = Downloader::new();
-
-        let main_jar = self.main_jar().await?;
+    async fn map_calamus_jar(&self, downloader: &mut Downloader) -> Result<Jar> {
+        let main_jar = self.main_jar(downloader).await?;
 
         // and map it with the mappings from
         let mappings = downloader.calamus_v2(&self.version).await?;
@@ -468,9 +436,7 @@ task v2MergedFeatherJar(dependsOn: ["mergeV2"], type: Jar) {
         Ok(Jar)
     }
 
-    async fn invert_calamus_v2(&self) -> Result<()> {
-        let mut downloader = Downloader::new();
-
+    async fn invert_calamus_v2(&self, downloader: &mut Downloader) -> Result<()> {
         let mappings = downloader.calamus_v2(&self.version).await?;
 
         // TODO: impl
@@ -515,12 +481,12 @@ async fn main() -> Result<()> {
     let v = VersionGraph::resolve(dir)?;
 
     let elapsed = start.elapsed();
-    println!("elapsed: {elapsed:?}");
+    println!("version graph reading took: {elapsed:?}");
 
     let node = v.get_node("1.12.2").unwrap();
 
     let build = Build::create(&v, node)?;
-    build.build().await?;
+    build.build(&mut downloader).await?;
 
     Ok(())
 }

@@ -6,14 +6,14 @@ use std::path::Path;
 use crate::reader::tiny_v2_line::{Line, WithMoreIdentIter};
 use crate::tree::{NodeJavadocMut, ClassNowode, FieldNowode, MethodNowode, ParameterNowode};
 use crate::tree::mappings::{ClassKey, ClassMapping, FieldKey, FieldMapping, JavadocMapping, MethodKey, MethodMapping, ParameterKey, ParameterMapping};
-use crate::tree::mappings_diff::{Action, TinyV2MappingsDiff};
+use crate::tree::mappings_diff::{Action, MappingsDiff};
 
-pub(crate) fn read_file(path: impl AsRef<Path> + Debug) -> Result<TinyV2MappingsDiff> {
+pub(crate) fn read_file(path: impl AsRef<Path> + Debug) -> Result<MappingsDiff> {
 	read(File::open(&path)?)
 		.with_context(|| anyhow!("Failed to read mappings file {path:?}"))
 }
 
-pub(crate) fn read(reader: impl Read) -> Result<TinyV2MappingsDiff> {
+pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 	let mut lines = BufReader::new(reader)
 		.lines()
 		.enumerate()
@@ -28,7 +28,7 @@ pub(crate) fn read(reader: impl Read) -> Result<TinyV2MappingsDiff> {
 		bail!("Header version isn't tiny v2.0");
 	}
 
-	let mut mappings = TinyV2MappingsDiff::new(Action::None);
+	let mut mappings = MappingsDiff::new(Action::None);
 
 	let mut iter = WithMoreIdentIter::new(0, &mut lines);
 	while let Some(mut line) = iter.next().transpose()? {
