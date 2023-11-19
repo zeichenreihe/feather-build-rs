@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use crate::tiny::{ApplyDiff, GetJavadoc, RemoveDummy, SetJavadoc};
 use crate::tiny::diff::ParameterDiff;
 use crate::tiny::tree::JavadocMapping;

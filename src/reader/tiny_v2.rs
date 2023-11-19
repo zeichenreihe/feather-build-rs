@@ -4,8 +4,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use crate::reader::tiny_v2_line::{Line, WithMoreIdentIter};
-use crate::reader::tree::{ClassMapping, FieldMapping, MappingInfo, MethodMapping, ParameterMapping, TinyV2Mappings};
-use crate::tree::{Class, Field, Method, Parameter};
+use crate::tree::{NodeJavadocMut, ClassNowode, FieldNowode, MethodNowode, ParameterNowode};
+use crate::tree::mappings::{ClassKey, ClassMapping, FieldKey, FieldMapping, JavadocMapping, MappingInfo, MethodKey, MethodMapping, ParameterKey, ParameterMapping, TinyV2Class, TinyV2Field, TinyV2Mappings, TinyV2Method, TinyV2Parameter};
 
 pub(crate) fn read_file(path: impl AsRef<Path> + Debug) -> Result<TinyV2Mappings> {
 	read(File::open(&path)?)
@@ -35,80 +35,92 @@ pub(crate) fn read(reader: impl Read) -> Result<TinyV2Mappings> {
 	let mut iter = WithMoreIdentIter::new(0, &mut lines);
 	while let Some(mut line) = iter.next().transpose()? {
 		if line.first_field == "c" {
-			let mut class = Class::new(ClassMapping {
-				src: line.next()?,
-				dst: line.end()?,
-				jav: None,
-			});
+			let src = line.next()?;
+			let dst = line.end()?;
+
+			let class_key = ClassKey { src: src.clone() };
+			let mapping = ClassMapping { src, dst };
+
+			let mut class: TinyV2Class = ClassNowode::new(mapping);
 
 			let mut iter = iter.next_level();
 			while let Some(mut line) = iter.next().transpose()? {
 				if line.first_field == "f" {
-					let mut field = Field::new(FieldMapping {
-						desc: line.next()?,
-						src: line.next()?,
-						dst: line.end()?,
-						jav: None,
-					});
+					let desc = line.next()?;
+					let src = line.next()?;
+					let dst = line.end()?;
+
+					let field_key = FieldKey { desc: desc.clone(), src: src.clone() };
+					let mapping = FieldMapping { desc, src, dst };
+
+					let mut field: TinyV2Field = FieldNowode::new(mapping);
 
 					let mut iter = iter.next_level();
 					while let Some(line) = iter.next().transpose()? {
 						if line.first_field == "c" {
-							let comment = line.end()?;
-							if field.inner_mut().jav.replace(comment).is_some() {
+							let jav = line.end()?;
+							let comment = JavadocMapping { jav };
+							if field.node_javadoc_mut().replace(comment).is_some() {
 								bail!("Only one comment per field is allowed");
 							}
 						}
 					}
 
-					class.add_field(field);
+					class.add_field(field_key, field)?;
 				} else if line.first_field == "m" {
-					let mut method = Method::new(MethodMapping {
-						desc: line.next()?,
-						src: line.next()?,
-						dst: line.end()?,
-						jav: None,
-					});
+					let desc = line.next()?;
+					let src = line.next()?;
+					let dst = line.end()?;
+
+					let method_key = MethodKey { desc: desc.clone(), src: src.clone() };
+					let mapping = MethodMapping { desc, src, dst };
+
+					let mut method: TinyV2Method = MethodNowode::new(mapping);
 
 					let mut iter = iter.next_level();
 					while let Some(mut line) = iter.next().transpose()? {
 						if line.first_field == "p" {
-							let mut parameter = Parameter::new(ParameterMapping {
-								index: line.next()?.parse()?,
-								src: line.next()?,
-								dst: line.end()?,
-								jav: None,
-							});
+							let index = line.next()?.parse()?;
+							let src = line.next()?;
+							let dst = line.end()?;
+
+							let parameter_key = ParameterKey { index, src: src.clone() };
+							let mapping = ParameterMapping { index, src, dst };
+
+							let mut parameter: TinyV2Parameter = ParameterNowode::new(mapping);
 
 							let mut iter = iter.next_level();
 							while let Some(line) = iter.next().transpose()? {
 								if line.first_field == "c" {
-									let comment = line.end()?;
-									if parameter.inner_mut().jav.replace(comment).is_some() {
+									let jav = line.end()?;
+									let comment = JavadocMapping { jav };
+									if parameter.node_javadoc_mut().replace(comment).is_some() {
 										bail!("Only one comment per parameter is allowed");
 									}
 								}
 							}
 
-							method.add_parameter(parameter);
+							method.add_parameter(parameter_key, parameter)?;
 						} else if line.first_field == "c" {
-							let comment = line.end()?;
-							if method.inner_mut().jav.replace(comment).is_some() {
+							let jav = line.end()?;
+							let comment = JavadocMapping { jav };
+							if method.node_javadoc_mut().replace(comment).is_some() {
 								bail!("Only one comment per method is allowed");
 							}
 						}
 					}
 
-					class.add_method(method);
+					class.add_method(method_key, method)?;
 				} else if line.first_field == "c" {
-					let comment = line.end()?;
-					if class.inner_mut().jav.replace(comment).is_some() {
+					let jav = line.end()?;
+					let comment = JavadocMapping { jav };
+					if class.node_javadoc_mut().replace(comment).is_some() {
 						bail!("Only one comment per class is allowed");
 					}
 				}
 			}
 
-			mappings.add_class(class);
+			mappings.add_class(class_key, class)?;
 		}
 	}
 

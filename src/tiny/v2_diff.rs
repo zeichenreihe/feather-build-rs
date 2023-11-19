@@ -1,6 +1,6 @@
+#![allow(deprecated)]
 use std::fmt::Debug;
 use std::fs::File;
-use std::hash::Hash;
 use std::path::Path;
 use anyhow::{anyhow, Context, Result};
 use crate::reader::tiny_v2_old::{Parse, ReadFromColumnIter, try_read_nonempty, try_read_optional};

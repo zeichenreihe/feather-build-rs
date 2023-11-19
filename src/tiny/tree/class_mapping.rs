@@ -1,6 +1,6 @@
 use anyhow::Result;
 use indexmap::IndexMap;
-use crate::tiny::{AddMember, ApplyDiff, GetJavadoc, GetKey, Member, RemoveDummy, SetJavadoc};
+use crate::tiny::{AddMember, ApplyDiff, GetJavadoc, Member, RemoveDummy, SetJavadoc};
 use crate::tiny::diff::ClassDiff;
 use crate::tiny::tree::{FieldMapping, JavadocMapping, MethodMapping};
 

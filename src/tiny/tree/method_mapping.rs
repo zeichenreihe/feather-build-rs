@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use indexmap::IndexMap;
 use crate::tiny::{AddMember, ApplyDiff, GetJavadoc, Member, RemoveDummy, SetJavadoc};
 use crate::tiny::diff::MethodDiff;

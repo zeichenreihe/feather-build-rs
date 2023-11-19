@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use petgraph::{Direction, Graph};
 use petgraph::graph::NodeIndex;
 use serde::{Deserialize, Serialize};
-use crate::reader::diff::TinyV2Diff;
-use crate::reader::tree::TinyV2Mappings;
+use crate::tree::mappings_diff::TinyV2MappingsDiff;
+use crate::tree::mappings::TinyV2Mappings;
 use crate::tiny::diff::Diffs;
 use crate::tiny::tree::Mappings;
 use crate::tiny::diff::old_diffs_impl::ApplyDiffOld;
@@ -36,18 +36,18 @@ pub(crate) struct VersionGraph {
 
 	versions: HashMap<String, NodeIndex>,
 
-	graph: Graph<Version, (Diffs, TinyV2Diff)>,
+	graph: Graph<Version, (Diffs, TinyV2MappingsDiff)>,
 }
 
 impl VersionGraph {
-	fn add_node(versions: &mut HashMap<String, NodeIndex>, graph: &mut Graph<Version, (Diffs, TinyV2Diff)>, version: String) -> NodeIndex {
+	fn add_node(versions: &mut HashMap<String, NodeIndex>, graph: &mut Graph<Version, (Diffs, TinyV2MappingsDiff)>, version: String) -> NodeIndex {
 		versions.entry(version.clone())
 			.or_insert_with(|| graph.add_node(Version(version)))
 			.clone()
 	}
 
 	pub(crate) fn resolve(dir: &Path) -> Result<VersionGraph> {
-		let mut graph: Graph<Version, (Diffs, TinyV2Diff)> = Graph::new();
+		let mut graph: Graph<Version, (Diffs, TinyV2MappingsDiff)> = Graph::new();
 
 		let mut root = None;
 		let mut root_mapping_old = None;
@@ -160,7 +160,7 @@ impl VersionGraph {
 		self.versions.get(string).cloned()
 	}
 
-	pub(crate) fn get_diffs_from_root(&self, to: NodeIndex) -> Result<Vec<(NodeIndex, NodeIndex, &(Diffs, TinyV2Diff))>> {
+	pub(crate) fn get_diffs_from_root(&self, to: NodeIndex) -> Result<Vec<(NodeIndex, NodeIndex, &(Diffs, TinyV2MappingsDiff))>> {
 		let mut diffs = Vec::new();
 
 		petgraph::algo::astar(
@@ -187,23 +187,13 @@ impl VersionGraph {
 		Ok(diffs)
 	}
 
-	pub(crate) fn apply_diffs(&self, to: NodeIndex) -> Result<Mappings> {
+	pub(crate) fn apply_diffs(&self, to: NodeIndex) -> Result<TinyV2Mappings> {
 		let diffs = self.get_diffs_from_root(to)?;
 
 		let mut m = self.root_mapping.clone();
 
 		for (diff_from, diff_to, (_, diff)) in diffs.clone() {
-			//diff.apply_to(&mut m)
-			Ok::<(), anyhow::Error>(()) // TODO: actually impl this!!!
-				.with_context(|| anyhow!("Failed to apply diff (from version {:?} to version {:?}) to mappings, for version {:?}",
-					self.graph[diff_from], self.graph[diff_to], self.graph[to]
-				))?;
-		}
-
-		let mut m = self.root_mapping_old.clone();
-
-		for (diff_from, diff_to, (diff, diff_new)) in diffs {
-			diff.apply_to_old(&mut m)
+			diff.apply_to(&mut m)
 				.with_context(|| anyhow!("Failed to apply diff (from version {:?} to version {:?}) to mappings, for version {:?}",
 					self.graph[diff_from], self.graph[diff_to], self.graph[to]
 				))?;
