@@ -208,15 +208,13 @@ struct Build {
 }
 
 impl Build {
-    fn create(version_graph: &VersionGraph, node: NodeIndex) -> Result<Build> {
-        let mut mappings = version_graph.apply_diffs(node)?;
+    fn create(version_graph: &VersionGraph, version: &Version) -> Result<Build> {
+        let mut mappings = version_graph.apply_diffs(version)?;
 
         mappings.remove_dummy();
 
-        let version = version_graph.get(node)?.clone();
-
         Ok(Build {
-            version,
+            version: version.clone(),
             mappings,
         })
     }
@@ -420,9 +418,9 @@ async fn main() -> Result<()> {
     let elapsed = start.elapsed();
     println!("version graph reading took: {elapsed:?}");
 
-    let node = v.get_node("1.12.2").unwrap();
+    let version = v.get("1.12.2").unwrap();
 
-    let build = Build::create(&v, node)?;
+    let build = Build::create(&v, version)?;
     build.build(&mut downloader).await?;
 
     Ok(())

@@ -22,7 +22,7 @@ impl Format {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq, Deserialize, Serialize)]
 pub(crate) struct Version(pub(crate) String);
 
 #[derive(Debug)]
@@ -30,14 +30,14 @@ pub(crate) struct VersionGraph {
 	root: NodeIndex,
 	root_mapping: Mappings,
 
-	versions: HashMap<String, NodeIndex>,
+	versions: HashMap<Version, NodeIndex>,
 
 	graph: Graph<Version, MappingsDiff>,
 }
 
 impl VersionGraph {
-	fn add_node(versions: &mut HashMap<String, NodeIndex>, graph: &mut Graph<Version, MappingsDiff>, version: String) -> NodeIndex {
-		versions.entry(version.clone())
+	fn add_node(versions: &mut HashMap<Version, NodeIndex>, graph: &mut Graph<Version, MappingsDiff>, version: String) -> NodeIndex {
+		versions.entry(Version(version.clone()))
 			.or_insert_with(|| graph.add_node(Version(version)))
 			.clone()
 	}
@@ -134,58 +134,53 @@ impl VersionGraph {
 		Ok(())
 	}
 
-	pub(crate) fn versions(&self) -> impl Iterator<Item=NodeIndex> + '_ {
-		self.graph.node_indices()
+	pub(crate) fn versions(&self) -> impl Iterator<Item=&Version> + '_ {
+		self.versions.keys()
 	}
 
-	pub(crate) fn get(&self, s: NodeIndex) -> Result<&Version> {
-		Ok(&self.graph[s])
+	pub(crate) fn get(&self, string: &str) -> Option<&Version> {
+		let version = Version(string.to_owned());
+		self.versions.get(&version)
+			.cloned()
+			.map(|node| &self.graph[node])
 	}
 
-	pub(crate) fn get_node(&self, string: &str) -> Option<NodeIndex> {
-		self.versions.get(string).cloned()
-	}
+	pub(crate) fn get_diffs_from_root(&self, to: &Version) -> Result<Vec<(&Version, &Version, &MappingsDiff)>> {
 
-	pub(crate) fn get_diffs_from_root(&self, to: NodeIndex) -> Result<Vec<(NodeIndex, NodeIndex, &MappingsDiff)>> {
-		let mut diffs = Vec::new();
+		let to_node = self.versions.get(&to).unwrap();
 
 		petgraph::algo::astar(
 			&self.graph,
 			self.root.clone(),
-			|n| n == to,
+			|n| n == *to_node,
 			|_| 1,
 			|_| 0
 		)
-			.ok_or_else(|| anyhow!("there is no path in between {:?} and {to:?}", &self.root))?
+			.ok_or_else(|| anyhow!("There is no path in between {:?} and {to:?}", &self.root))?
 			.1
-			.into_iter()
-			.try_fold(None, |acc, item| {
-				if let Some(last) = acc {
-					if let Some(edge) = self.graph.find_edge(last, item.clone()) {
-						diffs.push((last, item, &self.graph[edge]));
-					} else {
-						bail!("there is no edge between {last:?} and {item:?}");
-					}
-				}
-				Ok(Some(item))
-			})?;
+			.windows(2)
+			.map(|x| {
+				let last = x[0];
+				let item = x[1];
 
-		Ok(diffs)
+				if let Some(edge) = self.graph.find_edge(last, item.clone()) {
+					Ok((&self.graph[last], &self.graph[item], &self.graph[edge]))
+				} else {
+					bail!("there is no edge between {last:?} and {item:?}");
+				}
+			})
+			.collect()
 	}
 
-	pub(crate) fn apply_diffs(&self, to: NodeIndex) -> Result<Mappings> {
-		let diffs = self.get_diffs_from_root(to)?;
-
-		let mut m = self.root_mapping.clone();
-
-		for (diff_from, diff_to, diff) in diffs.clone() {
-			diff.apply_to(&mut m)
-				.with_context(|| anyhow!("Failed to apply diff (from version {:?} to version {:?}) to mappings, for version {:?}",
-					self.graph[diff_from], self.graph[diff_to], self.graph[to]
-				))?;
-		}
-
-		Ok(m)
+	pub(crate) fn apply_diffs(&self, to: &Version) -> Result<Mappings> {
+		self.get_diffs_from_root(to)?
+			.iter()
+			.try_fold(self.root_mapping.clone(), |m, (diff_from, diff_to, diff)| {
+				diff.apply_to(m)
+					.with_context(|| anyhow!("Failed to apply diff from version {:?} to version {:?} to mappings, for version {:?}",
+					diff_from, diff_to, to.clone()
+				))
+			})
 	}
 
 	fn walk(&self) -> Result<()> {
