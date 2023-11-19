@@ -1,6 +1,6 @@
 use std::iter::Peekable;
 use anyhow::{anyhow, bail, Context, Result};
-use crate::reader::diff::Action;
+use crate::tree::mappings_diff::Action;
 
 #[derive(Debug)]
 pub(super) struct Line {
@@ -45,15 +45,28 @@ impl Line {
 		Ok(next)
 	}
 
-	pub(super) fn action(mut self) -> Result<Action<String>> {
-		let a = self.fields.next().unwrap_or(String::new());
-		let b = self.fields.next().unwrap_or(String::new());
+	pub(super) fn action<T, F>(mut self, f: F) -> Result<Action<T>>
+	where
+		F: Fn(String) -> T,
+	{
+		let a = self.fields.next();
+		let b = self.fields.next();
 
 		if self.fields.as_slice().len() != 0 {
-			bail!("Line contained more fields than expected: {self:?}");
+			bail!("Line contained more fields than expected: {:?}", self);
 		}
 
-		Ok(Action::new(a, b))
+		// an empty string means no mapping there!
+		let a = a.map_or(None, |x| if x.is_empty() { None } else { Some(x) });
+		let b = b.map_or(None, |x| if x.is_empty() { None } else { Some(x) });
+
+		Ok(match (a, b) {
+			(None, None) => Action::None,
+			(None, Some(b)) => Action::Add(f(b)),
+			(Some(a), None) => Action::Remove(f(a)),
+			(Some(a), Some(b)) if a != b => Action::Edit(f(a), f(b)),
+			(Some(_), Some(_)) => Action::None,
+		})
 	}
 }
 
