@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use anyhow::{anyhow, bail, Context, Result};
+use indexmap::IndexMap;
 use crate::tree::{NodeData, ClassNowode, FieldNowode, MappingNowode, MethodNowode, ParameterNowode, NodeDataMut};
 use crate::tree::mappings::{ClassKey, ClassMapping, FieldKey, FieldMapping, JavadocMapping, MappingInfo, MethodKey, MethodMapping, ParameterKey, ParameterMapping, Mappings};
 
@@ -92,11 +92,11 @@ where
 }
 
 fn apply_diff_for_hash_map<K, D, T, A, F, G>(
-	diffs: &HashMap<K, D>,
-	targets: HashMap<K, T>,
+	diffs: &IndexMap<K, D>,
+	targets: IndexMap<K, T>,
 	new_child_node: F,
 	apply_child: G,
-) -> Result<HashMap<K, T>>
+) -> Result<IndexMap<K, T>>
 where
 	K: Debug + Hash + Eq + Clone,
 	D: NodeData<Action<A>>,
@@ -112,9 +112,9 @@ where
 	// 4. A key is in targets and diffs. We check that the diff action is either none, removal or change, and run that.
 
 	// We store references to all the diffs and remove the ones we applied.
-	let mut diffs: HashMap<&K, &D> = diffs.iter().collect();
+	let mut diffs: IndexMap<&K, &D> = diffs.iter().collect();
 
-	let mut results = HashMap::new();
+	let mut results = IndexMap::new();
 
 	for (key, mut target) in targets.into_iter() {
 		if let Some(diff) = diffs.remove(&key) {
