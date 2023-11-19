@@ -1,32 +1,38 @@
-use crate::tree::{ClassNowode, FieldNowode, Mapping, MethodNowode, ParameterNowode};
+use crate::tree::{ClassNowode, FieldNowode, MappingNowode, MethodNowode, ParameterNowode};
 
-pub(crate) type Mappings = Mapping<
-	MappingInfo,
-	ClassKey, ClassMapping,
-	FieldKey, FieldMapping,
-	MethodKey, MethodMapping,
-	ParameterKey, ParameterMapping,
+pub(crate) type Mappings<T = String> = MappingNowode<
+	MappingInfo<T>,
+	ClassKey, ClassMapping<T>,
+	FieldKey, FieldMapping<T>,
+	MethodKey, MethodMapping<T>,
+	ParameterKey, ParameterMapping<T>,
 	JavadocMapping
 >;
-pub(crate) type ClassNowodeMapping = ClassNowode<
-	ClassMapping,
-	FieldKey, FieldMapping,
-	MethodKey, MethodMapping,
-	ParameterKey, ParameterMapping,
+pub(crate) type ClassNowodeMapping<T = String> = ClassNowode<
+	ClassMapping<T>,
+	FieldKey, FieldMapping<T>,
+	MethodKey, MethodMapping<T>,
+	ParameterKey, ParameterMapping<T>,
 	JavadocMapping
 >;
-pub(crate) type FieldNowodeMapping = FieldNowode<FieldMapping, JavadocMapping>;
-pub(crate) type MethodNowodeMapping = MethodNowode<
-	MethodMapping,
-	ParameterKey, ParameterMapping,
+pub(crate) type FieldNowodeMapping<T = String> = FieldNowode<
+	FieldMapping<T>,
+	JavadocMapping
+>;
+pub(crate) type MethodNowodeMapping<T = String> = MethodNowode<
+	MethodMapping<T>,
+	ParameterKey, ParameterMapping<T>,
 	JavadocMapping,
 >;
-pub(crate) type ParameterNowodeMapping = ParameterNowode<ParameterMapping, JavadocMapping>;
+pub(crate) type ParameterNowodeMapping<T = String> = ParameterNowode<
+	ParameterMapping<T>,
+	JavadocMapping
+>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct MappingInfo {
+pub(crate) struct MappingInfo<T = String> {
 	pub(crate) src_namespace: String,
-	pub(crate) dst_namespace: String,
+	pub(crate) dst_namespace: T,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -35,9 +41,9 @@ pub(crate) struct ClassKey {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ClassMapping {
+pub(crate) struct ClassMapping<T = String> {
 	pub(crate) src: String,
-	pub(crate) dst: String,
+	pub(crate) dst: T,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -47,10 +53,10 @@ pub(crate) struct FieldKey {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct FieldMapping {
+pub(crate) struct FieldMapping<T = String> {
 	pub(crate) desc: String,
 	pub(crate) src: String,
-	pub(crate) dst: String,
+	pub(crate) dst: T,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -60,10 +66,10 @@ pub(crate) struct MethodKey {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct MethodMapping {
+pub(crate) struct MethodMapping<T = String> {
 	pub(crate) desc: String,
 	pub(crate) src: String,
-	pub(crate) dst: String,
+	pub(crate) dst: T,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -73,10 +79,10 @@ pub(crate) struct ParameterKey {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ParameterMapping {
+pub(crate) struct ParameterMapping<T = String> {
 	pub(crate) index: usize,
 	pub(crate) src: String,
-	pub(crate) dst: String,
+	pub(crate) dst: T,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -108,5 +114,27 @@ impl Mappings {
 					v.inner.dst.starts_with("net/minecraft/unmapped/C_")
 			)
 		});
+	}
+
+	pub(crate) fn merge(a: &Mappings, b: &Mappings) -> Mappings<(String, String)> {
+		// new CommandMergeTinyV2().run([
+		//   invertCalamusV2.output.getAbsolutePath(), // mappings_b
+		//   buildFeatherTiny.v2Output.getAbsolutePath(), // mappings_a
+		//   mergedV2.getAbsolutePath(), // return this
+		//   "intermediary",
+		//   "official"
+		// ])
+
+		todo!()
+	}
+
+	pub(crate) fn invert(&self) -> Mappings {
+		// new CommandReorderTinyV2().run([
+		//   v2Input.getAbsolutePath(),
+		//   output.getAbsolutePath(),
+		//   namespace, "official"
+		// ])
+
+		todo!()
 	}
 }
