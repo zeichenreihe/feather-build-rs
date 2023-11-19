@@ -7,9 +7,6 @@ use petgraph::graph::NodeIndex;
 use serde::{Deserialize, Serialize};
 use crate::tree::mappings_diff::TinyV2MappingsDiff;
 use crate::tree::mappings::TinyV2Mappings;
-use crate::tiny::diff::Diffs;
-use crate::tiny::tree::Mappings;
-use crate::tiny::diff::old_diffs_impl::ApplyDiffOld;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Format {
@@ -31,26 +28,24 @@ pub(crate) struct Version(pub(crate) String);
 #[derive(Debug)]
 pub(crate) struct VersionGraph {
 	root: NodeIndex,
-	root_mapping_old: Mappings,
 	root_mapping: TinyV2Mappings,
 
 	versions: HashMap<String, NodeIndex>,
 
-	graph: Graph<Version, (Diffs, TinyV2MappingsDiff)>,
+	graph: Graph<Version, TinyV2MappingsDiff>,
 }
 
 impl VersionGraph {
-	fn add_node(versions: &mut HashMap<String, NodeIndex>, graph: &mut Graph<Version, (Diffs, TinyV2MappingsDiff)>, version: String) -> NodeIndex {
+	fn add_node(versions: &mut HashMap<String, NodeIndex>, graph: &mut Graph<Version, TinyV2MappingsDiff>, version: String) -> NodeIndex {
 		versions.entry(version.clone())
 			.or_insert_with(|| graph.add_node(Version(version)))
 			.clone()
 	}
 
 	pub(crate) fn resolve(dir: &Path) -> Result<VersionGraph> {
-		let mut graph: Graph<Version, (Diffs, TinyV2MappingsDiff)> = Graph::new();
+		let mut graph: Graph<Version, TinyV2MappingsDiff> = Graph::new();
 
 		let mut root = None;
-		let mut root_mapping_old = None;
 		let mut root_mapping = None;
 
 		let format = Format::TinyV2;
@@ -64,13 +59,10 @@ impl VersionGraph {
 					let v = Self::add_node(&mut versions, &mut graph, version);
 					let p = Self::add_node(&mut versions, &mut graph, parent);
 
-					let diff_old = crate::tiny::v2_diff::read_file(&path)
-						.with_context(|| anyhow!("Failed to parse version diff from {path:?}"))?;
-
 					let diff = crate::reader::tiny_v2_diff::read_file(&path)
 						.with_context(|| anyhow!("Failed to parse version diff from {path:?}"))?;
 
-					graph.add_edge(p, v, (diff_old, diff));
+					graph.add_edge(p, v, diff);
 				} else {
 					if let Some(root) = root {
 						bail!("multiple roots present: {:?}, {version} ({path:?})", graph[root]);
@@ -78,14 +70,10 @@ impl VersionGraph {
 
 					let v = Self::add_node(&mut versions, &mut graph, version);
 
-					let mapping_old = crate::tiny::v2::read_file(&path)
-						.with_context(|| anyhow!("Failed to parse version mapping from {path:?}"))?;
-
 					let mapping = crate::reader::tiny_v2::read_file(&path)
 						.with_context(|| anyhow!("Failed to parse version mapping from {path:?}"))?;
 
 					root = Some(v);
-					root_mapping_old = Some(mapping_old);
 					root_mapping = Some(mapping);
 				}
 
@@ -94,12 +82,10 @@ impl VersionGraph {
 		).context("Failed to read versions")?;
 
 		let root = root.context("version graph does not have a root!")?;
-		let root_mapping_old = root_mapping_old.unwrap(); // see above + setting them together
 		let root_mapping = root_mapping.unwrap(); // see above + setting them together
 
 		let mut g = VersionGraph {
 			root,
-			root_mapping_old,
 			root_mapping,
 
 			versions,
@@ -160,7 +146,7 @@ impl VersionGraph {
 		self.versions.get(string).cloned()
 	}
 
-	pub(crate) fn get_diffs_from_root(&self, to: NodeIndex) -> Result<Vec<(NodeIndex, NodeIndex, &(Diffs, TinyV2MappingsDiff))>> {
+	pub(crate) fn get_diffs_from_root(&self, to: NodeIndex) -> Result<Vec<(NodeIndex, NodeIndex, &TinyV2MappingsDiff)>> {
 		let mut diffs = Vec::new();
 
 		petgraph::algo::astar(
@@ -192,7 +178,7 @@ impl VersionGraph {
 
 		let mut m = self.root_mapping.clone();
 
-		for (diff_from, diff_to, (_, diff)) in diffs.clone() {
+		for (diff_from, diff_to, diff) in diffs.clone() {
 			diff.apply_to(&mut m)
 				.with_context(|| anyhow!("Failed to apply diff (from version {:?} to version {:?}) to mappings, for version {:?}",
 					self.graph[diff_from], self.graph[diff_to], self.graph[to]

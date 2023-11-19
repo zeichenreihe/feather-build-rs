@@ -10,12 +10,9 @@ use zip::ZipArchive;
 use crate::download::version_details::VersionDetails;
 use crate::download::version_manifest::VersionManifest;
 use crate::download::versions_manifest::VersionsManifest;
-use crate::tiny::RemoveDummy;
-use crate::tiny::tree::Mappings;
 use crate::tree::mappings::TinyV2Mappings;
 use crate::version_graph::{Version, VersionGraph};
 
-mod tiny;
 mod reader;
 mod version_graph;
 mod writer;
@@ -156,7 +153,7 @@ impl Downloader {
 
         Ok(body)
     }
-    async fn calamus_v2(&mut self, version: &Version) -> Result<Mappings> {
+    async fn calamus_v2(&mut self, version: &Version) -> Result<TinyV2Mappings> {
         let url = format!("https://maven.ornithemc.net/releases/net/ornithemc/calamus-intermediary/{}/calamus-intermediary-{}-v2.jar", version.0, version.0);
 
         let response = reqwest::get(&url)
@@ -175,7 +172,7 @@ impl Downloader {
         let mappings = zip.by_name("mappings/mappings.tiny")
             .with_context(|| anyhow!("Cannot find mappings in zip file from {:?}", url))?;
 
-        tiny::v2::read(mappings)
+        reader::tiny_v2::read(mappings)
             .with_context(|| anyhow!("Failed to read mappings from mappings/mappings.tiny of {:?}", url))
     }
     async fn mc_libs(&mut self, version: &Version) -> Result<Vec<Jar>> {
