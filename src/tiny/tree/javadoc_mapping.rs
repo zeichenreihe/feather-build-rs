@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use crate::tiny::{ApplyDiff, RemoveDummy};
 use crate::tiny::diff::JavadocDiff;
 

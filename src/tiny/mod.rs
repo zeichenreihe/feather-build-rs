@@ -1,9 +1,12 @@
 use anyhow::Result;
-use std::hash::Hash;
 
+#[deprecated]
 pub(crate) mod v2;
+#[deprecated]
 pub(crate) mod v2_diff;
+#[deprecated]
 pub(crate) mod tree;
+#[deprecated]
 pub(crate) mod diff;
 
 pub(crate) trait SetJavadoc<J> {

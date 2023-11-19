@@ -12,6 +12,7 @@ use crate::download::version_manifest::VersionManifest;
 use crate::download::versions_manifest::VersionsManifest;
 use crate::tiny::RemoveDummy;
 use crate::tiny::tree::Mappings;
+use crate::tree::mappings::TinyV2Mappings;
 use crate::version_graph::{Version, VersionGraph};
 
 mod tiny;
@@ -209,7 +210,7 @@ impl Downloader {
 
 struct Build {
     version: Version,
-    mappings: Mappings,
+    mappings: TinyV2Mappings,
 }
 
 impl Build {
@@ -226,7 +227,7 @@ impl Build {
         })
     }
 
-    async fn build_feather_tiny(&self) -> Result<Mappings> {
+    async fn build_feather_tiny(&self) -> Result<TinyV2Mappings> {
         let calamus_jar = self.map_calamus_jar().await?;
         let separate_mappings_for_build = &self.mappings;
 

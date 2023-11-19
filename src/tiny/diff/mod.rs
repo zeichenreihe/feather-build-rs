@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 mod diffs;
 mod class_diff;
 mod field_diff;
