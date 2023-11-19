@@ -1,9 +1,9 @@
-use std::collections::hash_map::Entry;
 use anyhow::Result;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use anyhow::bail;
+use indexmap::IndexMap;
+use indexmap::map::Entry;
 
 pub(crate) mod mappings;
 pub(crate) mod mappings_diff;
@@ -50,7 +50,7 @@ macro_rules! impl_as_inner_and_javadoc {
 pub(crate) struct MappingNowode<I, Ck, C, Fk, F, Mk, M, Pk, P, J> {
 	inner: I,
 	javadoc: Option<J>,
-	classes: HashMap<Ck, ClassNowode<C, Fk, F, Mk, M, Pk, P, J>>
+	classes: IndexMap<Ck, ClassNowode<C, Fk, F, Mk, M, Pk, P, J>>
 }
 
 impl<I, Ck, C, Fk, F, Mk, M, Pk, P, J> MappingNowode<I, Ck, C, Fk, F, Mk, M, Pk, P, J>
@@ -69,7 +69,7 @@ where
 		MappingNowode {
 			inner,
 			javadoc: None,
-			classes: HashMap::new(),
+			classes: IndexMap::new(),
 		}
 	}
 
@@ -96,8 +96,8 @@ impl_as_inner_and_javadoc!(<I, Ck, C, Fk, F, Mk, M, Pk, P, J>, MappingNowode<I, 
 pub(crate) struct ClassNowode<C, Fk, F, Mk, M, Pk, P, J> {
 	inner: C,
 	javadoc: Option<J>,
-	fields: HashMap<Fk, FieldNowode<F, J>>,
-	methods: HashMap<Mk, MethodNowode<M, Pk, P, J>>,
+	fields: IndexMap<Fk, FieldNowode<F, J>>,
+	methods: IndexMap<Mk, MethodNowode<M, Pk, P, J>>,
 }
 
 impl<C, Fk, F, Mk, M, Pk, P, J> ClassNowode<C, Fk, F, Mk, M, Pk, P, J>
@@ -114,8 +114,8 @@ where
 		ClassNowode {
 			inner,
 			javadoc: None,
-			fields: HashMap::new(),
-			methods: HashMap::new(),
+			fields: IndexMap::new(),
+			methods: IndexMap::new(),
 		}
 	}
 
@@ -175,7 +175,7 @@ impl_as_inner_and_javadoc!(<F, J>, FieldNowode<F, J>, F, J);
 pub(crate) struct MethodNowode<M, Pk, P, J> {
 	inner: M,
 	javadoc: Option<J>,
-	parameters: HashMap<Pk, ParameterNowode<P, J>>
+	parameters: IndexMap<Pk, ParameterNowode<P, J>>
 }
 
 impl<M, Pk, P, J> MethodNowode<M, Pk, P, J>
@@ -188,7 +188,7 @@ where
 		MethodNowode {
 			inner,
 			javadoc: None,
-			parameters: HashMap::new(),
+			parameters: IndexMap::new(),
 		}
 	}
 

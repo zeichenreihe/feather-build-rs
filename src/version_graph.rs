@@ -1,7 +1,7 @@
 use anyhow::{anyhow, bail, Context, Result};
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
+use indexmap::IndexMap;
 use petgraph::{Direction, Graph};
 use petgraph::graph::NodeIndex;
 use serde::{Deserialize, Serialize};
@@ -30,13 +30,13 @@ pub(crate) struct VersionGraph {
 	root: NodeIndex,
 	root_mapping: Mappings,
 
-	versions: HashMap<Version, NodeIndex>,
+	versions: IndexMap<Version, NodeIndex>,
 
 	graph: Graph<Version, MappingsDiff>,
 }
 
 impl VersionGraph {
-	fn add_node(versions: &mut HashMap<Version, NodeIndex>, graph: &mut Graph<Version, MappingsDiff>, version: String) -> NodeIndex {
+	fn add_node(versions: &mut IndexMap<Version, NodeIndex>, graph: &mut Graph<Version, MappingsDiff>, version: String) -> NodeIndex {
 		versions.entry(Version(version.clone()))
 			.or_insert_with(|| graph.add_node(Version(version)))
 			.clone()
@@ -49,7 +49,7 @@ impl VersionGraph {
 		let mut root_mapping = None;
 
 		let format = Format::TinyV2;
-		let mut versions = HashMap::new();
+		let mut versions = IndexMap::new();
 
 		Self::iterate_versions(
 			&format,
@@ -147,7 +147,7 @@ impl VersionGraph {
 
 	pub(crate) fn get_diffs_from_root(&self, to: &Version) -> Result<Vec<(&Version, &Version, &MappingsDiff)>> {
 
-		let to_node = self.versions.get(&to).unwrap();
+		let to_node = self.versions.get(to).unwrap();
 
 		petgraph::algo::astar(
 			&self.graph,
