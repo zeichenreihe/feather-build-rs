@@ -1,0 +1,21 @@
+tiny	2	0	namespaceA	namespaceB
+c	namespace/A/1	namespace/B/1
+	c	comment class 1
+	f	Lnamespace/A/1;	fieldNamespaceA1	fieldNamespaceB1
+		c	comment field 1
+	m	(Lnamespace/A/1;Lnamespace/A/2;)Lnamespace/A/3;	methodNamespaceA1	methodNamespaceB1
+		c	comment method 1
+		p	1	parameterA1	parameterB1
+			c	comment parameter 1
+		p	2	parameterA2	parameterB2
+		p	3	parameterA3	parameterB3
+c	namespace/A/2	namespace/B/2
+	c	comment class 2
+	f	Lnamespace/A/1;	fieldNamespaceA1	fieldNamespaceB1
+		c	comment field 1
+	m	(Lnamespace/A/1;Lnamespace/A/2;)Lnamespace/A/3;	methodNamespaceA1	methodNamespaceB1
+		c	comment method 1
+		p	1	parameterA1	parameterB1
+			c	comment parameter 1
+		p	2	parameterA2	parameterB2
+		p	3	parameterA3	parameterB3

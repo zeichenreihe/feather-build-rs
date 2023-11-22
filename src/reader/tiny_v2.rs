@@ -4,15 +4,19 @@ use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use crate::reader::tiny_v2_line::{Line, WithMoreIdentIter};
-use crate::tree::{NodeJavadocMut, ClassNowode, FieldNowode, MethodNowode, ParameterNowode};
-use crate::tree::mappings::{ClassKey, ClassMapping, FieldKey, FieldMapping, JavadocMapping, MappingInfo, MethodKey, MethodMapping, ParameterKey, ParameterMapping, ClassNowodeMapping, FieldNowodeMapping, Mappings, MethodNowodeMapping, ParameterNowodeMapping};
+use crate::tree::{ClassNowode, FieldNowode, MethodNowode, ParameterNowode};
+use crate::tree::mappings::{ClassMapping, FieldMapping, JavadocMapping, MappingInfo, MethodMapping, ParameterMapping, ClassNowodeMapping, FieldNowodeMapping, Mappings, MethodNowodeMapping, ParameterNowodeMapping};
 
-pub(crate) fn read_file(path: impl AsRef<Path> + Debug) -> Result<Mappings> {
+pub(crate) fn read_file<const N: usize>(path: impl AsRef<Path> + Debug) -> Result<Mappings<N>> {
 	read(File::open(&path)?)
 		.with_context(|| anyhow!("Failed to read mappings file {path:?}"))
 }
 
-pub(crate) fn read(reader: impl Read) -> Result<Mappings> {
+pub(crate) fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
+	if N < 2 {
+		bail!("Must read at least two namespaces, {N} is less than that");
+	}
+
 	let mut lines = BufReader::new(reader)
 		.lines()
 		.enumerate()
@@ -28,39 +32,35 @@ pub(crate) fn read(reader: impl Read) -> Result<Mappings> {
 	}
 
 	let mut mappings = Mappings::new(MappingInfo {
-		src_namespace: header.next()?,
-		dst_namespace: header.end()?,
+		namespaces: header.list()?,
 	});
 
 	let mut iter = WithMoreIdentIter::new(0, &mut lines);
-	while let Some(mut line) = iter.next().transpose()? {
+	while let Some(line) = iter.next().transpose()? {
 		if line.first_field == "c" {
-			let src = line.next()?;
-			let dst = line.end()?;
+			let names = line.list()?;
 
-			let class_key = ClassKey { src: src.clone() };
-			let mapping = ClassMapping { src, dst };
+			let mapping = ClassMapping { names };
+			let class_key = mapping.get_key();
 
-			let mut class: ClassNowodeMapping = ClassNowode::new(mapping);
+			let mut class: ClassNowodeMapping<N> = ClassNowode::new(mapping);
 
 			let mut iter = iter.next_level();
 			while let Some(mut line) = iter.next().transpose()? {
 				if line.first_field == "f" {
 					let desc = line.next()?;
-					let src = line.next()?;
-					let dst = line.end()?;
+					let names = line.list()?;
 
-					let field_key = FieldKey { desc: desc.clone(), src: src.clone() };
-					let mapping = FieldMapping { desc, src, dst };
+					let mapping = FieldMapping { desc, names };
+					let field_key = mapping.get_key();
 
-					let mut field: FieldNowodeMapping = FieldNowode::new(mapping);
+					let mut field: FieldNowodeMapping<N> = FieldNowode::new(mapping);
 
 					let mut iter = iter.next_level();
 					while let Some(line) = iter.next().transpose()? {
 						if line.first_field == "c" {
-							let jav = line.end()?;
-							let comment = JavadocMapping { jav };
-							if field.node_javadoc_mut().replace(comment).is_some() {
+							let comment = JavadocMapping(line.end()?);
+							if field.javadoc.replace(comment).is_some() {
 								bail!("Only one comment per field is allowed");
 							}
 						}
@@ -69,32 +69,29 @@ pub(crate) fn read(reader: impl Read) -> Result<Mappings> {
 					class.add_field(field_key, field)?;
 				} else if line.first_field == "m" {
 					let desc = line.next()?;
-					let src = line.next()?;
-					let dst = line.end()?;
+					let names = line.list()?;
 
-					let method_key = MethodKey { desc: desc.clone(), src: src.clone() };
-					let mapping = MethodMapping { desc, src, dst };
+					let mapping = MethodMapping { desc, names };
+					let method_key = mapping.get_key();
 
-					let mut method: MethodNowodeMapping = MethodNowode::new(mapping);
+					let mut method: MethodNowodeMapping<N> = MethodNowode::new(mapping);
 
 					let mut iter = iter.next_level();
 					while let Some(mut line) = iter.next().transpose()? {
 						if line.first_field == "p" {
 							let index = line.next()?.parse()?;
-							let src = line.next()?;
-							let dst = line.end()?;
+							let names = line.list()?;
 
-							let parameter_key = ParameterKey { index, src: src.clone() };
-							let mapping = ParameterMapping { index, src, dst };
+							let mapping = ParameterMapping { index, names };
+							let parameter_key = mapping.get_key();
 
-							let mut parameter: ParameterNowodeMapping = ParameterNowode::new(mapping);
+							let mut parameter: ParameterNowodeMapping<N> = ParameterNowode::new(mapping);
 
 							let mut iter = iter.next_level();
 							while let Some(line) = iter.next().transpose()? {
 								if line.first_field == "c" {
-									let jav = line.end()?;
-									let comment = JavadocMapping { jav };
-									if parameter.node_javadoc_mut().replace(comment).is_some() {
+									let comment = JavadocMapping(line.end()?);
+									if parameter.javadoc.replace(comment).is_some() {
 										bail!("Only one comment per parameter is allowed");
 									}
 								}
@@ -102,9 +99,8 @@ pub(crate) fn read(reader: impl Read) -> Result<Mappings> {
 
 							method.add_parameter(parameter_key, parameter)?;
 						} else if line.first_field == "c" {
-							let jav = line.end()?;
-							let comment = JavadocMapping { jav };
-							if method.node_javadoc_mut().replace(comment).is_some() {
+							let comment = JavadocMapping(line.end()?);
+							if method.javadoc.replace(comment).is_some() {
 								bail!("Only one comment per method is allowed");
 							}
 						}
@@ -112,9 +108,8 @@ pub(crate) fn read(reader: impl Read) -> Result<Mappings> {
 
 					class.add_method(method_key, method)?;
 				} else if line.first_field == "c" {
-					let jav = line.end()?;
-					let comment = JavadocMapping { jav };
-					if class.node_javadoc_mut().replace(comment).is_some() {
+					let comment = JavadocMapping(line.end()?);
+					if class.javadoc.replace(comment).is_some() {
 						bail!("Only one comment per class is allowed");
 					}
 				}

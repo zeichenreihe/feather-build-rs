@@ -28,7 +28,7 @@ pub(crate) struct Version(pub(crate) String);
 #[derive(Debug)]
 pub(crate) struct VersionGraph {
 	root: NodeIndex,
-	root_mapping: Mappings,
+	root_mapping: Mappings<2>,
 
 	versions: IndexMap<Version, NodeIndex>,
 
@@ -65,7 +65,7 @@ impl VersionGraph {
 					graph.add_edge(p, v, diff);
 				} else {
 					if let Some(root) = root {
-						bail!("multiple roots present: {:?}, {version} ({path:?})", graph[root]);
+						bail!("Multiple roots present: {:?}, {version} ({path:?})", graph[root]);
 					}
 
 					let v = Self::add_node(&mut versions, &mut graph, version);
@@ -84,7 +84,7 @@ impl VersionGraph {
 		let root = root.context("version graph does not have a root!")?;
 		let root_mapping = root_mapping.unwrap(); // see above + setting them together
 
-		let mut g = VersionGraph {
+		let g = VersionGraph {
 			root,
 			root_mapping,
 
@@ -160,19 +160,19 @@ impl VersionGraph {
 			.1
 			.windows(2)
 			.map(|x| {
-				let last = x[0];
-				let item = x[1];
+				let a = x[0];
+				let b = x[1];
 
-				if let Some(edge) = self.graph.find_edge(last, item.clone()) {
-					Ok((&self.graph[last], &self.graph[item], &self.graph[edge]))
+				if let Some(edge) = self.graph.find_edge(a, b.clone()) {
+					Ok((&self.graph[a], &self.graph[b], &self.graph[edge]))
 				} else {
-					bail!("there is no edge between {last:?} and {item:?}");
+					bail!("there is no edge between {a:?} and {b:?}");
 				}
 			})
 			.collect()
 	}
 
-	pub(crate) fn apply_diffs(&self, to: &Version) -> Result<Mappings> {
+	pub(crate) fn apply_diffs(&self, to: &Version) -> Result<Mappings<2>> {
 		self.get_diffs_from_root(to)?
 			.iter()
 			.try_fold(self.root_mapping.clone(), |m, (diff_from, diff_to, diff)| {

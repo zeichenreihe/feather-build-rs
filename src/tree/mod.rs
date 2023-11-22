@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::fmt::Debug;
+use std::fmt::{Debug};
 use std::hash::Hash;
 use anyhow::bail;
 use indexmap::IndexMap;
@@ -7,40 +7,31 @@ use indexmap::map::Entry;
 
 pub(crate) mod mappings;
 pub(crate) mod mappings_diff;
+mod actions;
+mod remapper;
+
+/// Describes a given namespace of a mapping tree.
+/// When this exists, the namespace it's from has the namespace stored in `.0`, and reading will not panic.
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub(crate) struct Namespace<const N: usize>(usize);
 
 pub(crate) trait NodeData<T> {
 	fn node_data(&self) -> &T;
 }
-pub(crate) trait NodeDataMut<T> {
+pub(crate) trait NodeDataMut<T>: NodeData<T> {
 	fn node_data_mut(&mut self) -> &mut T;
 }
-pub(crate) trait NodeJavadoc<J> {
-	fn node_javadoc(&self) -> &Option<J>;
-}
-pub(crate) trait NodeJavadocMut<J> {
-	fn node_javadoc_mut(&mut self) -> &mut Option<J>;
-}
 
-macro_rules! impl_as_inner_and_javadoc {
-	(<$($bounds:ident$(,)?)*>, $ty:ty, $t:ty, $j:ty) => {
+macro_rules! impl_node_data {
+	(<$($bounds:ident$(,)?)*>, $ty:ty, $t:ty) => {
 		impl<$($bounds,)*> NodeData<$t> for $ty {
 			fn node_data(&self) -> &$t {
-				&self.inner
+				&self.info
 			}
 		}
 		impl<$($bounds,)*> NodeDataMut<$t> for $ty {
 			fn node_data_mut(&mut self) -> &mut $t {
-				&mut self.inner
-			}
-		}
-		impl<$($bounds,)*> NodeJavadoc<$j> for $ty {
-			fn node_javadoc(&self) -> &Option<$j> {
-				&self.javadoc
-			}
-		}
-		impl<$($bounds,)*> NodeJavadocMut<$j> for $ty {
-			fn node_javadoc_mut(&mut self) -> &mut Option<$j> {
-				&mut self.javadoc
+				&mut self.info
 			}
 		}
 	}
@@ -48,9 +39,9 @@ macro_rules! impl_as_inner_and_javadoc {
 
 #[derive(Debug, Clone)]
 pub(crate) struct MappingNowode<I, Ck, C, Fk, F, Mk, M, Pk, P, J> {
-	inner: I,
-	javadoc: Option<J>,
-	classes: IndexMap<Ck, ClassNowode<C, Fk, F, Mk, M, Pk, P, J>>
+	pub(crate) info: I,
+	pub(crate) javadoc: Option<J>,
+	pub(crate) classes: IndexMap<Ck, ClassNowode<C, Fk, F, Mk, M, Pk, P, J>>
 }
 
 impl<I, Ck, C, Fk, F, Mk, M, Pk, P, J> MappingNowode<I, Ck, C, Fk, F, Mk, M, Pk, P, J>
@@ -65,9 +56,9 @@ where
 	P: Debug,
 	J: Debug,
 {
-	pub(crate) fn new(inner: I) -> MappingNowode<I, Ck, C, Fk, F, Mk, M, Pk, P, J> {
+	pub(crate) fn new(info: I) -> MappingNowode<I, Ck, C, Fk, F, Mk, M, Pk, P, J> {
 		MappingNowode {
-			inner,
+			info,
 			javadoc: None,
 			classes: IndexMap::new(),
 		}
@@ -85,19 +76,15 @@ where
 
 		Ok(())
 	}
-
-	pub(crate) fn classes(&self) -> impl Iterator<Item=&ClassNowode<C, Fk, F, Mk, M, Pk, P, J>> {
-		self.classes.values()
-	}
 }
-impl_as_inner_and_javadoc!(<I, Ck, C, Fk, F, Mk, M, Pk, P, J>, MappingNowode<I, Ck, C, Fk, F, Mk, M, Pk, P, J>, I, J);
+impl_node_data!(<I, Ck, C, Fk, F, Mk, M, Pk, P, J>, MappingNowode<I, Ck, C, Fk, F, Mk, M, Pk, P, J>, I);
 
 #[derive(Debug, Clone)]
 pub(crate) struct ClassNowode<C, Fk, F, Mk, M, Pk, P, J> {
-	inner: C,
-	javadoc: Option<J>,
-	fields: IndexMap<Fk, FieldNowode<F, J>>,
-	methods: IndexMap<Mk, MethodNowode<M, Pk, P, J>>,
+	pub(crate) info: C,
+	pub(crate) javadoc: Option<J>,
+	pub(crate) fields: IndexMap<Fk, FieldNowode<F, J>>,
+	pub(crate) methods: IndexMap<Mk, MethodNowode<M, Pk, P, J>>,
 }
 
 impl<C, Fk, F, Mk, M, Pk, P, J> ClassNowode<C, Fk, F, Mk, M, Pk, P, J>
@@ -110,9 +97,9 @@ where
 	P: Debug,
 	J: Debug,
 {
-	pub(crate) fn new(inner: C) -> ClassNowode<C, Fk, F, Mk, M, Pk, P, J> {
+	pub(crate) fn new(info: C) -> ClassNowode<C, Fk, F, Mk, M, Pk, P, J> {
 		ClassNowode {
-			inner,
+			info,
 			javadoc: None,
 			fields: IndexMap::new(),
 			methods: IndexMap::new(),
@@ -144,38 +131,30 @@ where
 
 		Ok(())
 	}
-
-	pub(crate) fn fields(&self) -> impl Iterator<Item=&FieldNowode<F, J>> {
-		self.fields.values()
-	}
-
-	pub(crate) fn methods(&self) -> impl Iterator<Item=&MethodNowode<M, Pk, P, J>> {
-		self.methods.values()
-	}
 }
-impl_as_inner_and_javadoc!(<C, Fk, F, Mk, M, Pk, P, J>, ClassNowode<C, Fk, F, Mk, M, Pk, P, J>, C, J);
+impl_node_data!(<C, Fk, F, Mk, M, Pk, P, J>, ClassNowode<C, Fk, F, Mk, M, Pk, P, J>, C);
 
 #[derive(Debug, Clone)]
 pub(crate) struct FieldNowode<F, J> {
-	inner: F,
-	javadoc: Option<J>,
+	pub(crate) info: F,
+	pub(crate) javadoc: Option<J>,
 }
 
 impl<F, J> FieldNowode<F, J> {
-	pub(crate) fn new(inner: F) -> FieldNowode<F, J> {
+	pub(crate) fn new(info: F) -> FieldNowode<F, J> {
 		FieldNowode {
 			javadoc: None,
-			inner,
+			info,
 		}
 	}
 }
-impl_as_inner_and_javadoc!(<F, J>, FieldNowode<F, J>, F, J);
+impl_node_data!(<F, J>, FieldNowode<F, J>, F);
 
 #[derive(Debug, Clone)]
 pub(crate) struct MethodNowode<M, Pk, P, J> {
-	inner: M,
-	javadoc: Option<J>,
-	parameters: IndexMap<Pk, ParameterNowode<P, J>>
+	pub(crate) info: M,
+	pub(crate) javadoc: Option<J>,
+	pub(crate) parameters: IndexMap<Pk, ParameterNowode<P, J>>
 }
 
 impl<M, Pk, P, J> MethodNowode<M, Pk, P, J>
@@ -184,9 +163,9 @@ where
 	P: Debug,
 	J: Debug,
 {
-	pub(crate) fn new(inner: M) -> MethodNowode<M, Pk, P, J> {
+	pub(crate) fn new(info: M) -> MethodNowode<M, Pk, P, J> {
 		MethodNowode {
-			inner,
+			info,
 			javadoc: None,
 			parameters: IndexMap::new(),
 		}
@@ -204,25 +183,21 @@ where
 
 		Ok(())
 	}
-
-	pub(crate) fn parameters(&self) -> impl Iterator<Item=&ParameterNowode<P, J>> {
-		self.parameters.values()
-	}
 }
-impl_as_inner_and_javadoc!(<M, Pk, P, J>, MethodNowode<M, Pk, P, J>, M, J);
+impl_node_data!(<M, Pk, P, J>, MethodNowode<M, Pk, P, J>, M);
 
 #[derive(Debug, Clone)]
 pub(crate) struct ParameterNowode<P, J> {
-	inner: P,
-	javadoc: Option<J>,
+	pub(crate) info: P,
+	pub(crate) javadoc: Option<J>,
 }
 
 impl<P, J> ParameterNowode<P, J> {
-	pub(crate) fn new(inner: P) -> ParameterNowode<P, J> {
+	pub(crate) fn new(info: P) -> ParameterNowode<P, J> {
 		ParameterNowode {
-			inner,
+			info,
 			javadoc: None,
 		}
 	}
 }
-impl_as_inner_and_javadoc!(<P, J>, ParameterNowode<P, J>, P, J);
+impl_node_data!(<P, J>, ParameterNowode<P, J>, P);
