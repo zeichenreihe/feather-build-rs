@@ -7,8 +7,7 @@ use indexmap::map::Entry;
 
 pub(crate) mod mappings;
 pub(crate) mod mappings_diff;
-mod actions;
-mod remapper;
+mod action;
 
 /// Describes a given namespace of a mapping tree.
 /// When this exists, the namespace it's from has the namespace stored in `.0`, and reading will not panic.

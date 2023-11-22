@@ -1,5 +1,13 @@
 use anyhow::{bail, Result};
 use crate::tree::mappings::{ClassKey, Mappings};
+use crate::tree::Namespace;
+
+
+impl<const N: usize> Mappings<N> {
+	pub(crate) fn remapper(&self, from: Namespace<N>, to: Namespace<N>) -> Result<Remapper<'_, N>> {
+		Remapper::new(&self, from.0, to.0)
+	}
+}
 
 #[derive(Debug)]
 pub(crate) struct Remapper<'a, const N: usize> {
@@ -56,5 +64,13 @@ impl<'a, const N: usize> Remapper<'a, N> {
 		}
 
 		Ok(s)
+	}
+}
+
+#[cfg(test)]
+mod testing {
+	#[test]
+	fn remap() {
+		// TODO: write test
 	}
 }

@@ -2,60 +2,8 @@ use anyhow::{bail, Result};
 use indexmap::IndexMap;
 use crate::tree::{ClassNowode, FieldNowode, MethodNowode, Namespace, ParameterNowode};
 use crate::tree::mappings::{ClassMapping, FieldMapping, MappingInfo, Mappings, MethodMapping, ParameterMapping};
-use crate::tree::remapper::Remapper;
 
 impl<const N: usize> Mappings<N> {
-	pub(crate) fn get_namespace(&self, name: &str) -> Result<Namespace<N>> {
-		for (i, namespace) in self.info.namespaces.iter().enumerate() {
-			if namespace == name {
-				return Ok(Namespace(i));
-			}
-		}
-		bail!("Cannot find namespace with name {name:?}, only got {:?}", self.info.namespaces);
-	}
-
-	pub(crate) fn remapper(&self, from: Namespace<N>, to: Namespace<N>) -> Result<Remapper<'_, N>> {
-		Remapper::new(&self, from.0, to.0)
-	}
-
-	/// Removed so called "dummy" mappings. Whether or not a mapping is considered a dummy mapping only depends on the mapping
-	/// in the namespace given.
-	/// # Removal Rules
-	/// - a class mappings is removed if in the given namespace its name starts with `C_` or `net/minecraft/unmapped/C_`, and
-	///   there are no members, i.e. fields, methods, javadoc, left.
-	/// - a field mapping is removed if in the given namespace its name starts with `f_`, and it doesn't have any javadoc.
-	/// - a method mapping is removed if in the given namespace its name starts with `m_`, or its name is equal to either
-	///   `<init>` or `<clinit>`, and it doesn't have any members, i.e. javadoc or parameter mappings.
-	/// - a parameter mapping is removed if its name starts with `p_` and it doesn't have any javadoc.
-	pub(crate) fn remove_dummy(&mut self, namespace: &str) -> Result<()> {
-		let namespace = self.get_namespace(namespace)?.0;
-
-		self.classes.retain(|_, v| !{
-			v.fields.retain(|_, v| !{
-				v.javadoc.is_none() && v.info.names[namespace].starts_with("f_")
-			});
-
-			v.methods.retain(|_, v| !{
-				v.parameters.retain(|_, v| !{
-					v.javadoc.is_none() && v.info.names[namespace].starts_with("p_")
-				});
-
-				v.javadoc.is_none() && v.parameters.is_empty() && (
-					v.info.names[namespace].starts_with("m_") ||
-						v.info.names[namespace] == "<init>" ||
-						v.info.names[namespace] == "<clinit>"
-				)
-			});
-
-			v.javadoc.is_none() && v.fields.is_empty() && v.methods.is_empty() && (
-				v.info.names[namespace].starts_with("C_") ||
-					v.info.names[namespace].starts_with("net/minecraft/unmapped/C_")
-			)
-		});
-
-		Ok(())
-	}
-
 	/// # old description: TODO: fix this "oldness"
 	/// Inverts a mapping with respect to the given namespace. That means, the given namespace and the "source" or
 	/// zero namespace are swapped.
@@ -75,7 +23,7 @@ impl<const N: usize> Mappings<N> {
 	pub(crate) fn reorder(&self, namespaces: [&str; N]) -> Result<Mappings<N>> {
 		//TODO: rewrite so that it can actually "reorder" any given namespaces,
 		// also ensure that list doesn't have duplicates in it;
-		// and also update the test cases; probably even split up this module into submodules, each with just one impl {}
+		// and also update the test cases
 
 		// new CommandReorderTinyV2().run([self, return, "intermediary", "official"])
 
@@ -163,20 +111,12 @@ impl<const N: usize> Mappings<N> {
 
 		Ok(m)
 	}
-
-}
-impl Mappings<2> {
-	pub(crate) fn merge(a: &Mappings<2>, b: &Mappings<2>) -> Mappings<3> {
-		// new CommandMergeTinyV2().run([b, a, return, "intermediary", "official"])
-
-		todo!()
-	}
 }
 
 #[cfg(test)]
 mod testing {
 	#[test]
-	fn test_reorder() {
+	fn reorder() {
 		let input = include_str!("test/reorder_input.tiny");
 		let expected = include_str!("test/reorder_output.tiny");
 
