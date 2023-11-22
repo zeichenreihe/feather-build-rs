@@ -4,9 +4,7 @@ use crate::tree::{ClassNowode, FieldNowode, MethodNowode, Namespace, ParameterNo
 use crate::tree::mappings::{ClassMapping, FieldMapping, MappingInfo, Mappings, MethodMapping, ParameterMapping};
 
 impl<const N: usize> Mappings<N> {
-	/// # old description: TODO: fix this "oldness"
-	/// Inverts a mapping with respect to the given namespace. That means, the given namespace and the "source" or
-	/// zero namespace are swapped.
+	/// Reorders the namespaces to the given order.
 	/// # Example
 	/// If you call this on a mapping like
 	/// ```
@@ -14,21 +12,22 @@ impl<const N: usize> Mappings<N> {
 	/// 	m	(LA;)V	a	b	c
 	/// 	f	LA;	a	b	c
 	/// ```
-	/// with the given namespace being `2`, or the `C` namespace, then you'll get a result like
+	/// with the given namespaces being `["C", "B", "A"]`, you get:
 	/// ```
 	/// c	C	B	A
 	/// 	m	(LC;)V	c	b	a
 	/// 	f	LC;	c	b	a
 	/// ```
 	pub(crate) fn reorder(&self, namespaces: [&str; N]) -> Result<Mappings<N>> {
+		// new CommandReorderTinyV2().run([self, return, "intermediary", "official"])
+
 		//TODO: rewrite so that it can actually "reorder" any given namespaces,
 		// also ensure that list doesn't have duplicates in it;
 		// and also update the test cases
 
-		// new CommandReorderTinyV2().run([self, return, "intermediary", "official"])
+		let namespaces = self.get_namespaces(namespaces)?;
 
 		let namespace = namespaces[0];
-		let namespace = self.get_namespace(namespace)?;
 
 		if namespace.0 != 1 {
 			bail!("can only invert with namespace 1 currently (remapper can't do anything else)!");
