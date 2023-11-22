@@ -32,17 +32,27 @@ impl Line {
 
 	pub(super) fn next(&mut self) -> Result<String> {
 		self.fields.next()
-			.with_context(|| anyhow!("Expected another field in line: {self:?}"))
+			.with_context(|| anyhow!("Expected another field in line {}: {self:?}", self.line_number))
 	}
 
 	pub(super) fn end(mut self) -> Result<String> {
 		let next = self.next()?;
 
 		if self.fields.as_slice().len() != 0 {
-			bail!("Line contained more fields than expected: {self:?}");
+			bail!("Line {} contained more fields than expected: {self:?}", self.line_number);
 		}
 
 		Ok(next)
+	}
+
+	pub(super) fn list<const N: usize>(self) -> Result<[String; N]> {
+		let vec: Vec<_> = self.fields.collect();
+
+		if vec.len() != N {
+			bail!("Line {} contained more or less fields ({}) than the expected {N}: {:?}", self.line_number, vec.len(), vec);
+		}
+
+		Ok(vec.try_into().unwrap()) // can't panic, we checked the size
 	}
 
 	pub(super) fn action<T, F>(mut self, f: F) -> Result<Action<T>>
@@ -53,7 +63,7 @@ impl Line {
 		let b = self.fields.next();
 
 		if self.fields.as_slice().len() != 0 {
-			bail!("Line contained more fields than expected: {:?}", self);
+			bail!("Line {} contained more fields than expected: {:?}", self.line_number, self);
 		}
 
 		// an empty string means no mapping there!
@@ -101,7 +111,7 @@ impl<I: Iterator<Item=Result<Line>>> Iterator for WithMoreIdentIter<'_, I> {
 			// actually give back the value
 			self.iter.next()
 		} else {
-			Some(Err(anyhow!("Expected an indentation of {} for line: {:#?}", self.depth, line)))
+			Some(Err(anyhow!("Expected an indentation of {} for line {}: {:#?}", self.depth, line.line_number, line)))
 		}
 	}
 }

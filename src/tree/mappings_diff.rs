@@ -3,7 +3,7 @@ use std::hash::Hash;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use crate::tree::{NodeData, ClassNowode, FieldNowode, MappingNowode, MethodNowode, ParameterNowode, NodeDataMut};
-use crate::tree::mappings::{ClassKey, ClassMapping, FieldKey, FieldMapping, JavadocMapping, MappingInfo, MethodKey, MethodMapping, ParameterKey, ParameterMapping, Mappings};
+use crate::tree::mappings::{ClassKey, ClassMapping, FieldKey, FieldMapping, JavadocMapping, MappingInfo, MethodKey, MethodMapping, ParameterKey, ParameterMapping, Mappings, ClassNowodeMapping};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) enum Action<T> {
@@ -15,31 +15,31 @@ pub(crate) enum Action<T> {
 }
 
 pub(crate) type MappingsDiff = MappingNowode<
-	Action<MappingInfo>,
-	ClassKey, Action<ClassMapping>,
-	FieldKey, Action<FieldMapping>,
-	MethodKey, Action<MethodMapping>,
-	ParameterKey, Action<ParameterMapping>,
+	Action<MappingInfo<2>>,
+	ClassKey, Action<ClassMapping<2>>,
+	FieldKey, Action<FieldMapping<2>>,
+	MethodKey, Action<MethodMapping<2>>,
+	ParameterKey, Action<ParameterMapping<2>>,
 	Action<JavadocMapping>
 >;
 pub(crate) type ClassNowodeDiff = ClassNowode<
-	Action<ClassMapping>,
-	FieldKey, Action<FieldMapping>,
-	MethodKey, Action<MethodMapping>,
-	ParameterKey, Action<ParameterMapping>,
+	Action<ClassMapping<2>>,
+	FieldKey, Action<FieldMapping<2>>,
+	MethodKey, Action<MethodMapping<2>>,
+	ParameterKey, Action<ParameterMapping<2>>,
 	Action<JavadocMapping>
 >;
 pub(crate) type FieldNowodeDiff = FieldNowode<
-	Action<FieldMapping>,
+	Action<FieldMapping<2>>,
 	Action<JavadocMapping>
 >;
 pub(crate) type MethodNowodeDiff = MethodNowode<
-	Action<MethodMapping>,
-	ParameterKey, Action<ParameterMapping>,
+	Action<MethodMapping<2>>,
+	ParameterKey, Action<ParameterMapping<2>>,
 	Action<JavadocMapping>
 >;
 pub(crate) type ParameterNowodeDiff = ParameterNowode<
-	Action<ParameterMapping>,
+	Action<ParameterMapping<2>>,
 	Action<JavadocMapping>
 >;
 
@@ -100,7 +100,7 @@ fn apply_diff_for_hash_map<K, D, T, A, F, G>(
 where
 	K: Debug + Hash + Eq + Clone,
 	D: NodeData<Action<A>>,
-	T: NodeData<A> + NodeDataMut<A> + Clone,
+	T: NodeDataMut<A> + Clone,
 	A: Debug + PartialEq + Clone,
 	F: Fn(A) -> T,
 	G: Fn(&D, T) -> Result<T>,
@@ -184,18 +184,19 @@ where
 }
 
 impl MappingsDiff {
-	pub(crate) fn apply_to(&self, mut target: Mappings) -> Result<Mappings> {
+	pub(crate) fn apply_to(&self, target: Mappings<2>) -> Result<Mappings<2>> {
+		// TODO: rewrite this to allow "nth namespace" of "mappings<N>"
 		Ok(Mappings {
-			inner: match &self.inner {
-				Action::Add(a) => bail!("Cannot add {a:?} as there's already an existing target {:?}", target.inner),
-				Action::Remove(b) => bail!("Cannot remove {b:?} as then there would be no mappings {:?} anymore", target.inner),
+			info: match &self.info {
+				Action::Add(a) => bail!("Cannot add {a:?} as there's already an existing target {:?}", target.info),
+				Action::Remove(b) => bail!("Cannot remove {b:?} as then there would be no mappings {:?} anymore", target.info),
 				Action::Edit(a, b) => {
-					if &target.inner != a {
-						bail!("Cannot edit existing target {:?} as {a:?}, because they are not equal", target.inner);
+					if &target.info != a {
+						bail!("Cannot edit existing target {:?} as {a:?}, because they are not equal", target.info);
 					}
 					b.clone()
 				},
-				Action::None => target.inner,
+				Action::None => target.info,
 			},
 			javadoc: apply_diff_for_option(&self.javadoc, target.javadoc)?,
 			classes: apply_diff_for_hash_map(
@@ -210,34 +211,34 @@ impl MappingsDiff {
 						|field| FieldNowode::new(field),
 						|diff, field| Ok(FieldNowode {
 							javadoc: apply_diff_for_option(&diff.javadoc, field.javadoc)
-								.with_context(|| anyhow!("Failed to apply diff for javadoc in field {:?}", field.inner))?,
-							inner: field.inner,
+								.with_context(|| anyhow!("Failed to apply diff for javadoc in field {:?}", field.info))?,
+							info: field.info,
 						})
 					)
-						.with_context(|| anyhow!("Failed to apply diff for field in class {:?}", class.inner))?,
+						.with_context(|| anyhow!("Failed to apply diff for field in class {:?}", class.info))?,
 					methods: apply_diff_for_hash_map(
 						&diff.methods,
 						class.methods,
 						|method| MethodNowode::new(method),
 						|diff, method| Ok(MethodNowode {
 							javadoc: apply_diff_for_option(&diff.javadoc, method.javadoc)
-								.with_context(|| anyhow!("Failed to apply diff for javadoc in method {:?}", method.inner))?,
+								.with_context(|| anyhow!("Failed to apply diff for javadoc in method {:?}", method.info))?,
 							parameters: apply_diff_for_hash_map(
 								&diff.parameters,
 								method.parameters,
 								|parameter| ParameterNowode::new(parameter),
 								|diff, parameter| Ok(ParameterNowode {
 									javadoc: apply_diff_for_option(&diff.javadoc, parameter.javadoc)
-										.with_context(|| anyhow!("Failed to apply diff for javadoc in parameter {:?}", parameter.inner))?,
-									inner: parameter.inner,
+										.with_context(|| anyhow!("Failed to apply diff for javadoc in parameter {:?}", parameter.info))?,
+									info: parameter.info,
 								})
 							)
-								.with_context(|| anyhow!("Failed to apply diff for parameter in method {:?}", method.inner))?,
-							inner: method.inner,
+								.with_context(|| anyhow!("Failed to apply diff for parameter in method {:?}", method.info))?,
+							info: method.info,
 						})
 					)
-						.with_context(|| anyhow!("Failed to apply diff for method in class {:?}", class.inner))?,
-					inner: class.inner,
+						.with_context(|| anyhow!("Failed to apply diff for method in class {:?}", class.info))?,
+					info: class.info,
 				})
 			)?,
 		})

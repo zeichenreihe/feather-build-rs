@@ -2,8 +2,8 @@ use std::io::{Cursor, Read};
 use std::path::Path;
 use anyhow::{anyhow, bail, Context, Result};
 use bytes::Buf;
-use petgraph::graph::NodeIndex;
 use zip::ZipArchive;
+use crate::download::Downloader;
 use crate::download::version_details::VersionDetails;
 use crate::download::version_manifest::VersionManifest;
 use crate::download::versions_manifest::VersionsManifest;
@@ -56,162 +56,17 @@ impl Environment {
     }
 }
 
-struct Downloader {
-    versions_manifest: Option<VersionsManifest>,
-}
-
-impl Downloader {
-    fn new() -> Downloader {
-        Downloader {
-            versions_manifest: None,
-        }
-    }
-    async fn versions_manifest(&mut self) -> Result<&VersionsManifest> {
-        if let Some(ref version_manifest) = self.versions_manifest {
-            Ok(version_manifest)
-        } else {
-            let url = "https://skyrising.github.io/mc-versions/version_manifest.json";
-
-            let body = download::get(&url).await?;
-
-            let versions_manifest: VersionsManifest = serde_json::from_str(&body)?;
-
-            Ok(self.versions_manifest.insert(versions_manifest))
-        }
-    }
-
-    async fn wanted_version_manifest(&mut self, version: &Version) -> Result<VersionManifest> {
-        let manifest = self.versions_manifest().await?;
-
-        let manifest_version = manifest
-            .versions
-            .iter()
-            .find(|it| &it.id == version);
-
-        if let Some(manifest_version) = manifest_version {
-            let url = &manifest_version.url;
-
-            let body = download::get(&url).await?;
-
-            let version_manifest: VersionManifest = serde_json::from_str(&body)
-                .with_context(|| anyhow!("Failed to parse version manifest for version {:?} from {:?}", version, url))?;
-
-            Ok(version_manifest)
-        } else {
-            bail!("No version data for Minecraft version {:?}", version);
-        }
-    }
-    async fn version_details(&mut self, version: &Version, environment: &Environment) -> Result<VersionDetails> {
-        let manifest = self.versions_manifest().await?;
-
-        let manifest_version = manifest
-            .versions
-            .iter()
-            .find(|it| &it.id == version);
-
-        if let Some(manifest_version) = manifest_version {
-            let url = &manifest_version.details;
-
-            let body = download::get(&url).await?;
-
-            let version_details: VersionDetails = serde_json::from_str(&body)
-                .with_context(|| anyhow!("Failed to parse version details for version {:?} from {:?}", version, url))?;
-
-            if version_details.shared_mappings {
-                if &Environment::Merged != environment {
-                    bail!("Minecraft version {:?} is only available as merged but was requested for {:?}", version, environment);
-                }
-            } else {
-                match environment {
-                    Environment::Merged => {
-                        bail!("Minecraft version {:?} cannot be merged - please select either the client or server environment!", version);
-                    },
-                    Environment::Client if !version_details.client => {
-                        bail!("Minecraft version {:?} does not have a client jar!", version);
-                    },
-                    Environment::Server if !version_details.server => {
-                        bail!("Minecraft version {:?} does not have a server jar", version);
-                    },
-                    _ => {},
-                }
-            }
-
-            Ok(version_details)
-        } else {
-            bail!("No version details for Minecraft version {:?}", version);
-        }
-    }
-
-    #[deprecated]
-    async fn calamus(&mut self, version: &Version) -> Result<String> {
-        let url = format!("https://github.com/OrnitheMC/calamus/raw/main/mappings/{}.tiny", version.0);
-
-        let body = download::get(&url).await?;
-
-        Ok(body)
-    }
-    async fn calamus_v2(&mut self, version: &Version) -> Result<Mappings> {
-        let url = format!("https://maven.ornithemc.net/releases/net/ornithemc/calamus-intermediary/{}/calamus-intermediary-{}-v2.jar", version.0, version.0);
-
-        let response = reqwest::get(&url)
-            .await?;
-
-        if !response.status().is_success() {
-            bail!("Got a \"{}\" for {:?}", response.status(), &url);
-        }
-
-        let body: &[u8] = &response.bytes().await?;
-
-        let reader = Cursor::new(body);
-
-        let mut zip = ZipArchive::new(reader)?;
-
-        let mappings = zip.by_name("mappings/mappings.tiny")
-            .with_context(|| anyhow!("Cannot find mappings in zip file from {:?}", url))?;
-
-        reader::tiny_v2::read(mappings)
-            .with_context(|| anyhow!("Failed to read mappings from mappings/mappings.tiny of {:?}", url))
-    }
-    async fn mc_libs(&mut self, version: &Version) -> Result<Vec<Jar>> {
-        let version_file = self.wanted_version_manifest(version).await?;
-
-        let mut libs = Vec::new();
-
-        for lib in version_file.libraries {
-            if let Some(artifact) = lib.downloads.artifact {
-                let url = &artifact.url;
-
-                let jar = self.get_jar(&url).await?;
-
-                libs.push(jar);
-            }
-        }
-
-        Ok(libs)
-    }
-
-    async fn get_jar(&mut self, url: &str) -> Result<Jar> {
-        // TODO: download + cache jar
-
-
-        // from libs:
-        // to a file given by the
-        // part after the last slash into a libraries folder (ensuring that we don't overwrite a file)
-
-        Ok(Jar)
-    }
-}
-
+#[derive(Debug)]
 struct Build {
     version: Version,
-    mappings: Mappings,
+    mappings: Mappings<2>,
 }
 
 impl Build {
     fn create(version_graph: &VersionGraph, version: &Version) -> Result<Build> {
         let mut mappings = version_graph.apply_diffs(version)?;
 
-        mappings.remove_dummy();
+        mappings.remove_dummy("named")?;
 
         Ok(Build {
             version: version.clone(),
@@ -219,7 +74,7 @@ impl Build {
         })
     }
 
-    async fn build_feather_tiny(&self, downloader: &mut Downloader) -> Result<Mappings> {
+    async fn build_feather_tiny(&self, downloader: &mut Downloader) -> Result<Mappings<2>> {
         let calamus_jar = self.map_calamus_jar(downloader).await?;
         let separate_mappings_for_build = &self.mappings;
 
@@ -345,24 +200,12 @@ impl Build {
 
     async fn map_calamus_jar(&self, downloader: &mut Downloader) -> Result<Jar> {
         let main_jar = self.main_jar(downloader).await?;
-
-        // and map it with the mappings from
         let mappings = downloader.calamus_v2(&self.version).await?;
-        // and the libs from
         let libraries = downloader.mc_libs(&self.version).await?;
-        // and the arguments
-        //  "official", "intermediary"
-        // where you call mapJar
-        // which just call tiny remapper in some way
-
         /*
         // TODO: impl
-        mapJar(calamusJar, mainJar, downloadCalamus.dest, libraries, "official", "intermediary")
-         */
+        mapJar(_return this_ calamusJar, mainJar, downloadCalamus.dest, libraries, "official", "intermediary")
 
-        let map_jar = || {
-
-            /*
 	static void mapJar(File output, File input, File mappings, File DIR libraries, String from, String to) {
 
 		def remapper = TinyRemapper.newRemapper()
@@ -377,13 +220,9 @@ impl Build {
 			outputConsumer.addNonClassFiles(input.toPath())
 			remapper.readInputs(input.toPath())
 
-	*/
-            for library in libraries {
-                /*
-                remapper.readClassPath(library)
-                 */
+            libraries.eachFileRecurse(FileType.FILES) { file ->
+                remapper.readClassPath(file.toPath())
             }
-            /*
 			remapper.apply(outputConsumer)
 			outputConsumer.close()
 			remapper.finish()
@@ -393,15 +232,14 @@ impl Build {
 		}
 	}
 			 */
-        };
 
         Ok(Jar)
     }
 
-    async fn invert_calamus_v2(&self, downloader: &mut Downloader) -> Result<Mappings> {
-        let mappings = downloader.calamus_v2(&self.version).await?;
-
-        Ok(mappings.invert())
+    async fn invert_calamus_v2(&self, downloader: &mut Downloader) -> Result<Mappings<2>> {
+        downloader.calamus_v2(&self.version)
+            .await?
+            .reorder(["intermediary", "official"])
     }
 }
 
