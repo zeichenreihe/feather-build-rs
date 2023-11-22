@@ -1,12 +1,9 @@
-use std::io::{Cursor, Read};
+// TODO: remove when we make use of things
+#![allow(unused)]
+
 use std::path::Path;
-use anyhow::{anyhow, bail, Context, Result};
-use bytes::Buf;
-use zip::ZipArchive;
+use anyhow::Result;
 use crate::download::Downloader;
-use crate::download::version_details::VersionDetails;
-use crate::download::version_manifest::VersionManifest;
-use crate::download::versions_manifest::VersionsManifest;
 use crate::tree::mappings::Mappings;
 use crate::version_graph::{Version, VersionGraph};
 
