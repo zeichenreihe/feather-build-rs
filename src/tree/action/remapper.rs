@@ -2,10 +2,20 @@ use anyhow::{bail, Result};
 use crate::tree::mappings::{ClassKey, Mappings};
 use crate::tree::Namespace;
 
-
 impl<const N: usize> Mappings<N> {
 	pub(crate) fn remapper(&self, from: Namespace<N>, to: Namespace<N>) -> Result<Remapper<'_, N>> {
-		Remapper::new(&self, from.0, to.0)
+		if N < 2 {
+			bail!("Cannot create remapper: at least two namespaces are required, got {N}");
+		}
+		if from == to {
+			bail!("Cannot create remapper with source namespace {} being equal to the target namespace {}, consider using the mapping directly", from.0, to.0);
+		}
+
+		if from.0 != 0 {
+			bail!("Cannot use a combination other than from = 0 for now, got from = {}", from.0);
+		}
+
+		Ok(Remapper { from: from.0, to: to.0, mappings: &self })
 	}
 }
 
@@ -17,21 +27,7 @@ pub(crate) struct Remapper<'a, const N: usize> {
 }
 
 impl<'a, const N: usize> Remapper<'a, N> {
-	pub(crate) fn new(mappings: &'a Mappings<N>, from: usize, to: usize) -> Result<Remapper<'a, N>> {
-		if N < 2 {
-			bail!("Cannot create remapper: at least two namespaces are required, got {N}");
-		}
-		if from == to {
-			bail!("Cannot create remapper with source namespace {from} being equal to the target namespace {to}, consider using the mapping directly");
-		}
-		Ok(Remapper { from, to, mappings })
-	}
-
 	pub(crate) fn remap_desc(&self, desc: &str) -> Result<String> {
-		if self.from != 0 || self.to != 1 {
-			bail!("Cannot use a combination other than from = 0 and to = 1 for now, got from = {} and to = {}", self.from, self.to);
-		}
-
 		let mut s = String::new();
 
 		let mut iter = desc.char_indices();
@@ -55,7 +51,7 @@ impl<'a, const N: usize> Remapper<'a, N> {
 					let key = ClassKey { src: class_name.to_owned() };
 
 					self.mappings.classes.get(&key)
-						.map_or(&class_name, |class| &class.info.names[1])
+						.map_or(&class_name, |class| &class.info.names[self.to])
 				};
 
 				s.push_str(&new_class_name);
