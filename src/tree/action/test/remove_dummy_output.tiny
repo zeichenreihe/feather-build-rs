@@ -1,0 +1,20 @@
+tiny	2	0	namespaceA	namespaceB
+c	a/minecraft/one/with/members	net/minecraft/unmapped/C_bar
+	c	A comment
+c	and/another/one	net/minecraft/unmapped/C_isFunny
+	m	()V	a	void
+c	and/now/to	the/members/members
+	m	(II)V	a	sampleMethod
+		p	0	someParam	p_123456777777
+			c	Won't get removed
+c	now/to	the/members
+	f	I	b	f_
+		c	This one doesn't get removed
+	m	()V	aMethod	m_1234567
+		c	This won't fly
+	m	(I)V	<clinit>	<clinit>
+		p	1	p_1	someOtherInt
+	m	(I)V	<init>	<init>
+		p	0	p_0	someInt
+c	yet/another/one	C_12345
+	f	I	a	b
