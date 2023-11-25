@@ -38,7 +38,7 @@ pub(crate) fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 	let mut iter = WithMoreIdentIter::new(0, &mut lines);
 	while let Some(line) = iter.next().transpose()? {
 		if line.first_field == "c" {
-			let names = line.list()?;
+			let names = line.list()?.into();
 
 			let mapping = ClassMapping { names };
 			let class_key = mapping.get_key();
@@ -49,7 +49,7 @@ pub(crate) fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 			while let Some(mut line) = iter.next().transpose()? {
 				if line.first_field == "f" {
 					let desc = line.next()?;
-					let names = line.list()?;
+					let names = line.list()?.into();
 
 					let mapping = FieldMapping { desc, names };
 					let field_key = mapping.get_key();
@@ -69,7 +69,7 @@ pub(crate) fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 					class.add_field(field_key, field)?;
 				} else if line.first_field == "m" {
 					let desc = line.next()?;
-					let names = line.list()?;
+					let names = line.list()?.into();
 
 					let mapping = MethodMapping { desc, names };
 					let method_key = mapping.get_key();
@@ -80,7 +80,7 @@ pub(crate) fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 					while let Some(mut line) = iter.next().transpose()? {
 						if line.first_field == "p" {
 							let index = line.next()?.parse()?;
-							let names = line.list()?;
+							let names = line.list()?.into();
 
 							let mapping = ParameterMapping { index, names };
 							let parameter_key = mapping.get_key();

@@ -1,6 +1,6 @@
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
-use crate::tree::{ClassNowode, FieldNowode, MethodNowode, Namespace, ParameterNowode};
+use crate::tree::{ClassNowode, FieldNowode, MethodNowode, Names, Namespace, ParameterNowode};
 use crate::tree::mappings::{ClassMapping, FieldMapping, MappingInfo, Mappings, MethodMapping, ParameterMapping};
 
 impl<const N: usize> Mappings<N> {
@@ -38,6 +38,12 @@ impl<const N: usize> Mappings<N> {
 			arr.swap(0, namespace); // namespace is checked in outer function
 			arr
 		}
+		fn invert_names<const N: usize>(names: &Names<N>, namespace: usize) -> Result<Names<N>> {
+			let mut arr: [Option<String>; N] = names.clone().into();
+			arr.swap(0, namespace);
+			arr.try_into()
+				.with_context(|| anyhow!("Cannot invert names {names:?}, as when inverted there's no source namespace"))
+		}
 
 		let remapper = self.remapper(Namespace(0), namespace)?;
 		let namespace = namespace.0;
@@ -48,7 +54,7 @@ impl<const N: usize> Mappings<N> {
 
 		for class in self.classes.values() {
 			let mapping = ClassMapping {
-				names: invert(&class.info.names, namespace),
+				names: invert_names(&class.info.names, namespace)?,
 			};
 			let key = mapping.get_key();
 
@@ -62,7 +68,7 @@ impl<const N: usize> Mappings<N> {
 			for field in class.fields.values() {
 				let mapping = FieldMapping {
 					desc: remapper.remap_desc(&field.info.desc)?,
-					names: invert(&field.info.names, namespace),
+					names: invert_names(&field.info.names, namespace)?,
 				};
 				let key = mapping.get_key();
 
@@ -77,7 +83,7 @@ impl<const N: usize> Mappings<N> {
 			for method in class.methods.values() {
 				let mapping = MethodMapping {
 					desc: remapper.remap_desc(&method.info.desc)?,
-					names: invert(&method.info.names, namespace),
+					names: invert_names(&method.info.names, namespace)?,
 				};
 				let key = mapping.get_key();
 
@@ -90,7 +96,7 @@ impl<const N: usize> Mappings<N> {
 				for parameter in method.parameters.values() {
 					let mapping = ParameterMapping {
 						index: parameter.info.index,
-						names: invert(&parameter.info.names, namespace),
+						names: invert_names(&parameter.info.names, namespace)?,
 					};
 					let key = mapping.get_key();
 

@@ -1,0 +1,18 @@
+tiny	2	0	namespaceA	namespaceB
+c	class1	nameB1
+	c	Comment from A+B
+c	class2	nameB2
+c	class4	noSuchClassInC
+c	class5	nameB5
+	f	I	field1	nameB1
+	f	I	field2	onlyInB
+	f	I	field4	commentFromB
+		c	comment
+	m	()V	<clinit>	<clinit>
+	m	(I)I	method1	aDifferentMethodThanTheNextOne
+		c	That's why comments are allowed
+	m	(I)V	method75	parametersOnlyB
+		p	0	p_0	fromB
+	m	(I)V	method77	parameters
+		p	1	p_1	fromB
+c	class6	interestingCaseB
