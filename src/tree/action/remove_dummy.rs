@@ -44,12 +44,14 @@ impl<const N: usize> Mappings<N> {
 
 #[cfg(test)]
 mod testing {
+	use crate::tree::mappings::Mappings;
+
 	#[test]
 	fn remove_dummy() {
 		let input = include_str!("test/remove_dummy_input.tiny");
 		let expected = include_str!("test/remove_dummy_output.tiny");
 
-		let mut input = crate::reader::tiny_v2::read(input.as_bytes()).unwrap();
+		let mut input: Mappings<2> = crate::reader::tiny_v2::read(input.as_bytes()).unwrap();
 
 		input.remove_dummy("namespaceB").unwrap();
 
