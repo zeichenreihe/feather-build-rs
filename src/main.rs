@@ -1,8 +1,11 @@
 // TODO: remove when we make use of things
 #![allow(unused)]
 
+use std::io::Cursor;
 use std::path::Path;
 use anyhow::Result;
+use zip::{ZipArchive, ZipWriter};
+use zip::write::FileOptions;
 use crate::download::Downloader;
 use crate::tree::mappings::Mappings;
 use crate::version_graph::{Version, VersionGraph};
@@ -91,72 +94,70 @@ impl Build {
         Ok(self.mappings.clone()) // TODO: impl
     }
 
-    async fn v2_unmerged_feather_jar(&self, downloader: &mut Downloader) -> Result<()> {
+    async fn v2_unmerged_feather_jar(&self, downloader: &mut Downloader) -> Result<Jar> {
         let mappings = self.build_feather_tiny(downloader).await?;
-        // TODO: impl
 
-        /*
+        // TODO: put this in a "jar" somehow
 
-        task v2UnmergedFeatherJar(dependsOn: buildFeatherTiny, type: Jar) {
-            archiveFileName = "feather-${featherVersion}-v2.jar"
+        let mut buf = Vec::new();
 
-            from(file(buildFeatherTiny.v2Output)) {
-                rename buildFeatherTiny.v2Output.name, "mappings/mappings.tiny"
-            }
-            destinationDirectory.set(file("build/libs"))
-        }
-         */
+        let mut zip = ZipWriter::new(Cursor::new(&mut buf));
+        zip.start_file("mappings/mappings.tiny", FileOptions::default());
 
-        Ok(())
+        writer::tiny_v2::write(&mappings, &mut zip);
+
+        zip.finish()?;
+
+        let feather_version = "0.0.0";
+        let file_name = format!("feather-{feather_version}-v2.jar");
+
+        Ok(Jar)
     }
 
-    async fn merge_v2(&self, downloader: &mut Downloader) -> Result<()> {
-        // mergedV2 = new File(tempDir, "merged-v2.tiny")
-        // output = new File(tempDir, "merged-reordered-v2.tiny")
+    async fn invert_calamus_v2(&self, downloader: &mut Downloader) -> Result<Mappings<2>> {
+        downloader.calamus_v2(&self.version)
+            .await?
+            .reorder(["intermediary", "official"])
+    }
 
-        let mappings_a = self.build_feather_tiny(downloader).await?;
+    async fn merge_v2(&self, downloader: &mut Downloader) -> Result<Mappings<3>> {
+        let mut mappings_a = self.build_feather_tiny(downloader).await?;
         let mappings_b = self.invert_calamus_v2(downloader).await?;
 
-        let merged = Mappings::merge(&mappings_a, &mappings_b);
+        // rename "calamus", "named" to
+        mappings_a.rename_namespaces(["calamus", "named"], ["intermediary", "named"])?;
 
-        // //Reorder the mappings to match the output of loom
-        // new CommandReorderTinyV2().run([
-        //   mergedV2.getAbsolutePath(),
-        //   output.getAbsolutePath(),
-        //   "official",
-        //   "intermediary",
-        //   "named"
-        // ])
+        let merged = Mappings::merge(&mappings_a, &mappings_b)?;
 
-        // TODO: impl
+        let output = merged.reorder(["official", "intermediary", "named"])?;
 
-        Ok(())
+        Ok(output)
     }
 
     async fn v2_merged_feather_jar(&self, downloader: &mut Downloader) -> Result<Jar> {
         let merge_v2 = self.merge_v2(downloader).await?;
-        // TODO: impl
-        /*
-        task v2MergedFeatherJar(dependsOn: ["mergeV2"], type: Jar) {
-            archiveFileName = "feather-${featherVersion}-mergedv2.jar" // TODO: ask space if that missing - is wanted: merged-v2
 
-            from(file(mergeV2.output)) {
-                rename mergeV2.output.name, "mappings/mappings.tiny"
-            }
-            destinationDirectory.set(file("build/libs"))
-        }
-         */
+        // TODO: put this in a "jar" somehow
+
+        let mut buf = Vec::new();
+
+        let mut zip = ZipWriter::new(Cursor::new(&mut buf));
+        zip.start_file("mappings/mappings.tiny", FileOptions::default());
+
+        writer::tiny_v2::write(&merge_v2, &mut zip);
+
+        zip.finish()?;
+
+        let feather_version = "0.0.0";
+        let file_name = format!("feather-{feather_version}-mergedv2.jar"); // TODO: ask space if that missing - is wanted: merged-v2
 
         Ok(Jar)
     }
 
     async fn build(&self, downloader: &mut Downloader) -> Result<()> {
-        // take the outputs of these two
         self.v2_merged_feather_jar(downloader).await?;
         self.v2_unmerged_feather_jar(downloader).await?;
-        // and be done
-        // TODO: impl!
-
+        // TODO: impl: be done with the results from both calls above!
         Ok(())
     }
 
@@ -201,7 +202,7 @@ impl Build {
         let libraries = downloader.mc_libs(&self.version).await?;
         /*
         // TODO: impl
-        mapJar(_return this_ calamusJar, mainJar, downloadCalamus.dest, libraries, "official", "intermediary")
+        mapJar(_return_this_ calamusJar, mainJar, downloadCalamus(v2).dest, libraries, "official", "intermediary")
 
 	static void mapJar(File output, File input, File mappings, File DIR libraries, String from, String to) {
 
@@ -231,12 +232,6 @@ impl Build {
 			 */
 
         Ok(Jar)
-    }
-
-    async fn invert_calamus_v2(&self, downloader: &mut Downloader) -> Result<Mappings<2>> {
-        downloader.calamus_v2(&self.version)
-            .await?
-            .reorder(["intermediary", "official"])
     }
 }
 
