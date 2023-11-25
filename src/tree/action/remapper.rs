@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use crate::tree::mappings::{ClassKey, Mappings};
 use crate::tree::Namespace;
 
@@ -15,14 +15,14 @@ impl<const N: usize> Mappings<N> {
 			bail!("Cannot use a combination other than from = 0 for now, got from = {}", from.0);
 		}
 
-		Ok(Remapper { from: from.0, to: to.0, mappings: &self })
+		Ok(Remapper { from: from.0, to, mappings: &self })
 	}
 }
 
 #[derive(Debug)]
 pub(crate) struct Remapper<'a, const N: usize> {
 	from: usize, // in range 0..N
-	to: usize, // in range 0..N
+	to: Namespace<N>,
 	mappings: &'a Mappings<N>,
 }
 
@@ -50,8 +50,13 @@ impl<'a, const N: usize> Remapper<'a, N> {
 				let new_class_name = {
 					let key = ClassKey { src: class_name.to_owned() };
 
-					self.mappings.classes.get(&key)
-						.map_or(&class_name, |class| &class.info.names[self.to])
+					match self.mappings.classes.get(&key) {
+						None => &class_name,
+						Some(class) => {
+							&class.info.names.get(self.to)
+								.with_context(|| anyhow!("No name for class {key:?} in namespace {:?}", self.to))?
+						}
+					}
 				};
 
 				s.push_str(&new_class_name);

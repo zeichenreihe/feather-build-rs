@@ -1,4 +1,5 @@
-use crate::tree::{ClassNowode, FieldNowode, MappingNowode, MethodNowode, ParameterNowode};
+use std::fmt::Debug;
+use crate::tree::{ClassNowode, FieldNowode, MappingNowode, MethodNowode, Names, ParameterNowode};
 
 pub(crate) type Mappings<const N: usize> = MappingNowode<
 	MappingInfo<N>,
@@ -41,13 +42,13 @@ pub(crate) struct ClassKey {
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub(crate) struct ClassMapping<const N: usize> {
-	pub(crate) names: [String; N],
+	pub(crate) names: Names<N>,
 }
 
 impl<const N: usize> ClassMapping<N> {
 	pub(crate) fn get_key(&self) -> ClassKey {
 		ClassKey {
-			src: self.names[0].clone(),
+			src: self.names.src().clone(),
 		}
 	}
 }
@@ -61,14 +62,14 @@ pub(crate) struct FieldKey {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub(crate) struct FieldMapping<const N: usize> {
 	pub(crate) desc: String,
-	pub(crate) names: [String; N],
+	pub(crate) names: Names<N>,
 }
 
 impl<const N: usize> FieldMapping<N> {
 	pub(crate) fn get_key(&self) -> FieldKey {
 		FieldKey {
 			desc: self.desc.clone(),
-			src: self.names[0].clone(),
+			src: self.names.src().clone(),
 		}
 	}
 }
@@ -82,14 +83,14 @@ pub(crate) struct MethodKey {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub(crate) struct MethodMapping<const N: usize> {
 	pub(crate) desc: String,
-	pub(crate) names: [String; N],
+	pub(crate) names: Names<N>,
 }
 
 impl<const N: usize> MethodMapping<N> {
 	pub(crate) fn get_key(&self) -> MethodKey {
 		MethodKey {
 			desc: self.desc.clone(),
-			src: self.names[0].clone(),
+			src: self.names.src().clone(),
 		}
 	}
 }
@@ -103,14 +104,14 @@ pub(crate) struct ParameterKey {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub(crate) struct ParameterMapping<const N: usize> {
 	pub(crate) index: usize,
-	pub(crate) names: [String; N],
+	pub(crate) names: Names<N>,
 }
 
 impl<const N: usize> ParameterMapping<N> {
 	pub(crate) fn get_key(&self) -> ParameterKey {
 		ParameterKey {
 			index: self.index,
-			src: self.names[0].clone(),
+			src: self.names.src().clone(),
 		}
 	}
 }

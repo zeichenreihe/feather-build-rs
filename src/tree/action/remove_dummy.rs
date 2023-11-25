@@ -13,28 +13,28 @@ impl<const N: usize> Mappings<N> {
 	///   `<init>` or `<clinit>`, and it doesn't have any members, i.e. javadoc or parameter mappings.
 	/// - a parameter mapping is removed if its name starts with `p_` and it doesn't have any javadoc.
 	pub(crate) fn remove_dummy(&mut self, namespace: &str) -> Result<()> {
-		let namespace = self.get_namespace(namespace)?.0;
+		let namespace = self.get_namespace(namespace)?;
 
 		self.classes.retain(|_, v| !{
 			v.fields.retain(|_, v| !{
-				v.javadoc.is_none() && v.info.names[namespace].starts_with("f_")
+				v.javadoc.is_none() && v.info.names.get(namespace).is_some_and(|x| x.starts_with("f_"))
 			});
 
 			v.methods.retain(|_, v| !{
 				v.parameters.retain(|_, v| !{
-					v.javadoc.is_none() && v.info.names[namespace].starts_with("p_")
+					v.javadoc.is_none() && v.info.names.get(namespace).is_some_and(|x| x.starts_with("p_"))
 				});
 
 				v.javadoc.is_none() && v.parameters.is_empty() && (
-					v.info.names[namespace].starts_with("m_") ||
-						v.info.names[namespace] == "<init>" ||
-						v.info.names[namespace] == "<clinit>"
+					v.info.names.get(namespace).is_some_and(|x| x.starts_with("m_")) ||
+						v.info.names.get(namespace).is_some_and(|x| x == "<init>") ||
+						v.info.names.get(namespace).is_some_and(|x| x == "<clinit>")
 				)
 			});
 
 			v.javadoc.is_none() && v.fields.is_empty() && v.methods.is_empty() && (
-				v.info.names[namespace].starts_with("C_") ||
-					v.info.names[namespace].starts_with("net/minecraft/unmapped/C_")
+				v.info.names.get(namespace).is_some_and(|x| x.starts_with("C_")) ||
+					v.info.names.get(namespace).is_some_and(|x| x.starts_with("net/minecraft/unmapped/C_"))
 			)
 		});
 
