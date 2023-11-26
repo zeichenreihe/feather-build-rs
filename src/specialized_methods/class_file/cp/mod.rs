@@ -2,8 +2,6 @@ use anyhow::{anyhow, bail, Context, Result};
 use crate::specialized_methods::class_file::MyRead;
 use crate::specialized_methods::class_file::name::{ClassName, FieldDescriptor, FieldName, MethodDescriptor, MethodName};
 
-pub(crate) mod attribute;
-
 #[derive(Debug)]
 pub(crate) struct Pool(Vec<PoolEntry>);
 impl Pool {
