@@ -5,12 +5,10 @@ use anyhow::Result;
 
 use crate::specialized_methods::class_file::access::ParameterAccess;
 use crate::specialized_methods::class_file::cp::Pool;
-use crate::specialized_methods::class_file::instruction::Instructions;
-//use crate::specialized_methods::class_file::instruction::Instructions;
 use crate::specialized_methods::class_file::MyRead;
 
-fn check_attribute_length(reader: &mut impl Read, length: u32) -> Result<()> {
-	let len = reader.read_u32()?;
+fn check_attribute_length(attribute_length: u32, length: u32) -> Result<()> {
+	let len = attribute_length;
 	if len == length {
 		Ok(())
 	} else {
@@ -23,23 +21,19 @@ fn check_attribute_length(reader: &mut impl Read, length: u32) -> Result<()> {
 pub(crate) struct CodeAttribute {
 	pub(crate) max_stack: u16,
 	pub(crate) max_locals: u16,
-	pub(crate) code: Instructions,
 	pub(crate) exception_table: Vec<ExceptionTableEntry>,
 	pub(crate) attributes: Vec<AttributeInfo>,
 }
 
 impl CodeAttribute {
 	fn parse(reader: &mut impl Read, pool: &Pool) -> Result<CodeAttribute> {
-		let _attribute_length = reader.read_u32()?;
-
 		let max_stack = reader.read_u16()?;
 		let max_locals = reader.read_u16()?;
 
-		let code_bytes = reader.read_vec(
+		let _ = reader.read_vec( // TODO: _
 			|r| r.read_u32_as_usize(),
 			|r| r.read_u8()
 		)?;
-		Instructions::parse(&code_bytes[..])?;
 
 		let exception_table = reader.read_vec(
 			|r| r.read_u16_as_usize(),
@@ -61,7 +55,6 @@ impl CodeAttribute {
 		Ok(CodeAttribute {
 			max_stack,
 			max_locals,
-			code: Instructions,
 			exception_table,
 			attributes,
 		})
@@ -82,8 +75,6 @@ pub(crate) struct StackMapTableAttribute {
 }
 impl StackMapTableAttribute {
 	fn parse(reader: &mut impl Read) -> Result<StackMapTableAttribute> {
-		let _attribute_length = reader.read_u32()?;
-
 		let mut is_first_explicit_frame = true;
 		let mut last_bytecode_position = 0;
 		let count = reader.read_u16_as_usize()?;
@@ -260,10 +251,6 @@ pub(crate) struct InnerClassesAttributeClassesElement {
 	inner_class_access_flags: u16,
 }
 
-
-
-
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LocalVariableTableEntry {
 	start_pc: usize,
@@ -273,7 +260,6 @@ pub(crate) struct LocalVariableTableEntry {
 	lv_index: u16,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LocalVariableTypeTableEntry {
 	start_pc: usize,
@@ -282,12 +268,6 @@ pub(crate) struct LocalVariableTypeTableEntry {
 	signature_index: usize,
 	lv_index: usize,
 }
-
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RuntimeVisibleAnnotationsAttribute {
-}
-impl RuntimeVisibleAnnotationsAttribute {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Annotation {
@@ -371,16 +351,6 @@ impl AnnotationElementValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RuntimeInvisibleAnnotationsAttribute {
-}
-impl RuntimeInvisibleAnnotationsAttribute {}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RuntimeVisibleParameterAnnotationsAttribute {
-}
-impl RuntimeVisibleParameterAnnotationsAttribute {}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ParameterAnnotationPair {
 	annotations: Vec<Annotation>,
 }
@@ -394,16 +364,6 @@ impl ParameterAnnotationPair {
 		})
 	}
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RuntimeInvisibleParameterAnnotationsAttribute {
-}
-impl RuntimeInvisibleParameterAnnotationsAttribute {}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct AnnotationDefaultAttribute {
-}
-impl AnnotationDefaultAttribute {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct BootstrapMethodsAttributeEntry {
@@ -428,7 +388,6 @@ pub(crate) struct LineNumberTableEntry {
 	line_number: usize,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum AttributeInfo {
 	ConstantValue { index: usize },
@@ -452,25 +411,23 @@ pub(crate) enum AttributeInfo {
 	AnnotationDefault { default_value: AnnotationElementValue },
 	BootstrapMethods { bootstrap_methods: Vec<BootstrapMethodsAttributeEntry> },
     MethodParameters { parameters: Vec<MethodParameterEntry> },
-	Unknown {
-		name: Vec<u8>,
-		info: Vec<u8>,
-	},
+	Unknown { name: Vec<u8>, info: Vec<u8> },
 }
 
 impl AttributeInfo {
 	pub(crate) fn parse<'a, R: Read>(reader: &mut R, pool: &Pool) -> Result<Self> {
-		Ok(match pool.get_utf8_info(reader.read_u16_as_usize()?)?.as_slice() {
+		let name_index = reader.read_u16_as_usize()?;
+		let attribute_length = reader.read_u32()?;
+		Ok(match pool.get_utf8_info(name_index)?.as_slice() {
 			b"ConstantValue" => {
-				check_attribute_length(reader, 2)?;
+				check_attribute_length(attribute_length, 2)?;
 				Self::ConstantValue {
 					index: reader.read_u16_as_usize()?
 				}
 			},
-			b"Code" => Self::Code(CodeAttribute::parse(reader, pool)?),
-			b"StackMapTable" => Self::StackMapTable(StackMapTableAttribute::parse(reader)?),
+			b"Code" => Self::Code(CodeAttribute::parse(attribute_length, reader, pool)?),
+			b"StackMapTable" => Self::StackMapTable(StackMapTableAttribute::parse(attribute_length, reader)?),
 			b"Exceptions" => {
-				let _attribute_length = reader.read_u32()?;
 				Self::Exceptions {
 					exception_table: reader.read_vec(
 						|r| r.read_u16_as_usize(),
@@ -479,7 +436,6 @@ impl AttributeInfo {
 				}
 			},
 			b"InnerClasses" => {
-				let _attribute_length = reader.read_u32()?;
 				Self::InnerClasses {
 					classes: reader.read_vec(
 						|r| r.read_u16_as_usize(),
@@ -493,36 +449,35 @@ impl AttributeInfo {
 				}
 			},
 			b"EnclosingMethod" => {
-				check_attribute_length(reader, 4)?;
+				check_attribute_length(attribute_length, 4)?;
 				Self::EnclosingMethod {
 					class_index: reader.read_u16_as_usize()?,
 					method_index: reader.read_u16_as_usize()?,
 				}
 			},
 			b"Synthetic" => {
-				check_attribute_length(reader, 0)?;
+				check_attribute_length(attribute_length, 0)?;
 				Self::Synthetic
 			},
 			b"Signature" => {
-				check_attribute_length(reader, 2)?;
+				check_attribute_length(attribute_length, 2)?;
 				Self::Signature {
 					signature_index: reader.read_u16_as_usize()?,
 				}
 			},
 			b"SourceFile" => {
-				check_attribute_length(reader, 2)?;
+				check_attribute_length(attribute_length, 2)?;
 				Self::SourceFile {
 					sourcefile_index: reader.read_u16_as_usize()?,
 				}
 			},
 			b"SourceDebugExtension" => Self::SourceDebugExtension {
 				debug_extension: reader.read_vec(
-					|r| r.read_u32_as_usize(),
+					|r| Ok(attribute_length as usize),
 					|r| r.read_u8()
 				)?,
 			},
 			b"LineNumberTable" => {
-				let _attribute_length = reader.read_u32()?;
 				Self::LineNumberTable {
 					line_number_table: reader.read_vec(
 						|r| r.read_u16_as_usize(),
@@ -536,7 +491,6 @@ impl AttributeInfo {
 				}
 			},
 			b"LocalVariableTable" => {
-				let _attribute_length = reader.read_u32()?;
 				Self::LocalVariableTable {
 					local_variable_table: {
 						reader.read_vec(
@@ -567,11 +521,10 @@ impl AttributeInfo {
 				}
 			},
 			b"Deprecated" => {
-				check_attribute_length(reader, 0)?;
+				check_attribute_length(attribute_length, 0)?;
 				Self::Deprecated
 			},
 			b"RuntimeVisibleAnnotations" => {
-				let _attribute_length = reader.read_u32()?;
 				Self::RuntimeVisibleAnnotations {
 					annotations: reader.read_vec(
 						|r| r.read_u16_as_usize(),
@@ -580,7 +533,6 @@ impl AttributeInfo {
 				}
 			}
 			b"RuntimeInvisibleAnnotations" => {
-				let _attribute_length = reader.read_u32()?;
 				Self::RuntimeInvisibleAnnotations {
 					annotations: reader.read_vec(
 						|r| r.read_u16_as_usize(),
@@ -589,7 +541,6 @@ impl AttributeInfo {
 				}
 			}
 			b"RuntimeVisibleParameterAnnotations" => {
-				let _attribute_length = reader.read_u32()?;
 				Self::RuntimeVisibleParameterAnnotations {
 					parameter_annotations: reader.read_vec(
 						|r| r.read_u16_as_usize(),
@@ -598,7 +549,6 @@ impl AttributeInfo {
 				}
 			}
 			b"RuntimeInvisibleParameterAnnotations" => {
-				let _attribute_length = reader.read_u32()?;
 				Self::RuntimeInvisibleParameterAnnotations {
 					parameter_annotations: reader.read_vec(
 						|r| r.read_u8_as_usize(),
@@ -607,13 +557,11 @@ impl AttributeInfo {
 				}
 			}
 			b"AnnotationDefault" => {
-				let _attribute_length = reader.read_u32()?;
 				Self::AnnotationDefault {
 					default_value: AnnotationElementValue::parse(reader)?,
 				}
 			}
 			b"BootstrapMethods" => {
-				let _attribute_length = reader.read_u32()?;
 				Self::BootstrapMethods {
 					bootstrap_methods: reader.read_vec(
 						|r| r.read_u16_as_usize(),
@@ -628,7 +576,6 @@ impl AttributeInfo {
 				}
 			}
 			b"MethodParameters" => {
-				let _attribute_length = reader.read_u32()?;
 				Self::MethodParameters {
 					parameters: reader.read_vec(
 						|r| r.read_u8_as_usize(),
@@ -641,7 +588,7 @@ impl AttributeInfo {
 			}
 			name => {
 				let info = reader.read_vec(
-					|r| r.read_u32_as_usize(),
+					|r| Ok(attribute_length as usize),
 					|r| r.read_u8()
 				)?;
 				eprintln!("WARN: unknown attr: {name:?}: {info:?}");

@@ -6,11 +6,9 @@ use crate::specialized_methods::class_file::cp::attribute::{AttributeInfo};
 use crate::specialized_methods::class_file::cp::Pool;
 use crate::specialized_methods::class_file::name::{ClassName, FieldDescriptor, FieldName, MethodDescriptor, MethodName};
 
-pub(crate) mod instruction;
 
 pub(crate) mod name;
 pub(crate) mod access;
-
 pub(crate) mod cp;
 
 pub(crate) trait MyRead: Read {
