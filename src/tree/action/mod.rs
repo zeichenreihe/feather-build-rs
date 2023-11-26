@@ -2,6 +2,7 @@ mod reorder;
 mod merge;
 mod remapper;
 mod remove_dummy;
+mod apply_diff;
 
 use anyhow::{bail, Result};
 use crate::tree::mappings::Mappings;
