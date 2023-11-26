@@ -2,8 +2,25 @@
 pub(crate) mod tiny_v2 {
 	use std::io::Write;
 	use anyhow::Result;
+	use zip::write::FileOptions;
+	use zip::ZipWriter;
 	use crate::tree::mappings::Mappings;
 	use crate::tree::{Names, NodeData};
+
+	pub(crate) fn write_zip_file<const N: usize, W>(mappings: &Mappings<N>, zip_writer: &mut W) -> Result<()>
+	where
+		W: Write + Seek,
+	{
+		let mut zip = ZipWriter::new(zip_writer);
+
+		zip.start_file("mappings/mappings.tiny", FileOptions::default())?;
+
+		write(&mappings, &mut zip)?;
+
+		zip.finish()?;
+
+		Ok(())
+	}
 
 	pub(crate) fn write<const N: usize>(mappings: &Mappings<N>, mut writer: impl Write) -> Result<()> {
 		writer.write(write_string(mappings)?.as_bytes())?;
