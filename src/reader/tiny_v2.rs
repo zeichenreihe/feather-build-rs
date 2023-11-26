@@ -41,7 +41,7 @@ pub(crate) fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 			let names = line.list()?.into();
 
 			let mapping = ClassMapping { names };
-			let class_key = mapping.get_key();
+			let class_key = mapping.get_key()?;
 
 			let mut class: ClassNowodeMapping<N> = ClassNowode::new(mapping);
 
@@ -52,7 +52,7 @@ pub(crate) fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 					let names = line.list()?.into();
 
 					let mapping = FieldMapping { desc, names };
-					let field_key = mapping.get_key();
+					let field_key = mapping.get_key()?;
 
 					let mut field: FieldNowodeMapping<N> = FieldNowode::new(mapping);
 
@@ -72,7 +72,7 @@ pub(crate) fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 					let names = line.list()?.into();
 
 					let mapping = MethodMapping { desc, names };
-					let method_key = mapping.get_key();
+					let method_key = mapping.get_key()?;
 
 					let mut method: MethodNowodeMapping<N> = MethodNowode::new(mapping);
 
@@ -83,7 +83,7 @@ pub(crate) fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 							let names = line.list()?.into();
 
 							let mapping = ParameterMapping { index, names };
-							let parameter_key = mapping.get_key();
+							let parameter_key = mapping.get_key()?;
 
 							let mut parameter: ParameterNowodeMapping<N> = ParameterNowode::new(mapping);
 

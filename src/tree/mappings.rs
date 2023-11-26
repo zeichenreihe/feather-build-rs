@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use anyhow::{anyhow, Context, Result};
 use crate::tree::{ClassNowode, FieldNowode, MappingNowode, MethodNowode, Names, ParameterNowode};
 
 pub(crate) type Mappings<const N: usize> = MappingNowode<
@@ -37,7 +37,13 @@ pub(crate) struct MappingInfo<const N: usize> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct ClassKey {
-	pub(crate) src: String,
+	src: String,
+}
+
+impl ClassKey {
+	pub(crate) fn new(src: String) -> ClassKey {
+		ClassKey { src }
+	}
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
@@ -46,17 +52,25 @@ pub(crate) struct ClassMapping<const N: usize> {
 }
 
 impl<const N: usize> ClassMapping<N> {
-	pub(crate) fn get_key(&self) -> ClassKey {
-		ClassKey {
-			src: self.names.src().clone(),
-		}
+	pub(crate) fn get_key(&self) -> Result<ClassKey> {
+		Ok(ClassKey {
+			src: self.names.src()
+				.with_context(|| anyhow!("Cannot create key of class {self:?}: no name for first namespace"))?
+				.clone(),
+		})
 	}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct FieldKey {
-	pub(crate) desc: String,
-	pub(crate) src: String,
+	desc: String,
+	src: String,
+}
+
+impl FieldKey {
+	pub(crate) fn new(desc: String, src: String) -> FieldKey {
+		FieldKey { desc, src }
+	}
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
@@ -66,18 +80,26 @@ pub(crate) struct FieldMapping<const N: usize> {
 }
 
 impl<const N: usize> FieldMapping<N> {
-	pub(crate) fn get_key(&self) -> FieldKey {
-		FieldKey {
+	pub(crate) fn get_key(&self) -> Result<FieldKey> {
+		Ok(FieldKey {
 			desc: self.desc.clone(),
-			src: self.names.src().clone(),
-		}
+			src: self.names.src()
+				.with_context(|| anyhow!("Cannot create key of field {self:?}: no name for first namespace"))?
+				.clone(),
+		})
 	}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct MethodKey {
-	pub(crate) desc: String,
-	pub(crate) src: String,
+	desc: String,
+	src: String,
+}
+
+impl MethodKey {
+	pub(crate) fn new(desc: String, src: String) -> MethodKey {
+		MethodKey { desc, src }
+	}
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
@@ -87,18 +109,25 @@ pub(crate) struct MethodMapping<const N: usize> {
 }
 
 impl<const N: usize> MethodMapping<N> {
-	pub(crate) fn get_key(&self) -> MethodKey {
-		MethodKey {
+	pub(crate) fn get_key(&self) -> Result<MethodKey> {
+		Ok(MethodKey {
 			desc: self.desc.clone(),
-			src: self.names.src().clone(),
-		}
+			src: self.names.src()
+				.with_context(|| anyhow!("Cannot create key of method {self:?}: no name for first namespace"))?
+				.clone(),
+		})
 	}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct ParameterKey {
-	pub(crate) index: usize,
-	pub(crate) src: String,
+	index: usize,
+}
+
+impl ParameterKey {
+	pub(crate) fn new(index: usize) -> ParameterKey {
+		ParameterKey { index }
+	}
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
@@ -108,11 +137,10 @@ pub(crate) struct ParameterMapping<const N: usize> {
 }
 
 impl<const N: usize> ParameterMapping<N> {
-	pub(crate) fn get_key(&self) -> ParameterKey {
-		ParameterKey {
+	pub(crate) fn get_key(&self) -> Result<ParameterKey> {
+		Ok(ParameterKey {
 			index: self.index,
-			src: self.names.src().clone(),
-		}
+		})
 	}
 }
 

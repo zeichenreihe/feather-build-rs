@@ -17,21 +17,18 @@ pub(crate) struct Namespace<const N: usize>(usize);
 mod names {
 	use std::fmt::{Debug, Formatter};
 	use std::ops::Index;
-	use anyhow::bail;
+	use anyhow::{bail, Context, Result};
 	use crate::tree::Namespace;
 
 	/// A struct storing names for namespaces.
 	#[derive(Clone, PartialEq, PartialOrd, Eq, Ord)]
 	pub(crate) struct Names<const N: usize> {
-		/// Conditions to hold true:
-		/// - `index = 0` must always be `Some`
 		names: [Option<String>; N],
 	}
 
 	impl<const N: usize> Names<N> {
-		pub(crate) fn src(&self) -> &String {
-			// SAFETY: guaranteed from the conditions of the struct
-			self.names[0].as_ref().unwrap()
+		pub(crate) fn src(&self) -> Result<&String> {
+			self.names[0].as_ref().context("No name for namespace zero")
 		}
 
 		pub(crate) fn get(&self, namespace: Namespace<N>) -> Option<&String> {
@@ -53,19 +50,13 @@ mod names {
 
 	impl<const N: usize> From<[String; N]> for Names<N> {
 		fn from(value: [String; N]) -> Self {
-			Names {
-				names: value.map(|x| Some(x)),
-			}
+			Names { names: value.map(|x| Some(x)) }
 		}
 	}
 
-	impl<const N: usize> TryFrom<[Option<String>; N]> for Names<N> {
-		type Error = anyhow::Error;
-		fn try_from(value: [Option<String>; N]) -> Result<Self, Self::Error> {
-			if value.get(0).is_some_and(|x| x.is_none()) {
-				bail!("Cannot have empty name for namespace zero: {value:?}");
-			}
-			Ok(Names { names: value })
+	impl<const N: usize> From<[Option<String>; N]> for Names<N> {
+		fn from(value: [Option<String>; N]) -> Self {
+			Names { names: value }
 		}
 	}
 

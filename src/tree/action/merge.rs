@@ -60,15 +60,15 @@ fn merge_names<F, T>(f: F, a: &Option<T>, b: &Option<T>) -> Result<Names<3>>
 where
 	F: Fn(&T) -> &Names<2>,
 {
-	match (a.as_ref().map(|x| f(x)), b.as_ref().map(|x| f(x))) {
+	Ok(match (a.as_ref().map(|x| f(x)), b.as_ref().map(|x| f(x))) {
 		(None, None) => unreachable!(),
 		(None, Some(b)) => {
 			let b: &[Option<String>; 2] = b.into();
-			[b[0].clone(), None, b[1].clone()].try_into()
+			[b[0].clone(), None, b[1].clone()].into()
 		},
 		(Some(a), None) => {
 			let a: &[Option<String>; 2] = a.into();
-			[a[0].clone(), a[1].clone(), None].try_into()
+			[a[0].clone(), a[1].clone(), None].into()
 		},
 		(Some(a), Some(b)) => {
 			let a: &[Option<String>; 2] = a.into();
@@ -76,9 +76,9 @@ where
 			if a[0] != b[0] {
 				bail!("Cannot merge {a:?} and {b:?}: The first names must match up");
 			}
-			[a[0].clone(), a[1].clone(), b[1].clone()].try_into()
+			[a[0].clone(), a[1].clone(), b[1].clone()].into()
 		}
-	}
+	})
 }
 
 // merge two equal ones
