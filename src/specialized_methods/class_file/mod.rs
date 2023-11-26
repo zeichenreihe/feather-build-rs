@@ -75,7 +75,7 @@ fn nom_attribute(reader: &mut impl Read) -> Result<()> {
 	return Ok(());
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub(crate) struct FieldInfo {
 	pub(crate) access_flags: FieldInfoAccess,
 	pub(crate) name: FieldName,
@@ -84,7 +84,7 @@ pub(crate) struct FieldInfo {
 
 impl FieldInfo {
 	fn parse(reader: &mut impl Read, pool: &Pool) -> Result<Self> {
-		let access_flags = FieldInfoAccess::parse(reader.read_u16()?);
+		let access_flags = reader.read_u16()?.into();
 
 		let name = pool.get_field_name(reader.read_u16_as_usize()?)
 			.with_context(|| "Failed to get field name from constant pool")?;
@@ -102,7 +102,7 @@ impl FieldInfo {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub(crate) struct MethodInfo {
 	pub(crate) access_flags: MethodInfoAccess,
 	pub(crate) name: MethodName,
@@ -111,7 +111,7 @@ pub(crate) struct MethodInfo {
 
 impl MethodInfo {
 	fn parse(reader: &mut impl Read, pool: &Pool) -> Result<Self> {
-		let access_flags = MethodInfoAccess::parse(reader.read_u16()?);
+		let access_flags = reader.read_u16()?.into();
 
 		let name = pool.get_method_name(reader.read_u16_as_usize()?)
 			.with_context(|| "Failed to get method name from constant pool")?;
@@ -129,7 +129,7 @@ impl MethodInfo {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub(crate) struct ClassFile {
 	pub(crate) minor_version: u16,
 	pub(crate) major_version: u16,
@@ -158,7 +158,7 @@ impl ClassFile {
 		let pool = Pool::parse(reader)
 			.with_context(|| "Failed to parse constant pool")?;
 
-		let access_flags = ClassInfoAccess::parse(reader.read_u16()?);
+		let access_flags = reader.read_u16()?.into();
 
 		let this_class: ClassName = pool.get_class_name(reader.read_u16_as_usize()?)
 			.with_context(|| "Failed to get constant pool item `this_class`")?;
