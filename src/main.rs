@@ -69,16 +69,38 @@ impl Build {
         })
     }
 
-    fn map_specialized_methods(&self, calamus_jar: Jar) -> Result<Mappings<2>> {
-		// new MapSpecializedMethodsCommand().run([calamusJar, "tinyv2", self.mappings, "tinyv2:intermediary:named", _return_this_])
-
-        Ok(self.mappings.clone()) // TODO: impl
-    }
-
     async fn build_feather_tiny(&self, downloader: &mut Downloader) -> Result<Mappings<2>> {
-        let calamus_jar = self.map_calamus_jar(downloader).await?;
+        let main_jar = self.main_jar(downloader).await?;
+        let mappings = downloader.calamus_v2(&self.version).await?;
+        let libraries = downloader.mc_libs(&self.version).await?;
+        /*
+        static void mapJar(Path input, File mappings, File DIR libraries, String from, String to) -> File output {
+            let output = ...;
 
-        self.map_specialized_methods(calamus_jar)
+            def remapper = TinyRemapper.newRemapper()
+                    .withMappings(TinyUtils.createTinyMappingProvider(mappings.toPath(), "official", "intermediary"))
+                    .renameInvalidLocals(true)
+                    .rebuildSourceFilenames(true)
+                    .build()
+
+            def outputConsumer = new OutputConsumerPath.Builder(output.toPath()).build()
+            outputConsumer.addNonClassFiles(input)
+            remapper.readInputs(input)
+
+            libraries.eachFileRecurse(FileType.FILES) { file ->
+                remapper.readClassPath(file.toPath())
+            }
+            remapper.apply(outputConsumer)
+            outputConsumer.close()
+            remapper.finish()
+
+            return output;
+        }
+        calamusJar = mapJar(mainJar, downloadCalamus(v2).dest, libraries, "official", "intermediary")
+        new MapSpecializedMethodsCommand().run([calamusJar, "tinyv2", self.mappings, "tinyv2:intermediary:named", _return_this_])
+		*/
+        // TODO: impl
+        Ok(self.mappings.clone())
     }
 
     async fn v2_unmerged_feather_jar(&self, downloader: &mut Downloader) -> Result<Jar> {
@@ -170,44 +192,6 @@ impl Build {
                 downloader.get_jar(&url).await
             },
         }
-    }
-
-    async fn map_calamus_jar(&self, downloader: &mut Downloader) -> Result<Jar> {
-        let main_jar = self.main_jar(downloader).await?;
-        let mappings = downloader.calamus_v2(&self.version).await?;
-        let libraries = downloader.mc_libs(&self.version).await?;
-        /*
-        // TODO: impl
-        mapJar(_return_this_ calamusJar, mainJar, downloadCalamus(v2).dest, libraries, "official", "intermediary")
-
-	static void mapJar(File output, File input, File mappings, File DIR libraries, String from, String to) {
-
-		def remapper = TinyRemapper.newRemapper()
-				.withMappings(TinyUtils.createTinyMappingProvider(mappings.toPath(), "official", "intermediary"))
-				.renameInvalidLocals(true)
-				.rebuildSourceFilenames(true)
-				.build()
-
-		try {
-			def outputConsumerBuilder = new OutputConsumerPath.Builder(output.toPath())
-			def outputConsumer = outputConsumerBuilder.build()
-			outputConsumer.addNonClassFiles(input.toPath())
-			remapper.readInputs(input.toPath())
-
-            libraries.eachFileRecurse(FileType.FILES) { file ->
-                remapper.readClassPath(file.toPath())
-            }
-			remapper.apply(outputConsumer)
-			outputConsumer.close()
-			remapper.finish()
-		} catch (Exception e) {
-			remapper.finish()
-			throw new RuntimeException("Failed to remap jar", e)
-		}
-	}
-			 */
-
-        Ok(Jar)
     }
 }
 
