@@ -16,8 +16,7 @@ pub(crate) struct Namespace<const N: usize>(usize);
 
 mod names {
 	use std::fmt::{Debug, Formatter};
-	use std::ops::Index;
-	use anyhow::{bail, Context, Result};
+	use anyhow::{Context, Result};
 	use crate::tree::Namespace;
 
 	/// A struct storing names for namespaces.

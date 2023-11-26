@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, Context, Result};
 use indexmap::IndexMap;
 use crate::tree::{ClassNowode, FieldNowode, MethodNowode, Names, Namespace, ParameterNowode};
 use crate::tree::mappings::{ClassMapping, FieldMapping, MappingInfo, Mappings, MethodMapping, ParameterMapping};
@@ -6,7 +6,7 @@ fn reorder_array<T: Clone, const N: usize>(arr: &[T; N], table: [Namespace<N>; N
 	table.clone().map(|namespace| arr[namespace.0].clone())
 }
 fn reorder_names<const N: usize>(names: &Names<N>, table: [Namespace<N>; N]) -> Names<N> {
-	let mut arr: &[Option<String>; N] = names.into();
+	let arr: &[Option<String>; N] = names.into();
 	reorder_array(arr, table).into()
 }
 

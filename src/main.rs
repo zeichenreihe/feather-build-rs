@@ -1,6 +1,3 @@
-// TODO: remove when we make use of things
-#![allow(unused)]
-
 use std::io::Cursor;
 use std::path::Path;
 use anyhow::Result;

@@ -2,8 +2,8 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
-use crate::tree::{NodeData, ClassNowode, FieldNowode, MappingNowode, MethodNowode, ParameterNowode, NodeDataMut};
-use crate::tree::mappings::{ClassKey, ClassMapping, FieldKey, FieldMapping, JavadocMapping, MappingInfo, MethodKey, MethodMapping, ParameterKey, ParameterMapping, Mappings, ClassNowodeMapping};
+use crate::tree::{NodeData, ClassNowode, FieldNowode, MethodNowode, ParameterNowode, NodeDataMut};
+use crate::tree::mappings::Mappings;
 use crate::tree::mappings_diff::{Action, MappingsDiff};
 
 fn apply_diff_option<T>(

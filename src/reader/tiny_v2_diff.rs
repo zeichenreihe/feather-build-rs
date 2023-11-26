@@ -55,7 +55,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 					let mut field = FieldNowode::new(action);
 
 					let mut iter = iter.next_level();
-					while let Some(mut line) = iter.next().transpose()? {
+					while let Some(line) = iter.next().transpose()? {
 						if line.first_field == "c" {
 							let action = line.action(|jav| JavadocMapping(jav))?;
 							if field.javadoc.replace(action).is_some() {
@@ -92,7 +92,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 							let mut parameter = ParameterNowode::new(action);
 
 							let mut iter = iter.next_level();
-							while let Some(mut line) = iter.next().transpose()? {
+							while let Some(line) = iter.next().transpose()? {
 								if line.first_field == "c" {
 									let action = line.action(|jav| JavadocMapping(jav))?;
 									if parameter.javadoc.replace(action).is_some() {

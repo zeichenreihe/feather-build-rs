@@ -123,15 +123,6 @@ impl Downloader {
 			bail!("No version details for Minecraft version {:?}", version);
 		}
 	}
-
-	#[deprecated]
-	pub(crate) async fn calamus(&mut self, version: &Version) -> Result<String> {
-		let url = format!("https://github.com/OrnitheMC/calamus/raw/main/mappings/{}.tiny", version.0);
-
-		let body = self.get(&url).await?.text().await?;
-
-		Ok(body)
-	}
 	pub(crate) async fn calamus_v2(&mut self, version: &Version) -> Result<Mappings<2>> {
 		let url = format!("https://maven.ornithemc.net/releases/net/ornithemc/calamus-intermediary/{}/calamus-intermediary-{}-v2.jar", version.0, version.0);
 
