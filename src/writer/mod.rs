@@ -1,6 +1,6 @@
 
 pub(crate) mod tiny_v2 {
-	use std::io::Write;
+	use std::io::{Seek, Write};
 	use anyhow::Result;
 	use zip::write::FileOptions;
 	use zip::ZipWriter;
@@ -31,9 +31,9 @@ pub(crate) mod tiny_v2 {
 	fn write_names<const N: usize>(writer: &mut String, names: &Names<N>) -> Result<()> {
 		use std::fmt::Write;
 		for name in names.names() {
-			write!(writer, "\t{}", name.unwrap_or(&String::new()));
+			write!(writer, "\t{}", name.unwrap_or(&String::new()))?;
 		}
-		writeln!(writer);
+		writeln!(writer)?;
 		Ok(())
 	}
 
@@ -45,9 +45,9 @@ pub(crate) mod tiny_v2 {
 		let node = mappings.node_data();
 		write!(s, "tiny\t2\t0")?;
 		for namespace in &node.namespaces {
-			write!(s, "\t{namespace}");
+			write!(s, "\t{namespace}")?;
 		}
-		writeln!(s);
+		writeln!(s)?;
 
 		if let Some(ref comment) = mappings.javadoc {
 			writeln!(s, "\tc\t{}", comment.0)?;
@@ -57,7 +57,7 @@ pub(crate) mod tiny_v2 {
 		classes.sort_by(|a, b| a.node_data().cmp(b.node_data()));
 		for class in classes {
 			let node = class.node_data();
-			write!(s, "c");
+			write!(s, "c")?;
 			write_names(&mut s, &node.names)?;
 
 			if let Some(ref comment) = class.javadoc {
@@ -68,7 +68,7 @@ pub(crate) mod tiny_v2 {
 			fields.sort_by(|a, b| a.node_data().cmp(b.node_data()));
 			for field in fields {
 				let node = field.node_data();
-				write!(s, "\tf\t{}", node.desc);
+				write!(s, "\tf\t{}", node.desc)?;
 				write_names(&mut s, &node.names)?;
 
 				if let Some(ref comment) = field.javadoc {
