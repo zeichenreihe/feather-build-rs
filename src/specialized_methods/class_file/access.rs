@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Formatter};
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub(crate) struct ClassInfoAccess {
 	pub(crate) is_public: bool,
 	pub(crate) is_final: bool,
@@ -12,19 +12,18 @@ pub(crate) struct ClassInfoAccess {
 	pub(crate) is_enum: bool,
 }
 
-impl ClassInfoAccess {
-	pub(crate) fn parse(access_flags: u16) -> ClassInfoAccess {
-		let is_public     = access_flags & 0x0001 != 0;
-		let is_final      = access_flags & 0x0010 != 0;
-		let is_super      = access_flags & 0x0020 != 0;
-		let is_interface  = access_flags & 0x0200 != 0;
-		let is_abstract   = access_flags & 0x0400 != 0;
-		let is_synthetic  = access_flags & 0x1000 != 0;
-		let is_annotation = access_flags & 0x2000 != 0;
-		let is_enum       = access_flags & 0x4000 != 0;
-		// other bits: reserved for future use
-
-		ClassInfoAccess { is_public, is_final, is_super, is_interface, is_abstract, is_synthetic, is_annotation, is_enum }
+impl From<u16> for ClassInfoAccess {
+	fn from(access_flags: u16) -> Self {
+		ClassInfoAccess {
+			is_public:     access_flags & 0x0001 != 0,
+			is_final:      access_flags & 0x0010 != 0,
+			is_super:      access_flags & 0x0020 != 0,
+			is_interface:  access_flags & 0x0200 != 0,
+			is_abstract:   access_flags & 0x0400 != 0,
+			is_synthetic:  access_flags & 0x1000 != 0,
+			is_annotation: access_flags & 0x2000 != 0,
+			is_enum:       access_flags & 0x4000 != 0,
+		}
 	}
 }
 
@@ -43,8 +42,7 @@ impl Debug for ClassInfoAccess {
 	}
 }
 
-
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub(crate) struct FieldInfoAccess {
 	pub(crate) is_public: bool,
 	pub(crate) is_private: bool,
@@ -57,20 +55,19 @@ pub(crate) struct FieldInfoAccess {
 	pub(crate) is_enum: bool,
 }
 
-impl FieldInfoAccess {
-	pub(crate) fn parse(access_flags: u16) -> FieldInfoAccess {
-		let is_public    = access_flags & 0x0001 != 0;
-		let is_private   = access_flags & 0x0002 != 0;
-		let is_protected = access_flags & 0x0004 != 0;
-		let is_static    = access_flags & 0x0008 != 0;
-		let is_final     = access_flags & 0x0010 != 0;
-		let is_volatile  = access_flags & 0x0040 != 0;
-		let is_transient = access_flags & 0x0080 != 0;
-		let is_synthetic = access_flags & 0x1000 != 0;
-		let is_enum      = access_flags & 0x4000 != 0;
-		// other bits: reserved for future use
-
-		FieldInfoAccess { is_public, is_private, is_protected, is_static, is_final, is_volatile, is_transient, is_synthetic, is_enum }
+impl From<u16> for FieldInfoAccess {
+	fn from(access_flags: u16) -> Self {
+		FieldInfoAccess {
+			is_public:    access_flags & 0x0001 != 0,
+			is_private:   access_flags & 0x0002 != 0,
+			is_protected: access_flags & 0x0004 != 0,
+			is_static:    access_flags & 0x0008 != 0,
+			is_final:     access_flags & 0x0010 != 0,
+			is_volatile:  access_flags & 0x0040 != 0,
+			is_transient: access_flags & 0x0080 != 0,
+			is_synthetic: access_flags & 0x1000 != 0,
+			is_enum:      access_flags & 0x4000 != 0,
+		}
 	}
 }
 
@@ -90,9 +87,7 @@ impl Debug for FieldInfoAccess {
 	}
 }
 
-
-
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub(crate) struct MethodInfoAccess {
 	pub(crate) is_public: bool,
 	pub(crate) is_private: bool,
@@ -108,23 +103,22 @@ pub(crate) struct MethodInfoAccess {
 	pub(crate) is_synthetic: bool,
 }
 
-impl MethodInfoAccess {
-	pub(crate) fn parse(access_flags: u16) -> MethodInfoAccess {
-		let is_public       = access_flags & 0x0001 != 0;
-		let is_private      = access_flags & 0x0002 != 0;
-		let is_protected    = access_flags & 0x0004 != 0;
-		let is_static       = access_flags & 0x0008 != 0;
-		let is_final        = access_flags & 0x0010 != 0;
-		let is_synchronised = access_flags & 0x0020 != 0;
-		let is_bridge       = access_flags & 0x0040 != 0;
-		let is_varargs      = access_flags & 0x0080 != 0;
-		let is_native       = access_flags & 0x0100 != 0;
-		let is_abstract     = access_flags & 0x0400 != 0;
-		let is_strict       = access_flags & 0x0800 != 0;
-		let is_synthetic    = access_flags & 0x1000 != 0;
-		// other bits: reserved for future use
-
-		MethodInfoAccess { is_public, is_private, is_protected, is_static, is_final, is_synchronised, is_bridge, is_varargs, is_native, is_abstract, is_strict, is_synthetic }
+impl From<u16> for MethodInfoAccess {
+	fn from(access_flags: u16) -> Self {
+		MethodInfoAccess {
+			is_public:       access_flags & 0x0001 != 0,
+			is_private:      access_flags & 0x0002 != 0,
+			is_protected:    access_flags & 0x0004 != 0,
+			is_static:       access_flags & 0x0008 != 0,
+			is_final:        access_flags & 0x0010 != 0,
+			is_synchronised: access_flags & 0x0020 != 0,
+			is_bridge:       access_flags & 0x0040 != 0,
+			is_varargs:      access_flags & 0x0080 != 0,
+			is_native:       access_flags & 0x0100 != 0,
+			is_abstract:     access_flags & 0x0400 != 0,
+			is_strict:       access_flags & 0x0800 != 0,
+			is_synthetic:    access_flags & 0x1000 != 0,
+		}
 	}
 }
 
@@ -143,34 +137,6 @@ impl Debug for MethodInfoAccess {
 		if self.is_abstract     { f.write_str("abstract ")?; }
 		if self.is_strict       { f.write_str("strict ")?; }
 		if self.is_synthetic    { f.write_str("synthetic ")?; }
-		f.write_str("}")
-	}
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct ParameterAccess {
-	pub(crate) is_final: bool,
-	pub(crate) is_synthetic: bool,
-	pub(crate) is_mandated: bool,
-}
-
-impl ParameterAccess {
-	pub(crate) fn parse(access_flags: u16) -> ParameterAccess {
-		let is_final     = access_flags & 0x0010 != 0;
-		let is_synthetic = access_flags & 0x1000 != 0;
-		let is_mandated  = access_flags & 0x8000 != 0;
-		// other bits are reserved for future use
-
-		ParameterAccess { is_final, is_synthetic, is_mandated, }
-	}
-}
-
-impl Debug for ParameterAccess {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		f.write_str("MethodInfoAccess { ")?;
-		if self.is_final        { f.write_str("final ")?; }
-		if self.is_synthetic    { f.write_str("synthetic ")?; }
-		if self.is_mandated     { f.write_str("mandated ")?; }
 		f.write_str("}")
 	}
 }
