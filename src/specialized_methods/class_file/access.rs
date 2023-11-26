@@ -29,7 +29,7 @@ impl From<u16> for ClassInfoAccess {
 
 impl Debug for ClassInfoAccess {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		f.write_str("ClassInfoAccess { ")?;
+		f.write_str("{ ")?;
 		if self.is_public     { f.write_str("public ")?; }
 		if self.is_final      { f.write_str("final ")?; }
 		if self.is_super      { f.write_str("super ")?; }
@@ -73,7 +73,7 @@ impl From<u16> for FieldInfoAccess {
 
 impl Debug for FieldInfoAccess {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		f.write_str("FieldInfoAccess { ")?;
+		f.write_str("{ ")?;
 		if self.is_public    { f.write_str("public ")?; }
 		if self.is_private   { f.write_str("private ")?; }
 		if self.is_protected { f.write_str("protected ")?; }
@@ -124,7 +124,7 @@ impl From<u16> for MethodInfoAccess {
 
 impl Debug for MethodInfoAccess {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		f.write_str("MethodInfoAccess { ")?;
+		f.write_str("{ ")?;
 		if self.is_public       { f.write_str("public ")?; }
 		if self.is_private      { f.write_str("private ")?; }
 		if self.is_protected    { f.write_str("protected ")?; }
