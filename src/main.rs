@@ -3,9 +3,7 @@
 
 use std::io::Cursor;
 use std::path::Path;
-use anyhow::{bail, Result};
-use zip::{ZipArchive, ZipWriter};
-use zip::write::FileOptions;
+use anyhow::Result;
 use crate::download::Downloader;
 use crate::tree::mappings::Mappings;
 use crate::version_graph::{Version, VersionGraph};
@@ -74,24 +72,16 @@ impl Build {
         })
     }
 
-    async fn build_feather_tiny(&self, downloader: &mut Downloader) -> Result<Mappings<2>> {
-        let calamus_jar = self.map_calamus_jar(downloader).await?;
-        let separate_mappings_for_build = &self.mappings;
-
-        // TODO: impl
-
-        /*
-		new MapSpecializedMethodsCommand().run(
-				calamusJar.getAbsolutePath(),
-				"tinyv2",
-				separateMappingsForBuild.v2Output.getAbsolutePath(), // impl via field read
-				"tinyv2:intermediary:named",
-				v2Output.getAbsolutePath() // return this
-		)
-
-         */
+    fn map_specialized_methods(&self, calamus_jar: Jar) -> Result<Mappings<2>> {
+		// new MapSpecializedMethodsCommand().run([calamusJar, "tinyv2", self.mappings, "tinyv2:intermediary:named", _return_this_])
 
         Ok(self.mappings.clone()) // TODO: impl
+    }
+
+    async fn build_feather_tiny(&self, downloader: &mut Downloader) -> Result<Mappings<2>> {
+        let calamus_jar = self.map_calamus_jar(downloader).await?;
+
+        self.map_specialized_methods(calamus_jar)
     }
 
     async fn v2_unmerged_feather_jar(&self, downloader: &mut Downloader) -> Result<Jar> {
@@ -101,12 +91,7 @@ impl Build {
 
         let mut buf = Vec::new();
 
-        let mut zip = ZipWriter::new(Cursor::new(&mut buf));
-        zip.start_file("mappings/mappings.tiny", FileOptions::default());
-
-        writer::tiny_v2::write(&mappings, &mut zip);
-
-        zip.finish()?;
+        writer::tiny_v2::write_zip_file(&mappings, &mut Cursor::new(&mut buf))?;
 
         let feather_version = "0.0.0";
         let file_name = format!("feather-{feather_version}-v2.jar");
@@ -140,12 +125,7 @@ impl Build {
 
         let mut buf = Vec::new();
 
-        let mut zip = ZipWriter::new(Cursor::new(&mut buf));
-        zip.start_file("mappings/mappings.tiny", FileOptions::default());
-
-        writer::tiny_v2::write(&merge_v2, &mut zip);
-
-        zip.finish()?;
+        writer::tiny_v2::write_zip_file(&merge_v2, &mut Cursor::new(&mut buf))?;
 
         let feather_version = "0.0.0";
         let file_name = format!("feather-{feather_version}-mergedv2.jar"); // TODO: ask space if that missing - is wanted: merged-v2
