@@ -2,6 +2,13 @@ use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use crate::tree::{ClassNowode, FieldNowode, MethodNowode, Names, Namespace, ParameterNowode};
 use crate::tree::mappings::{ClassMapping, FieldMapping, MappingInfo, Mappings, MethodMapping, ParameterMapping};
+fn reorder_array<T: Clone, const N: usize>(arr: &[T; N], table: [Namespace<N>; N]) -> [T; N] {
+	table.clone().map(|namespace| arr[namespace.0].clone())
+}
+fn reorder_names<const N: usize>(names: &Names<N>, table: [Namespace<N>; N]) -> Names<N> {
+	let mut arr: &[Option<String>; N] = names.into();
+	reorder_array(arr, table).into()
+}
 
 impl<const N: usize> Mappings<N> {
 	/// Reorders the namespaces to the given order.
@@ -21,40 +28,21 @@ impl<const N: usize> Mappings<N> {
 	pub(crate) fn reorder(&self, namespaces: [&str; N]) -> Result<Mappings<N>> {
 		// new CommandReorderTinyV2().run([self, return, "intermediary", "official"])
 
-		//TODO: rewrite so that it can actually "reorder" any given namespaces,
-		// also ensure that list doesn't have duplicates in it;
-		// and also update the test cases
-
-		let namespaces = self.get_namespaces(namespaces)?;
-
-		let namespace = namespaces[0];
-
-		if namespace.0 != 1 {
-			bail!("can only invert with namespace 1 currently (remapper can't do anything else)!");
+		// at each position we have the namespace (and therefore the old index) to look to find the name
+		let mut table = [Namespace(0); N];
+		for i in 0..N {
+			table[i] = self.get_namespace(namespaces[i])?;
 		}
 
-		fn invert<T: Clone, const N: usize>(arr: &[T; N], namespace: usize) -> [T; N] {
-			let mut arr = arr.clone();
-			arr.swap(0, namespace); // namespace is checked in outer function
-			arr
-		}
-		fn invert_names<const N: usize>(names: &Names<N>, namespace: usize) -> Result<Names<N>> {
-			let mut arr: [Option<String>; N] = names.clone().into();
-			arr.swap(0, namespace);
-			arr.try_into()
-				.with_context(|| anyhow!("Cannot invert names {names:?}, as when inverted there's no source namespace"))
-		}
-
-		let remapper = self.remapper(Namespace(0), namespace)?;
-		let namespace = namespace.0;
+		let remapper = self.remapper(Namespace(0), table[0])?;
 
 		let mut m = Mappings::new(MappingInfo {
-			namespaces: invert(&self.info.namespaces, namespace),
+			namespaces: reorder_array(&self.info.namespaces, table),
 		});
 
 		for class in self.classes.values() {
 			let mapping = ClassMapping {
-				names: invert_names(&class.info.names, namespace)?,
+				names: reorder_names(&class.info.names, table),
 			};
 			let key = mapping.get_key()
 				.with_context(|| anyhow!("Failed to invert names for class {:?}", class.info.names))?;
@@ -69,7 +57,7 @@ impl<const N: usize> Mappings<N> {
 			for field in class.fields.values() {
 				let mapping = FieldMapping {
 					desc: remapper.remap_desc(&field.info.desc)?,
-					names: invert_names(&field.info.names, namespace)?,
+					names: reorder_names(&field.info.names, table),
 				};
 				let key = mapping.get_key()
 					.with_context(|| anyhow!("Failed to invert names for field in class {:?}", class.info.names))?;
@@ -85,7 +73,7 @@ impl<const N: usize> Mappings<N> {
 			for method in class.methods.values() {
 				let mapping = MethodMapping {
 					desc: remapper.remap_desc(&method.info.desc)?,
-					names: invert_names(&method.info.names, namespace)?,
+					names: reorder_names(&method.info.names, table),
 				};
 				let key = mapping.get_key()
 					.with_context(|| anyhow!("Failed to invert names for methods in class {:?}", class.info.names))?;
@@ -99,7 +87,7 @@ impl<const N: usize> Mappings<N> {
 				for parameter in method.parameters.values() {
 					let mapping = ParameterMapping {
 						index: parameter.info.index,
-						names: invert_names(&parameter.info.names, namespace)?,
+						names: reorder_names(&parameter.info.names, table),
 					};
 					let key = mapping.get_key()
 						.with_context(|| anyhow!("Failed to invert names for parameters in class {:?} method {:?}", class.info.names, method.info))?;

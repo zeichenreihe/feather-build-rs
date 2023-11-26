@@ -27,12 +27,4 @@ impl<const N: usize> Mappings<N> {
 		}
 		bail!("Cannot find namespace with name {name:?}, only got {:?}", self.info.namespaces);
 	}
-
-	fn get_namespaces<const M: usize>(&self, names: [&str; M]) -> Result<[Namespace<N>; M]> {
-		let mut result = [Namespace(0); M];
-		for i in 0..M {
-			result[i] = self.get_namespace(names[i])?;
-		}
-		Ok(result)
-	}
 }
