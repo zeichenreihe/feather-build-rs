@@ -3,7 +3,7 @@
 
 use std::io::Cursor;
 use std::path::Path;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use zip::{ZipArchive, ZipWriter};
 use zip::write::FileOptions;
 use crate::download::Downloader;
@@ -124,10 +124,9 @@ impl Build {
         let mut mappings_a = self.build_feather_tiny(downloader).await?;
         let mappings_b = self.invert_calamus_v2(downloader).await?;
 
-        // rename "calamus", "named" to
         mappings_a.rename_namespaces(["calamus", "named"], ["intermediary", "named"])?;
 
-        let merged = Mappings::merge(&mappings_a, &mappings_b)?;
+        let merged = Mappings::merge(&mappings_b, &mappings_a)?;
 
         let output = merged.reorder(["official", "intermediary", "named"])?;
 
