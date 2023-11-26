@@ -2,7 +2,6 @@ use anyhow::{bail, Context, Result};
 use std::fmt::Debug;
 use std::io::Read;
 use crate::specialized_methods::class_file::access::{ClassInfoAccess, FieldInfoAccess, MethodInfoAccess};
-use crate::specialized_methods::class_file::cp::attribute::{AttributeInfo};
 use crate::specialized_methods::class_file::cp::Pool;
 use crate::specialized_methods::class_file::name::{ClassName, FieldDescriptor, FieldName, MethodDescriptor, MethodName};
 
@@ -63,12 +62,24 @@ pub(crate) trait MyRead: Read {
 }
 impl<T: Read> MyRead for T {}
 
+
+fn nom_attribute(reader: &mut impl Read) -> Result<()> {
+	let _ = reader.read_u16_as_usize()?;
+	let attribute_length = reader.read_u32()?;
+
+
+	let _ = reader.read_vec( // TODO: _
+		|r| Ok(attribute_length as usize),
+		|r| r.read_u8()
+	)?;
+	return Ok(());
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FieldInfo {
 	pub(crate) access_flags: FieldInfoAccess,
 	pub(crate) name: FieldName,
 	pub(crate) descriptor: FieldDescriptor,
-	pub(crate) attributes: Vec<AttributeInfo>,
 }
 
 impl FieldInfo {
@@ -83,11 +94,11 @@ impl FieldInfo {
 
 		let attributes = reader.read_vec(
 			|r| r.read_u16_as_usize(),
-			|r| AttributeInfo::parse(r, pool)
+			|r| nom_attribute(r)
 				.with_context(|| "Failed to parse field attribute")
 		)?;
 
-		Ok(FieldInfo { access_flags, name, descriptor, attributes })
+		Ok(FieldInfo { access_flags, name, descriptor })
 	}
 }
 
@@ -96,7 +107,6 @@ pub(crate) struct MethodInfo {
 	pub(crate) access_flags: MethodInfoAccess,
 	pub(crate) name: MethodName,
 	pub(crate) descriptor: MethodDescriptor,
-	pub(crate) attributes: Vec<AttributeInfo>,
 }
 
 impl MethodInfo {
@@ -111,11 +121,11 @@ impl MethodInfo {
 
 		let attributes = reader.read_vec(
 		   |r| r.read_u16_as_usize(),
-		   |r| AttributeInfo::parse(r, pool)
+		   |r| nom_attribute(r)
 			   .with_context(|| "Failed to parse method attribute")
 		)?;
 
-		Ok(MethodInfo { access_flags, name, descriptor, attributes })
+		Ok(MethodInfo { access_flags, name, descriptor })
 	}
 }
 
@@ -129,7 +139,6 @@ pub(crate) struct ClassFile {
 	pub(crate) interfaces: Vec<ClassName>,
 	pub(crate) fields: Vec<FieldInfo>,
 	pub(crate) methods: Vec<MethodInfo>,
-	pub(crate) attributes: Vec<AttributeInfo>,
 }
 
 impl ClassFile {
@@ -176,7 +185,7 @@ impl ClassFile {
 
 		let attributes = reader.read_vec(
 			|r| r.read_u16_as_usize(),
-		   |r| AttributeInfo::parse(r, &pool)
+		   |r| nom_attribute(r)
 			   .with_context(|| "Failed to parse an attribute for a class file")
 		)?;
 
@@ -185,10 +194,6 @@ impl ClassFile {
 			bail!("Expected end of class file")
 		}
 
-		Ok(ClassFile { minor_version, major_version, access_flags, this_class, super_class, interfaces, fields, methods, attributes })
-	}
-
-	pub fn verify(&self) -> Result<()> {
-		Ok(())
+		Ok(ClassFile { minor_version, major_version, access_flags, this_class, super_class, interfaces, fields, methods })
 	}
 }
