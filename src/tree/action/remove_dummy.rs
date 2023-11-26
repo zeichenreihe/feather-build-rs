@@ -15,27 +15,34 @@ impl<const N: usize> Mappings<N> {
 	pub(crate) fn remove_dummy(&mut self, namespace: &str) -> Result<()> {
 		let namespace = self.get_namespace(namespace)?;
 
-		self.classes.retain(|_, v| !{
-			v.fields.retain(|_, v| !{
-				v.javadoc.is_none() && v.info.names.get(namespace).is_some_and(|x| x.starts_with("f_"))
+		self.classes.retain(|_, v| {
+			v.fields.retain(|_, v| {
+				v.javadoc.is_some() ||
+					!v.info.names.get(namespace).is_some_and(|x| x.starts_with("f_"))
 			});
 
-			v.methods.retain(|_, v| !{
-				v.parameters.retain(|_, v| !{
-					v.javadoc.is_none() && v.info.names.get(namespace).is_some_and(|x| x.starts_with("p_"))
+			v.methods.retain(|_, v| {
+				v.parameters.retain(|_, v| {
+					v.javadoc.is_some() ||
+						!v.info.names.get(namespace).is_some_and(|x| x.starts_with("p_"))
 				});
 
-				v.javadoc.is_none() && v.parameters.is_empty() && (
-					v.info.names.get(namespace).is_some_and(|x| x.starts_with("m_")) ||
-						v.info.names.get(namespace).is_some_and(|x| x == "<init>") ||
-						v.info.names.get(namespace).is_some_and(|x| x == "<clinit>")
-				)
+				v.javadoc.is_some() ||
+					!v.parameters.is_empty() ||
+					!v.info.names.get(namespace).is_some_and(|x|
+						x.starts_with("m_") ||
+							x == "<init>" ||
+							x == "<clinit>"
+					)
 			});
 
-			v.javadoc.is_none() && v.fields.is_empty() && v.methods.is_empty() && (
-				v.info.names.get(namespace).is_some_and(|x| x.starts_with("C_")) ||
-					v.info.names.get(namespace).is_some_and(|x| x.starts_with("net/minecraft/unmapped/C_"))
-			)
+			v.javadoc.is_some() ||
+				!v.fields.is_empty() ||
+				!v.methods.is_empty() ||
+				!v.info.names.get(namespace).is_some_and(|x| {
+					x.starts_with("C_") ||
+						x.starts_with("net/minecraft/unmapped/C_")
+				})
 		});
 
 		Ok(())
