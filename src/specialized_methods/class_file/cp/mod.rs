@@ -30,7 +30,6 @@ impl Pool {
 		Ok(&vec)
 	}
 
-
 	pub(crate) fn get_class_name(&self, index: usize) -> Result<ClassName> {
 		let entry = self.0.get(index).ok_or_else(|| anyhow!("constant pool index out of bounds: {index} for pool size {}", self.0.len()))?;
 		let PoolEntry::Class(index) = entry else {
