@@ -62,17 +62,16 @@ pub(crate) trait MyRead: Read {
 }
 impl<T: Read> MyRead for T {}
 
+fn nom_attributes(reader: &mut impl Read) -> Result<()> {
+	for _ in 0..reader.read_u16_as_usize()? {
+		let _ = reader.read_u16_as_usize()?;
 
-fn nom_attribute(reader: &mut impl Read) -> Result<()> {
-	let _ = reader.read_u16_as_usize()?;
-	let attribute_length = reader.read_u32()?;
+		for _ in 0..reader.read_u32_as_usize()? {
+			let _ = reader.read_u8()?;
+		}
+	}
 
-
-	let _ = reader.read_vec( // TODO: _
-		|r| Ok(attribute_length as usize),
-		|r| r.read_u8()
-	)?;
-	return Ok(());
+	Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -92,11 +91,8 @@ impl FieldInfo {
 		let descriptor = pool.get_field_descriptor(reader.read_u16_as_usize()?)
 			.with_context(|| "Failed to get field descriptor from constant pool")?;
 
-		let attributes = reader.read_vec(
-			|r| r.read_u16_as_usize(),
-			|r| nom_attribute(r)
-				.with_context(|| "Failed to parse field attribute")
-		)?;
+		nom_attributes(reader)
+			.with_context(|| "Failed to parse field attributes")?;
 
 		Ok(FieldInfo { access_flags, name, descriptor })
 	}
@@ -119,11 +115,8 @@ impl MethodInfo {
 		let descriptor = pool.get_method_descriptor(reader.read_u16_as_usize()?)
 			.with_context(|| "Failed to get method descriptor from constant pool")?;
 
-		let attributes = reader.read_vec(
-		   |r| r.read_u16_as_usize(),
-		   |r| nom_attribute(r)
-			   .with_context(|| "Failed to parse method attribute")
-		)?;
+		nom_attributes(reader)
+			.with_context(|| "Failed to parse method attributes")?;
 
 		Ok(MethodInfo { access_flags, name, descriptor })
 	}
@@ -150,10 +143,6 @@ impl ClassFile {
 
 		let minor_version = reader.read_u16()?;
 		let major_version = reader.read_u16()?;
-
-		if major_version <= 51 {
-			bail!("We only accept class files with version >= 52.0, this one has: {major_version}.{minor_version}")
-		}
 
 		let pool = Pool::parse(reader)
 			.with_context(|| "Failed to parse constant pool")?;
@@ -183,11 +172,8 @@ impl ClassFile {
 				.with_context(|| "Failed to parse a method")
 		)?;
 
-		let attributes = reader.read_vec(
-			|r| r.read_u16_as_usize(),
-		   |r| nom_attribute(r)
-			   .with_context(|| "Failed to parse an attribute for a class file")
-		)?;
+		nom_attributes(reader)
+			.with_context(|| "Failed to parse class attributes")?;
 
 		let mut end = [0u8];
 		if reader.read(&mut end)? != 0 {
