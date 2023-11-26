@@ -56,7 +56,8 @@ impl<const N: usize> Mappings<N> {
 			let mapping = ClassMapping {
 				names: invert_names(&class.info.names, namespace)?,
 			};
-			let key = mapping.get_key();
+			let key = mapping.get_key()
+				.with_context(|| anyhow!("Failed to invert names for class {:?}", class.info.names))?;
 
 			let mut c = ClassNowode {
 				info: mapping,
@@ -70,7 +71,8 @@ impl<const N: usize> Mappings<N> {
 					desc: remapper.remap_desc(&field.info.desc)?,
 					names: invert_names(&field.info.names, namespace)?,
 				};
-				let key = mapping.get_key();
+				let key = mapping.get_key()
+					.with_context(|| anyhow!("Failed to invert names for field in class {:?}", class.info.names))?;
 
 				let f = FieldNowode {
 					info: mapping,
@@ -85,7 +87,8 @@ impl<const N: usize> Mappings<N> {
 					desc: remapper.remap_desc(&method.info.desc)?,
 					names: invert_names(&method.info.names, namespace)?,
 				};
-				let key = mapping.get_key();
+				let key = mapping.get_key()
+					.with_context(|| anyhow!("Failed to invert names for methods in class {:?}", class.info.names))?;
 
 				let mut m = MethodNowode {
 					info: mapping,
@@ -98,7 +101,8 @@ impl<const N: usize> Mappings<N> {
 						index: parameter.info.index,
 						names: invert_names(&parameter.info.names, namespace)?,
 					};
-					let key = mapping.get_key();
+					let key = mapping.get_key()
+						.with_context(|| anyhow!("Failed to invert names for parameters in class {:?} method {:?}", class.info.names, method.info))?;
 
 					let p = ParameterNowode {
 						info: mapping,

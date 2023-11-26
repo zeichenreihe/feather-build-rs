@@ -48,7 +48,7 @@ impl<'a, const N: usize> Remapper<'a, N> {
 				}
 
 				let new_class_name = {
-					let key = ClassKey { src: class_name.to_owned() };
+					let key = ClassKey::new(class_name.to_owned());
 
 					match self.mappings.classes.get(&key) {
 						None => &class_name,

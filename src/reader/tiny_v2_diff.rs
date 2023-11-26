@@ -36,7 +36,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 			let src = line.next()?;
 
 			let action = line.action(|dst| ClassMapping { names: [src.clone(), dst].into() })?;
-			let class_key = ClassKey { src };
+			let class_key = ClassKey::new(src);
 
 			let mut class = ClassNowode::new(action);
 
@@ -50,7 +50,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 						desc: desc.clone(),
 						names: [src.clone(), dst].into(),
 					})?;
-					let field_key = FieldKey { desc, src };
+					let field_key = FieldKey::new(desc, src);
 
 					let mut field = FieldNowode::new(action);
 
@@ -73,7 +73,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 						desc: desc.clone(),
 						names: [src.clone(), dst].into(),
 					})?;
-					let method_key = MethodKey { desc, src };
+					let method_key = MethodKey::new(desc, src);
 
 					let mut method = MethodNowode::new(action);
 
@@ -87,7 +87,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 								index,
 								names: [src.clone(), dst].into(),
 							})?;
-							let parameter_key = ParameterKey { index, src };
+							let parameter_key = ParameterKey::new(index);
 
 							let mut parameter = ParameterNowode::new(action);
 
