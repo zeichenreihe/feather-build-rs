@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
 use std::fmt::Debug;
 use std::io::Read;
-use crate::specialized_methods::class_file::access::{ClassInfoAccess, FieldInfoAccess, MethodInfoAccess};
+use crate::specialized_methods::class_file::access::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use crate::specialized_methods::class_file::cp::Pool;
 use crate::tree::descriptor::{FieldDescriptor, MethodDescriptor};
 
@@ -76,7 +76,7 @@ fn nom_attributes(reader: &mut impl Read) -> Result<()> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct FieldInfo {
-	pub(crate) access_flags: FieldInfoAccess,
+	pub(crate) access_flags: FieldAccessFlags,
 	pub(crate) name: String,
 	pub(crate) descriptor: FieldDescriptor,
 }
@@ -100,7 +100,7 @@ impl FieldInfo {
 
 #[derive(Debug, Clone)]
 pub(crate) struct MethodInfo {
-	pub(crate) access_flags: MethodInfoAccess,
+	pub(crate) access_flags: MethodAccessFlags,
 	pub(crate) name: String,
 	pub(crate) descriptor: MethodDescriptor,
 }
@@ -126,7 +126,7 @@ impl MethodInfo {
 pub(crate) struct ClassFile {
 	pub(crate) minor_version: u16,
 	pub(crate) major_version: u16,
-	pub(crate) access_flags: ClassInfoAccess,
+	pub(crate) access_flags: ClassAccessFlags,
 	pub(crate) this_class: String,
 	pub(crate) super_class: Option<String>,
 	pub(crate) interfaces: Vec<String>,
