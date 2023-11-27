@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::io::Read;
 use crate::specialized_methods::class_file::access::{ClassInfoAccess, FieldInfoAccess, MethodInfoAccess};
 use crate::specialized_methods::class_file::cp::Pool;
-use crate::specialized_methods::class_file::name::{ClassName, FieldDescriptor, FieldName, MethodDescriptor, MethodName};
+use crate::tree::descriptor::{FieldDescriptor, MethodDescriptor};
 
 
 pub(crate) mod name;
@@ -77,7 +77,7 @@ fn nom_attributes(reader: &mut impl Read) -> Result<()> {
 #[derive(Debug, Clone)]
 pub(crate) struct FieldInfo {
 	pub(crate) access_flags: FieldInfoAccess,
-	pub(crate) name: FieldName,
+	pub(crate) name: String,
 	pub(crate) descriptor: FieldDescriptor,
 }
 
@@ -101,7 +101,7 @@ impl FieldInfo {
 #[derive(Debug, Clone)]
 pub(crate) struct MethodInfo {
 	pub(crate) access_flags: MethodInfoAccess,
-	pub(crate) name: MethodName,
+	pub(crate) name: String,
 	pub(crate) descriptor: MethodDescriptor,
 }
 
@@ -127,9 +127,9 @@ pub(crate) struct ClassFile {
 	pub(crate) minor_version: u16,
 	pub(crate) major_version: u16,
 	pub(crate) access_flags: ClassInfoAccess,
-	pub(crate) this_class: ClassName,
-	pub(crate) super_class: Option<ClassName>,
-	pub(crate) interfaces: Vec<ClassName>,
+	pub(crate) this_class: String,
+	pub(crate) super_class: Option<String>,
+	pub(crate) interfaces: Vec<String>,
 	pub(crate) fields: Vec<FieldInfo>,
 	pub(crate) methods: Vec<MethodInfo>,
 }
@@ -149,12 +149,12 @@ impl ClassFile {
 
 		let access_flags = reader.read_u16()?.into();
 
-		let this_class: ClassName = pool.get_class_name(reader.read_u16_as_usize()?)
+		let this_class = pool.get_class_name(reader.read_u16_as_usize()?)
 			.with_context(|| "Failed to get constant pool item `this_class`")?;
-		let super_class: Option<ClassName> = pool.get_super_class(reader.read_u16_as_usize()?)
+		let super_class = pool.get_super_class(reader.read_u16_as_usize()?)
 			.with_context(|| "Failed to get constant pool item `super_class`")?;
 
-		let interfaces: Vec<ClassName> = reader.read_vec(
+		let interfaces = reader.read_vec(
 			|r| r.read_u16_as_usize(),
 			|r| pool.get_class_name(r.read_u16_as_usize()?)
 				.with_context(|| "Failed to get constant pool item representing a direct superinterface")

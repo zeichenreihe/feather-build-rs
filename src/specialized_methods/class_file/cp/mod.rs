@@ -2,7 +2,7 @@ use std::io::Read;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use crate::specialized_methods::class_file::MyRead;
-use crate::specialized_methods::class_file::name::{ClassName, FieldDescriptor, FieldName, MethodDescriptor, MethodName};
+use crate::tree::descriptor::{FieldDescriptor, MethodDescriptor};
 
 #[derive(Debug)]
 pub(crate) struct Pool(IndexMap<usize, Option<PoolEntry>>);
@@ -32,16 +32,15 @@ impl Pool {
 		Ok(string)
 	}
 
-	pub(crate) fn get_class_name(&self, index: usize) -> Result<ClassName> {
+	pub(crate) fn get_class_name(&self, index: usize) -> Result<String> {
 		let entry = self.0.get(&index).ok_or_else(|| anyhow!("constant pool index out of bounds: {index} for pool size {}", self.0.len()))?;
 		let Some(PoolEntry::Class(index)) = entry else {
 			bail!("Entry isn't Class, we got: {entry:?}");
 		};
-		let string = self.get_utf8_info(*index).context("We can only work with utf8 class names")?;
-		Ok(ClassName(string))
+		Ok(self.get_utf8_info(*index).context("We can only work with utf8 class names")?)
 	}
 
-	pub(crate) fn get_super_class(&self, index: usize) -> Result<Option<ClassName>> {
+	pub(crate) fn get_super_class(&self, index: usize) -> Result<Option<String>> {
 		let entry = self.0.get(&index).ok_or_else(|| anyhow!("constant pool index out of bounds: {index} for pool size {}", self.0.len()))?;
 		if entry.is_none() {
 			return Ok(None);
@@ -49,29 +48,24 @@ impl Pool {
 		let Some(PoolEntry::Class(index)) = entry else {
 			bail!("Entry isn't Class, we got: {entry:?}");
 		};
-		let string = self.get_utf8_info(*index).context("We can only work with utf8 class names")?;
-		Ok(Some(ClassName(string)))
+		Ok(Some(self.get_utf8_info(*index).context("We can only work with utf8 class names")?))
 	}
 
 	pub(crate) fn get_field_descriptor(&self, index: usize) -> Result<FieldDescriptor> {
-		let string = self.get_utf8_info(index).context("We can only work with utf8 field descriptors")?;
-		string.try_into()
+		self.get_utf8_info(index).context("We can only work with utf8 field descriptors")?.as_str().try_into()
 	}
 
-	pub(crate) fn get_field_name(&self, index: usize) -> Result<FieldName> {
-		let string = self.get_utf8_info(index).context("We can only work with utf8 field names")?;
-		Ok(FieldName(string))
+	pub(crate) fn get_field_name(&self, index: usize) -> Result<String> {
+		Ok(self.get_utf8_info(index).context("We can only work with utf8 field names")?)
 	}
 
 
 	pub(crate) fn get_method_descriptor(&self, index: usize) -> Result<MethodDescriptor> {
-		let string = self.get_utf8_info(index).context("We can only work with utf8 method descriptors")?;
-		string.try_into()
+		self.get_utf8_info(index).context("We can only work with utf8 method descriptors")?.as_str().try_into()
 	}
 
-	pub(crate) fn get_method_name(&self, index: usize) -> Result<MethodName> {
-		let string = self.get_utf8_info(index).context("We can only work with utf8 method names")?;
-		Ok(MethodName(string))
+	pub(crate) fn get_method_name(&self, index: usize) -> Result<String> {
+		Ok(self.get_utf8_info(index).context("We can only work with utf8 method names")?)
 	}
 }
 
