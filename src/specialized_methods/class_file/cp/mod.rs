@@ -19,15 +19,17 @@ impl Pool {
 
 			map.insert(i, entry);
 		}
+
 		Ok(Pool(map))
 	}
 
-	pub(crate) fn get_utf8_info(&self, index: usize) -> Result<&Vec<u8>> {
+	fn get_utf8_info(&self, index: usize) -> Result<String> {
 		let entry = self.0.get(&index).ok_or_else(|| anyhow!("constant pool index out of bounds: {index} for pool size {}", self.0.len()))?;
 		let Some(PoolEntry::Utf8(vec)) = entry else {
 			bail!("Entry isn't Utf8, we got: {entry:?}");
 		};
-		Ok(&vec)
+		let string = String::from_utf8(vec.clone())?;
+		Ok(string)
 	}
 
 	pub(crate) fn get_class_name(&self, index: usize) -> Result<ClassName> {
@@ -35,7 +37,7 @@ impl Pool {
 		let Some(PoolEntry::Class(index)) = entry else {
 			bail!("Entry isn't Class, we got: {entry:?}");
 		};
-		let string = String::from_utf8(self.get_utf8_info(*index)?.clone()).context("We can only work with utf8 class names")?;
+		let string = self.get_utf8_info(*index).context("We can only work with utf8 class names")?;
 		Ok(ClassName(string))
 	}
 
@@ -47,47 +49,33 @@ impl Pool {
 		let Some(PoolEntry::Class(index)) = entry else {
 			bail!("Entry isn't Class, we got: {entry:?}");
 		};
-		let string = String::from_utf8(self.get_utf8_info(*index)?.clone()).context("We can only work with utf8 class names")?;
+		let string = self.get_utf8_info(*index).context("We can only work with utf8 class names")?;
 		Ok(Some(ClassName(string)))
 	}
 
 	pub(crate) fn get_field_descriptor(&self, index: usize) -> Result<FieldDescriptor> {
-		let string = String::from_utf8(self.get_utf8_info(index)?.clone()).context("We can only work with utf8 field descriptors")?;
-		Ok(FieldDescriptor(string))
+		let string = self.get_utf8_info(index).context("We can only work with utf8 field descriptors")?;
+		string.try_into()
 	}
 
 	pub(crate) fn get_field_name(&self, index: usize) -> Result<FieldName> {
-		let string = String::from_utf8(self.get_utf8_info(index)?.clone()).context("We can only work with utf8 field names")?;
+		let string = self.get_utf8_info(index).context("We can only work with utf8 field names")?;
 		Ok(FieldName(string))
 	}
 
 
 	pub(crate) fn get_method_descriptor(&self, index: usize) -> Result<MethodDescriptor> {
-		let string = String::from_utf8(self.get_utf8_info(index)?.clone()).context("We can only work with utf8 method descriptors")?;
-		Ok(MethodDescriptor(string))
+		let string = self.get_utf8_info(index).context("We can only work with utf8 method descriptors")?;
+		string.try_into()
 	}
 
 	pub(crate) fn get_method_name(&self, index: usize) -> Result<MethodName> {
-		let string = String::from_utf8(self.get_utf8_info(index)?.clone()).context("We can only work with utf8 method names")?;
+		let string = self.get_utf8_info(index).context("We can only work with utf8 method names")?;
 		Ok(MethodName(string))
 	}
 }
 
-
-/// This graph shows what depends (has an index to of a type) on what:
-/// ```txt
-/// Long  Double  Utf8  Integer  Float
-///      __________/\_______________
-///     /      /     \    \         \
-/// String  Class  NameAndType  MethodType
-///           |      |      \
-///           FieldRef    InvokeDynamic
-///           MethodRef
-///       InterfaceMethodRef
-///              |
-///         MethodHandle
-/// ```
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub(crate) enum PoolEntry {
 	Utf8(Vec<u8>),
 	Class(usize),
