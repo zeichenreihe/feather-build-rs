@@ -100,9 +100,9 @@ impl FieldInfo {
 				is_synthetic: access_flags & 0x1000 != 0,
 				is_enum:      access_flags & 0x4000 != 0,
 			},
-			name: pool.get_field_name(name_index)
+			name: pool.get_utf8_info(name_index)
 				.with_context(|| "Failed to get field name from constant pool")?,
-			descriptor: pool.get_field_descriptor(descriptor_index)
+			descriptor: pool.get_utf8_info(descriptor_index)?.as_str().try_into()
 				.with_context(|| "Failed to get field descriptor from constant pool")?,
 		})
 	}
@@ -138,9 +138,9 @@ impl MethodInfo {
 				is_strict:       access_flags & 0x0800 != 0,
 				is_synthetic:    access_flags & 0x1000 != 0,
 			},
-			name: pool.get_method_name(name_index)
+			name: pool.get_utf8_info(name_index)
 				.with_context(|| "Failed to get method name from constant pool")?,
-			descriptor: pool.get_method_descriptor(descriptor_index)
+			descriptor: pool.get_utf8_info(descriptor_index)?.as_str().try_into()
 				.with_context(|| "Failed to get method descriptor from constant pool")?,
 		})
 	}
