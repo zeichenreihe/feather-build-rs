@@ -1,10 +1,10 @@
 use std::fmt::{Debug, Formatter};
 
 #[derive(Clone)]
-pub(crate) struct ClassInfoAccess {
+pub(crate) struct ClassAccessFlags {
 	pub(crate) is_public: bool,
 	pub(crate) is_final: bool,
-	pub(crate) is_super: bool, // consider this true for every class file...
+	pub(crate) is_super: bool,
 	pub(crate) is_interface: bool,
 	pub(crate) is_abstract: bool,
 	pub(crate) is_synthetic: bool,
@@ -12,9 +12,9 @@ pub(crate) struct ClassInfoAccess {
 	pub(crate) is_enum: bool,
 }
 
-impl From<u16> for ClassInfoAccess {
+impl From<u16> for ClassAccessFlags {
 	fn from(access_flags: u16) -> Self {
-		ClassInfoAccess {
+		ClassAccessFlags {
 			is_public:     access_flags & 0x0001 != 0,
 			is_final:      access_flags & 0x0010 != 0,
 			is_super:      access_flags & 0x0020 != 0,
@@ -27,7 +27,7 @@ impl From<u16> for ClassInfoAccess {
 	}
 }
 
-impl Debug for ClassInfoAccess {
+impl Debug for ClassAccessFlags {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		f.write_str("{ ")?;
 		if self.is_public     { f.write_str("public ")?; }
@@ -43,7 +43,7 @@ impl Debug for ClassInfoAccess {
 }
 
 #[derive(Clone)]
-pub(crate) struct FieldInfoAccess {
+pub(crate) struct FieldAccessFlags {
 	pub(crate) is_public: bool,
 	pub(crate) is_private: bool,
 	pub(crate) is_protected: bool,
@@ -55,9 +55,9 @@ pub(crate) struct FieldInfoAccess {
 	pub(crate) is_enum: bool,
 }
 
-impl From<u16> for FieldInfoAccess {
+impl From<u16> for FieldAccessFlags {
 	fn from(access_flags: u16) -> Self {
-		FieldInfoAccess {
+		FieldAccessFlags {
 			is_public:    access_flags & 0x0001 != 0,
 			is_private:   access_flags & 0x0002 != 0,
 			is_protected: access_flags & 0x0004 != 0,
@@ -71,7 +71,7 @@ impl From<u16> for FieldInfoAccess {
 	}
 }
 
-impl Debug for FieldInfoAccess {
+impl Debug for FieldAccessFlags {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		f.write_str("{ ")?;
 		if self.is_public    { f.write_str("public ")?; }
@@ -88,7 +88,7 @@ impl Debug for FieldInfoAccess {
 }
 
 #[derive(Clone)]
-pub(crate) struct MethodInfoAccess {
+pub(crate) struct MethodAccessFlags {
 	pub(crate) is_public: bool,
 	pub(crate) is_private: bool,
 	pub(crate) is_protected: bool,
@@ -103,9 +103,9 @@ pub(crate) struct MethodInfoAccess {
 	pub(crate) is_synthetic: bool,
 }
 
-impl From<u16> for MethodInfoAccess {
+impl From<u16> for MethodAccessFlags {
 	fn from(access_flags: u16) -> Self {
-		MethodInfoAccess {
+		MethodAccessFlags {
 			is_public:       access_flags & 0x0001 != 0,
 			is_private:      access_flags & 0x0002 != 0,
 			is_protected:    access_flags & 0x0004 != 0,
@@ -122,7 +122,7 @@ impl From<u16> for MethodInfoAccess {
 	}
 }
 
-impl Debug for MethodInfoAccess {
+impl Debug for MethodAccessFlags {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		f.write_str("{ ")?;
 		if self.is_public       { f.write_str("public ")?; }
