@@ -9,6 +9,7 @@ pub(crate) mod mappings;
 pub(crate) mod mappings_diff;
 mod action;
 pub(crate) mod descriptor;
+pub(crate) mod access_flags;
 
 /// Describes a given namespace of a mapping tree.
 /// When this exists, the namespace it's from has the namespace stored in `.0`, and reading will not panic.

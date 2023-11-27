@@ -1,16 +1,15 @@
 use anyhow::{bail, Context, Result};
 use std::fmt::Debug;
 use std::io::Read;
-use crate::specialized_methods::class_file::access::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use crate::specialized_methods::class_file::cp::Pool;
+use crate::tree::access_flags::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use crate::tree::descriptor::{FieldDescriptor, MethodDescriptor};
 
 
 pub(crate) mod name;
-pub(crate) mod access;
 pub(crate) mod cp;
 
-pub(crate) trait MyRead: Read {
+trait MyRead: Read {
 	fn read_n<const N: usize>(&mut self) -> Result<[u8; N]> {
 		let mut buf = [0u8; N];
 		let length = self.read(&mut buf)?;
@@ -83,18 +82,29 @@ pub(crate) struct FieldInfo {
 
 impl FieldInfo {
 	fn parse(reader: &mut impl Read, pool: &Pool) -> Result<Self> {
-		let access_flags = reader.read_u16()?.into();
-
-		let name = pool.get_field_name(reader.read_u16_as_usize()?)
-			.with_context(|| "Failed to get field name from constant pool")?;
-
-		let descriptor = pool.get_field_descriptor(reader.read_u16_as_usize()?)
-			.with_context(|| "Failed to get field descriptor from constant pool")?;
-
+		let access_flags = reader.read_u16()?;
+		let name_index = reader.read_u16_as_usize()?;
+		let descriptor_index = reader.read_u16_as_usize()?;
 		nom_attributes(reader)
 			.with_context(|| "Failed to parse field attributes")?;
 
-		Ok(FieldInfo { access_flags, name, descriptor })
+		Ok(FieldInfo {
+			access_flags: FieldAccessFlags {
+				is_public:    access_flags & 0x0001 != 0,
+				is_private:   access_flags & 0x0002 != 0,
+				is_protected: access_flags & 0x0004 != 0,
+				is_static:    access_flags & 0x0008 != 0,
+				is_final:     access_flags & 0x0010 != 0,
+				is_volatile:  access_flags & 0x0040 != 0,
+				is_transient: access_flags & 0x0080 != 0,
+				is_synthetic: access_flags & 0x1000 != 0,
+				is_enum:      access_flags & 0x4000 != 0,
+			},
+			name: pool.get_field_name(name_index)
+				.with_context(|| "Failed to get field name from constant pool")?,
+			descriptor: pool.get_field_descriptor(descriptor_index)
+				.with_context(|| "Failed to get field descriptor from constant pool")?,
+		})
 	}
 }
 
@@ -107,18 +117,32 @@ pub(crate) struct MethodInfo {
 
 impl MethodInfo {
 	fn parse(reader: &mut impl Read, pool: &Pool) -> Result<Self> {
-		let access_flags = reader.read_u16()?.into();
-
-		let name = pool.get_method_name(reader.read_u16_as_usize()?)
-			.with_context(|| "Failed to get method name from constant pool")?;
-
-		let descriptor = pool.get_method_descriptor(reader.read_u16_as_usize()?)
-			.with_context(|| "Failed to get method descriptor from constant pool")?;
-
+		let access_flags = reader.read_u16()?;
+		let name_index = reader.read_u16_as_usize()?;
+		let descriptor_index = reader.read_u16_as_usize()?;
 		nom_attributes(reader)
 			.with_context(|| "Failed to parse method attributes")?;
 
-		Ok(MethodInfo { access_flags, name, descriptor })
+		Ok(MethodInfo {
+			access_flags: MethodAccessFlags {
+				is_public:       access_flags & 0x0001 != 0,
+				is_private:      access_flags & 0x0002 != 0,
+				is_protected:    access_flags & 0x0004 != 0,
+				is_static:       access_flags & 0x0008 != 0,
+				is_final:        access_flags & 0x0010 != 0,
+				is_synchronised: access_flags & 0x0020 != 0,
+				is_bridge:       access_flags & 0x0040 != 0,
+				is_varargs:      access_flags & 0x0080 != 0,
+				is_native:       access_flags & 0x0100 != 0,
+				is_abstract:     access_flags & 0x0400 != 0,
+				is_strict:       access_flags & 0x0800 != 0,
+				is_synthetic:    access_flags & 0x1000 != 0,
+			},
+			name: pool.get_method_name(name_index)
+				.with_context(|| "Failed to get method name from constant pool")?,
+			descriptor: pool.get_method_descriptor(descriptor_index)
+				.with_context(|| "Failed to get method descriptor from constant pool")?,
+		})
 	}
 }
 
@@ -147,12 +171,9 @@ impl ClassFile {
 		let pool = Pool::parse(reader)
 			.with_context(|| "Failed to parse constant pool")?;
 
-		let access_flags = reader.read_u16()?.into();
-
-		let this_class = pool.get_class_name(reader.read_u16_as_usize()?)
-			.with_context(|| "Failed to get constant pool item `this_class`")?;
-		let super_class = pool.get_super_class(reader.read_u16_as_usize()?)
-			.with_context(|| "Failed to get constant pool item `super_class`")?;
+		let access_flags = reader.read_u16()?;
+		let this_class_index = reader.read_u16_as_usize()?;
+		let super_class_index = reader.read_u16_as_usize()?;
 
 		let interfaces = reader.read_vec(
 			|r| r.read_u16_as_usize(),
@@ -180,6 +201,26 @@ impl ClassFile {
 			bail!("Expected end of class file")
 		}
 
-		Ok(ClassFile { minor_version, major_version, access_flags, this_class, super_class, interfaces, fields, methods })
+		Ok(ClassFile {
+			minor_version,
+			major_version,
+			access_flags: ClassAccessFlags {
+				is_public:     access_flags & 0x0001 != 0,
+				is_final:      access_flags & 0x0010 != 0,
+				is_super:      access_flags & 0x0020 != 0,
+				is_interface:  access_flags & 0x0200 != 0,
+				is_abstract:   access_flags & 0x0400 != 0,
+				is_synthetic:  access_flags & 0x1000 != 0,
+				is_annotation: access_flags & 0x2000 != 0,
+				is_enum:       access_flags & 0x4000 != 0,
+			},
+			this_class: pool.get_class_name(this_class_index)
+				.with_context(|| "Failed to get constant pool item `this_class`")?,
+			super_class: pool.get_super_class(super_class_index)
+				.with_context(|| "Failed to get constant pool item `super_class`")?,
+			interfaces,
+			fields,
+			methods
+		})
 	}
 }

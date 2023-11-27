@@ -12,21 +12,6 @@ pub(crate) struct ClassAccessFlags {
 	pub(crate) is_enum: bool,
 }
 
-impl From<u16> for ClassAccessFlags {
-	fn from(access_flags: u16) -> Self {
-		ClassAccessFlags {
-			is_public:     access_flags & 0x0001 != 0,
-			is_final:      access_flags & 0x0010 != 0,
-			is_super:      access_flags & 0x0020 != 0,
-			is_interface:  access_flags & 0x0200 != 0,
-			is_abstract:   access_flags & 0x0400 != 0,
-			is_synthetic:  access_flags & 0x1000 != 0,
-			is_annotation: access_flags & 0x2000 != 0,
-			is_enum:       access_flags & 0x4000 != 0,
-		}
-	}
-}
-
 impl Debug for ClassAccessFlags {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		f.write_str("{ ")?;
@@ -53,22 +38,6 @@ pub(crate) struct FieldAccessFlags {
 	pub(crate) is_transient: bool,
 	pub(crate) is_synthetic: bool,
 	pub(crate) is_enum: bool,
-}
-
-impl From<u16> for FieldAccessFlags {
-	fn from(access_flags: u16) -> Self {
-		FieldAccessFlags {
-			is_public:    access_flags & 0x0001 != 0,
-			is_private:   access_flags & 0x0002 != 0,
-			is_protected: access_flags & 0x0004 != 0,
-			is_static:    access_flags & 0x0008 != 0,
-			is_final:     access_flags & 0x0010 != 0,
-			is_volatile:  access_flags & 0x0040 != 0,
-			is_transient: access_flags & 0x0080 != 0,
-			is_synthetic: access_flags & 0x1000 != 0,
-			is_enum:      access_flags & 0x4000 != 0,
-		}
-	}
 }
 
 impl Debug for FieldAccessFlags {
@@ -101,25 +70,6 @@ pub(crate) struct MethodAccessFlags {
 	pub(crate) is_abstract: bool,
 	pub(crate) is_strict: bool,
 	pub(crate) is_synthetic: bool,
-}
-
-impl From<u16> for MethodAccessFlags {
-	fn from(access_flags: u16) -> Self {
-		MethodAccessFlags {
-			is_public:       access_flags & 0x0001 != 0,
-			is_private:      access_flags & 0x0002 != 0,
-			is_protected:    access_flags & 0x0004 != 0,
-			is_static:       access_flags & 0x0008 != 0,
-			is_final:        access_flags & 0x0010 != 0,
-			is_synchronised: access_flags & 0x0020 != 0,
-			is_bridge:       access_flags & 0x0040 != 0,
-			is_varargs:      access_flags & 0x0080 != 0,
-			is_native:       access_flags & 0x0100 != 0,
-			is_abstract:     access_flags & 0x0400 != 0,
-			is_strict:       access_flags & 0x0800 != 0,
-			is_synthetic:    access_flags & 0x1000 != 0,
-		}
-	}
 }
 
 impl Debug for MethodAccessFlags {
