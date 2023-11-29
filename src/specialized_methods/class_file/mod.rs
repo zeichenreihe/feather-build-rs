@@ -1,13 +1,15 @@
 use anyhow::{bail, Context, Result};
 use std::fmt::Debug;
 use std::io::Read;
-use crate::specialized_methods::class_file::cp::Pool;
+use crate::specialized_methods::class_file::attribute::{Attribute, parse_attributes};
+use crate::specialized_methods::class_file::attribute::code::CodeAnalysis;
+use crate::specialized_methods::class_file::pool::Pool;
 use crate::tree::access_flags::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
 use crate::tree::descriptor::{FieldDescriptor, MethodDescriptor};
+use crate::tree::mappings::MethodKey;
 
-
-pub(crate) mod name;
-pub(crate) mod cp;
+mod pool;
+mod attribute;
 
 trait MyRead: Read {
 	fn read_n<const N: usize>(&mut self) -> Result<[u8; N]> {
@@ -61,18 +63,6 @@ trait MyRead: Read {
 }
 impl<T: Read> MyRead for T {}
 
-fn nom_attributes(reader: &mut impl Read) -> Result<()> {
-	for _ in 0..reader.read_u16_as_usize()? {
-		let _ = reader.read_u16_as_usize()?;
-
-		for _ in 0..reader.read_u32_as_usize()? {
-			let _ = reader.read_u8()?;
-		}
-	}
-
-	Ok(())
-}
-
 #[derive(Debug, Clone)]
 pub(crate) struct FieldInfo {
 	pub(crate) access_flags: FieldAccessFlags,
@@ -85,7 +75,7 @@ impl FieldInfo {
 		let access_flags = reader.read_u16()?;
 		let name_index = reader.read_u16_as_usize()?;
 		let descriptor_index = reader.read_u16_as_usize()?;
-		nom_attributes(reader)
+		let _attributes = parse_attributes(reader, pool)
 			.with_context(|| "Failed to parse field attributes")?;
 
 		Ok(FieldInfo {
@@ -102,7 +92,7 @@ impl FieldInfo {
 			},
 			name: pool.get_utf8_info(name_index)
 				.with_context(|| "Failed to get field name from constant pool")?,
-			descriptor: pool.get_utf8_info(descriptor_index)?.as_str().try_into()
+			descriptor: pool.get_utf8_info(descriptor_index)?.try_into()
 				.with_context(|| "Failed to get field descriptor from constant pool")?,
 		})
 	}
@@ -113,6 +103,7 @@ pub(crate) struct MethodInfo {
 	pub(crate) access_flags: MethodAccessFlags,
 	pub(crate) name: String,
 	pub(crate) descriptor: MethodDescriptor,
+	pub(crate) code_analysis: CodeAnalysis,
 }
 
 impl MethodInfo {
@@ -120,7 +111,7 @@ impl MethodInfo {
 		let access_flags = reader.read_u16()?;
 		let name_index = reader.read_u16_as_usize()?;
 		let descriptor_index = reader.read_u16_as_usize()?;
-		nom_attributes(reader)
+		let mut attributes = parse_attributes(reader, pool)
 			.with_context(|| "Failed to parse method attributes")?;
 
 		Ok(MethodInfo {
@@ -140,9 +131,20 @@ impl MethodInfo {
 			},
 			name: pool.get_utf8_info(name_index)
 				.with_context(|| "Failed to get method name from constant pool")?,
-			descriptor: pool.get_utf8_info(descriptor_index)?.as_str().try_into()
+			descriptor: pool.get_utf8_info(descriptor_index)?.try_into()
 				.with_context(|| "Failed to get method descriptor from constant pool")?,
+			code_analysis: if let Some(Attribute::Code(analysis)) = attributes.remove("Code") {
+				analysis
+			} else {
+				CodeAnalysis::default()
+			},
 		})
+	}
+}
+
+impl From<&MethodInfo> for MethodKey {
+	fn from(value: &MethodInfo) -> Self {
+		MethodKey::new((&value.descriptor).into(), value.name.clone())
 	}
 }
 
@@ -193,7 +195,7 @@ impl ClassFile {
 				.with_context(|| "Failed to parse a method")
 		)?;
 
-		nom_attributes(reader)
+		let _attributes = parse_attributes(reader, &pool)
 			.with_context(|| "Failed to parse class attributes")?;
 
 		let mut end = [0u8];
@@ -220,7 +222,7 @@ impl ClassFile {
 				.with_context(|| "Failed to get constant pool item `super_class`")?,
 			interfaces,
 			fields,
-			methods
+			methods,
 		})
 	}
 }
