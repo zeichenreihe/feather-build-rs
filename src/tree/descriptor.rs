@@ -2,7 +2,7 @@ use std::fmt::{Debug, Formatter};
 use std::iter::Peekable;
 use anyhow::{anyhow, bail, Context, Error, Result};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum BaseType {
 	B, C, D, F, I, J, S, Z, L(String),
 }
@@ -23,7 +23,7 @@ impl From<&BaseType> for String {
 	}
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct FieldDescriptor {
 	dimension: usize,
 	base: BaseType,
@@ -67,6 +67,13 @@ impl FieldDescriptor {
 	}
 }
 
+impl TryFrom<String> for FieldDescriptor {
+	type Error = Error;
+	fn try_from(value: String) -> Result<Self, Self::Error> {
+		Self::try_from(value.as_str())
+	}
+}
+
 impl TryFrom<&str> for FieldDescriptor {
 	type Error = Error;
 	fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -91,14 +98,27 @@ impl From<&FieldDescriptor> for String {
 
 impl Debug for FieldDescriptor {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		f.write_str(&String::from(self)) // use our from and to string impl here
+		write!(f, "{:?}", String::from(self))
 	}
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct MethodDescriptor {
 	args: Vec<FieldDescriptor>,
 	ret: Option<FieldDescriptor>, // None is `void`, and nicely the rest fits well from the field!
+}
+
+impl MethodDescriptor {
+	pub(crate) fn len(&self) -> usize {
+		self.args.len()
+	}
+}
+
+impl TryFrom<String> for MethodDescriptor {
+	type Error = Error;
+	fn try_from(value: String) -> Result<Self, Self::Error> {
+		Self::try_from(value.as_str())
+	}
 }
 
 impl TryFrom<&str> for MethodDescriptor {
@@ -157,7 +177,7 @@ impl From<&MethodDescriptor> for String {
 
 impl Debug for MethodDescriptor {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		f.write_str(&String::from(self)) // use our from and to string impl here
+		write!(f, "{:?}", String::from(self))
 	}
 }
 
