@@ -2,6 +2,7 @@ mod class_file;
 use anyhow::Result;
 use indexmap::IndexMap;
 use indexmap::map::Entry;
+use crate::Jar;
 use crate::specialized_methods::class_file::{ClassFile, MethodInfo};
 use crate::tree::mappings::{ClassKey, MethodKey};
 
@@ -45,17 +46,24 @@ fn is_potential_bridge(bridge: &MethodInfo, specialized: &MethodInfo) -> bool {
 }
 
 #[derive(Debug, Clone)]
-struct SpecializedMethods {
-	classes: IndexMap<ClassKey, SpecializedMethodsClass>,
+pub(crate) struct SpecializedMethods {
+	pub(crate) classes: IndexMap<ClassKey, SpecializedMethodsClass>,
 }
 
 #[derive(Debug, Clone)]
-struct SpecializedMethodsClass {
-	methods: IndexMap<MethodKey, MethodKey>,
+pub(crate) struct SpecializedMethodsClass {
+	/// Map from the bridge methods to the specialized methods they map to
+	pub(crate) methods: IndexMap<MethodKey, MethodKey>,
 }
 
 fn get_specialized_methods() -> SpecializedMethods {
 	todo!()
+}
+
+impl Jar {
+	pub(crate) fn get_specialized_methods(&self) -> Result<SpecializedMethods> {
+		todo!()
+	}
 }
 
 impl ClassFile {

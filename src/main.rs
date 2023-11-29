@@ -10,6 +10,7 @@ mod version_graph;
 mod writer;
 mod download;
 mod tree;
+mod specialized_methods;
 
 #[derive(Debug)]
 struct Jar;
@@ -71,34 +72,36 @@ impl Build {
 
     async fn build_feather_tiny(&self, downloader: &mut Downloader) -> Result<Mappings<2>> {
         let main_jar = self.main_jar(downloader).await?;
-        let mappings = downloader.calamus_v2(&self.version).await?;
+        let calamus_v2 = downloader.calamus_v2(&self.version).await?;
         let libraries = downloader.mc_libs(&self.version).await?;
         /*
-        static void mapJar(Path input, File mappings, File DIR libraries, String from, String to) -> File output {
-            let output = ...;
+    // old:
+        let remapper = TinyRemapper(calamus_v2, "official", "intermediary")
 
-            def remapper = TinyRemapper.newRemapper()
-                    .withMappings(TinyUtils.createTinyMappingProvider(mappings.toPath(), "official", "intermediary"))
-                    .renameInvalidLocals(true)
-                    .rebuildSourceFilenames(true)
-                    .build()
+        let calamusJar = ...;
 
-            def outputConsumer = new OutputConsumerPath.Builder(output.toPath()).build()
-            outputConsumer.addNonClassFiles(input)
-            remapper.readInputs(input)
+        let outputConsumer = OutputConsumer(calamusJar)
+        outputConsumer.addNonClassFiles(mainJar)
+        remapper.readInputs(mainJar)
 
-            libraries.eachFileRecurse(FileType.FILES) { file ->
-                remapper.readClassPath(file.toPath())
-            }
-            remapper.apply(outputConsumer)
-            outputConsumer.close()
-            remapper.finish()
-
-            return output;
+        libraries.eachFileRecurse(FileType.FILES) { file ->
+            remapper.readClassPath(file.toPath())
         }
-        calamusJar = mapJar(mainJar, downloadCalamus(v2).dest, libraries, "official", "intermediary")
+        remapper.apply(outputConsumer)
+        outputConsumer.close()
+        remapper.finish()
+
         new MapSpecializedMethodsCommand().run([calamusJar, "tinyv2", self.mappings, "tinyv2:intermediary:named", _return_this_])
+
+    // new: */
+        let specialized_methods = main_jar.get_specialized_methods()?;
+        /*
+        let remapper = calamus_v2.remapper(from: "official", to: "intermediary")
+        let specialized_methods = remapper.apply(specialized_methods)
+        self.mappings.add(specialized_methods)
 		*/
+
+
         // TODO: impl
         Ok(self.mappings.clone())
     }
