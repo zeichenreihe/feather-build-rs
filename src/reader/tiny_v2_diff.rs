@@ -4,9 +4,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use crate::reader::tiny_v2_line::{Line, WithMoreIdentIter};
-use crate::tree::{ClassNowode, FieldNowode, MethodNowode, ParameterNowode};
 use crate::tree::mappings::{ClassKey, ClassMapping, FieldKey, FieldMapping, JavadocMapping, MethodKey, MethodMapping, ParameterKey, ParameterMapping};
-use crate::tree::mappings_diff::{Action, MappingsDiff};
+use crate::tree::mappings_diff::{Action, ClassNowodeDiff, FieldNowodeDiff, MappingsDiff, MethodNowodeDiff, ParameterNowodeDiff};
 
 pub(crate) fn read_file(path: impl AsRef<Path> + Debug) -> Result<MappingsDiff> {
 	read(File::open(&path)?)
@@ -38,7 +37,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 			let action = line.action(|dst| ClassMapping { names: [src.clone(), dst].into() })?;
 			let class_key = ClassKey::new(src);
 
-			let mut class = ClassNowode::new(action);
+			let mut class = ClassNowodeDiff::new(action);
 
 			let mut iter = iter.next_level();
 			while let Some(mut line) = iter.next().transpose()? {
@@ -52,12 +51,12 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 					})?;
 					let field_key = FieldKey::new(desc, src);
 
-					let mut field = FieldNowode::new(action);
+					let mut field = FieldNowodeDiff::new(action);
 
 					let mut iter = iter.next_level();
 					while let Some(line) = iter.next().transpose()? {
 						if line.first_field == "c" {
-							let action = line.action(|jav| JavadocMapping(jav))?;
+							let action = line.action(JavadocMapping)?;
 							if field.javadoc.replace(action).is_some() {
 								bail!("Only one comment diff per field is allowed")
 							}
@@ -75,7 +74,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 					})?;
 					let method_key = MethodKey::new(desc, src);
 
-					let mut method = MethodNowode::new(action);
+					let mut method = MethodNowodeDiff::new(action);
 
 					let mut iter = iter.next_level();
 					while let Some(mut line) = iter.next().transpose()? {
@@ -89,12 +88,12 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 							})?;
 							let parameter_key = ParameterKey::new(index);
 
-							let mut parameter = ParameterNowode::new(action);
+							let mut parameter = ParameterNowodeDiff::new(action);
 
 							let mut iter = iter.next_level();
 							while let Some(line) = iter.next().transpose()? {
 								if line.first_field == "c" {
-									let action = line.action(|jav| JavadocMapping(jav))?;
+									let action = line.action(JavadocMapping)?;
 									if parameter.javadoc.replace(action).is_some() {
 										bail!("Only one comment diff per parameter is allowed")
 									}
@@ -103,7 +102,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 
 							method.add_parameter(parameter_key, parameter)?;
 						} else if line.first_field == "c" {
-							let action = line.action(|jav| JavadocMapping(jav))?;
+							let action = line.action(JavadocMapping)?;
 							if method.javadoc.replace(action).is_some() {
 								bail!("Only one comment diff per method is allowed")
 							}
@@ -112,7 +111,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 
 					class.add_method(method_key, method)?;
 				} else if line.first_field == "c" {
-					let action = line.action(|jav| JavadocMapping(jav))?;
+					let action = line.action(JavadocMapping)?;
 					if class.javadoc.replace(action).is_some() {
 						bail!("Only one comment diff per class is allowed")
 					}

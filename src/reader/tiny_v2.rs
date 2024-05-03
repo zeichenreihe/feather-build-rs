@@ -4,7 +4,6 @@ use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use crate::reader::tiny_v2_line::{Line, WithMoreIdentIter};
-use crate::tree::{ClassNowode, FieldNowode, MethodNowode, ParameterNowode};
 use crate::tree::mappings::{ClassMapping, FieldMapping, JavadocMapping, MappingInfo, MethodMapping, ParameterMapping, ClassNowodeMapping, FieldNowodeMapping, Mappings, MethodNowodeMapping, ParameterNowodeMapping};
 
 pub(crate) fn read_file<const N: usize>(path: impl AsRef<Path> + Debug) -> Result<Mappings<N>> {
@@ -43,7 +42,7 @@ pub(crate) fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 			let mapping = ClassMapping { names };
 			let class_key = mapping.get_key()?;
 
-			let mut class: ClassNowodeMapping<N> = ClassNowode::new(mapping);
+			let mut class: ClassNowodeMapping<N> = ClassNowodeMapping::new(mapping);
 
 			let mut iter = iter.next_level();
 			while let Some(mut line) = iter.next().transpose()? {
@@ -54,7 +53,7 @@ pub(crate) fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 					let mapping = FieldMapping { desc, names };
 					let field_key = mapping.get_key()?;
 
-					let mut field: FieldNowodeMapping<N> = FieldNowode::new(mapping);
+					let mut field: FieldNowodeMapping<N> = FieldNowodeMapping::new(mapping);
 
 					let mut iter = iter.next_level();
 					while let Some(line) = iter.next().transpose()? {
@@ -74,7 +73,7 @@ pub(crate) fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 					let mapping = MethodMapping { desc, names };
 					let method_key = mapping.get_key()?;
 
-					let mut method: MethodNowodeMapping<N> = MethodNowode::new(mapping);
+					let mut method: MethodNowodeMapping<N> = MethodNowodeMapping::new(mapping);
 
 					let mut iter = iter.next_level();
 					while let Some(mut line) = iter.next().transpose()? {
@@ -85,7 +84,7 @@ pub(crate) fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 							let mapping = ParameterMapping { index, names };
 							let parameter_key = mapping.get_key()?;
 
-							let mut parameter: ParameterNowodeMapping<N> = ParameterNowode::new(mapping);
+							let mut parameter: ParameterNowodeMapping<N> = ParameterNowodeMapping::new(mapping);
 
 							let mut iter = iter.next_level();
 							while let Some(line) = iter.next().transpose()? {
