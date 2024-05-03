@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::iter::Peekable;
 use anyhow::{anyhow, bail, Context, Result};
 use crate::tree::mappings_diff::Action;
@@ -38,7 +39,7 @@ impl Line {
 	pub(super) fn end(mut self) -> Result<String> {
 		let next = self.next()?;
 
-		if self.fields.as_slice().len() != 0 {
+		if !self.fields.as_slice().is_empty() {
 			bail!("Line {} contained more fields than expected: {self:?}", self.line_number);
 		}
 
@@ -62,13 +63,13 @@ impl Line {
 		let a = self.fields.next();
 		let b = self.fields.next();
 
-		if self.fields.as_slice().len() != 0 {
+		if !self.fields.as_slice().is_empty() {
 			bail!("Line {} contained more fields than expected: {:?}", self.line_number, self);
 		}
 
 		// an empty string means no mapping there!
-		let a = a.map_or(None, |x| if x.is_empty() { None } else { Some(x) });
-		let b = b.map_or(None, |x| if x.is_empty() { None } else { Some(x) });
+		let a = a.and_then(|x| if x.is_empty() { None } else { Some(x) });
+		let b = b.and_then(|x| if x.is_empty() { None } else { Some(x) });
 
 		Ok(match (a, b) {
 			(None, None) => Action::None,
@@ -104,14 +105,10 @@ impl<I: Iterator<Item=Result<Line>>> Iterator for WithMoreIdentIter<'_, I> {
 	fn next(&mut self) -> Option<Self::Item> {
 		let line = self.iter.peek()?.as_ref().ok()?;
 
-		if line.idents < self.depth {
-			// cancel an inner loop
-			None
-		} else if line.idents == self.depth {
-			// actually give back the value
-			self.iter.next()
-		} else {
-			Some(Err(anyhow!("Expected an indentation of {} for line {}: {:#?}", self.depth, line.line_number, line)))
+		match line.idents.cmp(&self.depth) {
+			Ordering::Less => None, // cancel an inner loop
+			Ordering::Equal => self.iter.next(), // actually give back the value
+			Ordering::Greater => Some(Err(anyhow!("Expected an indentation of {} for line {}: {:#?}", self.depth, line.line_number, line))),
 		}
 	}
 }
