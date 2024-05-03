@@ -1,34 +1,141 @@
-use anyhow::{anyhow, Context, Result};
-use crate::tree::{ClassNowode, FieldNowode, MappingNowode, MethodNowode, Names, ParameterNowode};
+use anyhow::{anyhow, bail, Context, Result};
+use indexmap::IndexMap;
+use indexmap::map::Entry;
+use crate::tree::Names;
+#[derive(Debug, Clone)]
+pub(crate) struct Mappings<const N: usize> {
+	pub(crate) info: MappingInfo<N>,
+	pub(crate) classes: IndexMap<ClassKey, ClassNowodeMapping<N>>,
+	pub(crate) javadoc: Option<JavadocMapping>,
+}
 
-pub(crate) type Mappings<const N: usize> = MappingNowode<
-	MappingInfo<N>,
-	ClassKey, ClassMapping<N>,
-	FieldKey, FieldMapping<N>,
-	MethodKey, MethodMapping<N>,
-	ParameterKey, ParameterMapping<N>,
-	JavadocMapping
->;
-pub(crate) type ClassNowodeMapping<const N: usize> = ClassNowode<
-	ClassMapping<N>,
-	FieldKey, FieldMapping<N>,
-	MethodKey, MethodMapping<N>,
-	ParameterKey, ParameterMapping<N>,
-	JavadocMapping
->;
-pub(crate) type FieldNowodeMapping<const N: usize> = FieldNowode<
-	FieldMapping<N>,
-	JavadocMapping
->;
-pub(crate) type MethodNowodeMapping<const N: usize> = MethodNowode<
-	MethodMapping<N>,
-	ParameterKey, ParameterMapping<N>,
-	JavadocMapping,
->;
-pub(crate) type ParameterNowodeMapping<const N: usize> = ParameterNowode<
-	ParameterMapping<N>,
-	JavadocMapping
->;
+impl<const N: usize> Mappings<N> {
+	pub(crate) fn new(info: MappingInfo<N>) -> Mappings<N> {
+		Mappings {
+			info,
+			classes: IndexMap::new(),
+			javadoc: None,
+		}
+	}
+
+	pub(crate) fn add_class(&mut self, key: ClassKey, child: ClassNowodeMapping<N>) -> Result<()> {
+		match self.classes.entry(key) {
+			Entry::Occupied(e) => {
+				bail!("Cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
+			},
+			Entry::Vacant(e) => {
+				e.insert(child);
+			},
+		}
+
+		Ok(())
+	}
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ClassNowodeMapping<const N: usize> {
+	pub(crate) info: ClassMapping<N>,
+	pub(crate) fields: IndexMap<FieldKey, FieldNowodeMapping<N>>,
+	pub(crate) methods: IndexMap<MethodKey, MethodNowodeMapping<N>>,
+	pub(crate) javadoc: Option<JavadocMapping>,
+}
+
+impl<const N: usize> ClassNowodeMapping<N> {
+	pub(crate) fn new(info: ClassMapping<N>) -> ClassNowodeMapping<N> {
+		ClassNowodeMapping {
+			info,
+			fields: IndexMap::new(),
+			methods: IndexMap::new(),
+			javadoc: None,
+		}
+	}
+
+	pub(crate) fn add_field(&mut self, key: FieldKey, child: FieldNowodeMapping<N>) -> Result<()> {
+		match self.fields.entry(key) {
+			Entry::Occupied(e) => {
+				bail!("Cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
+			},
+			Entry::Vacant(e) => {
+				e.insert(child);
+			},
+		}
+
+		Ok(())
+	}
+
+	pub(crate) fn add_method(&mut self, key: MethodKey, child: MethodNowodeMapping<N>) -> Result<()> {
+		match self.methods.entry(key) {
+			Entry::Occupied(e) => {
+				bail!("Cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
+			},
+			Entry::Vacant(e) => {
+				e.insert(child);
+			},
+		}
+
+		Ok(())
+	}
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct FieldNowodeMapping<const N: usize> {
+	pub(crate) info: FieldMapping<N>,
+	pub(crate) javadoc: Option<JavadocMapping>,
+}
+
+impl<const N: usize> FieldNowodeMapping<N> {
+	pub(crate) fn new(info: FieldMapping<N>) -> FieldNowodeMapping<N> {
+		FieldNowodeMapping {
+			info,
+			javadoc: None,
+		}
+	}
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct MethodNowodeMapping<const N: usize> {
+	pub(crate) info: MethodMapping<N>,
+	pub(crate) parameters: IndexMap<ParameterKey, ParameterNowodeMapping<N>>,
+	pub(crate) javadoc: Option<JavadocMapping>,
+}
+
+impl<const N: usize> MethodNowodeMapping<N> {
+	pub(crate) fn new(info: MethodMapping<N>) -> MethodNowodeMapping<N> {
+		MethodNowodeMapping {
+			info,
+			parameters: IndexMap::new(),
+			javadoc: None,
+		}
+	}
+
+	pub(crate) fn add_parameter(&mut self, key: ParameterKey, child: ParameterNowodeMapping<N>) -> Result<()> {
+		match self.parameters.entry(key) {
+			Entry::Occupied(e) => {
+				bail!("Cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
+			},
+			Entry::Vacant(e) => {
+				e.insert(child);
+			},
+		}
+
+		Ok(())
+	}
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ParameterNowodeMapping<const N: usize> {
+	pub(crate) info: ParameterMapping<N>,
+	pub(crate) javadoc: Option<JavadocMapping>,
+}
+
+impl<const N: usize> ParameterNowodeMapping<N> {
+	pub(crate) fn new(info: ParameterMapping<N>) -> ParameterNowodeMapping<N> {
+		ParameterNowodeMapping {
+			info,
+			javadoc: None,
+		}
+	}
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct MappingInfo<const N: usize> {
