@@ -2,29 +2,29 @@
 //!
 //! Use the [Java Virtual Machine Specification, Chapter 4](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.7-320)
 //! to build a class file. No format checking is done when creating a `Vec<u8>`.
-use macros::jvms_notation;
+use macros::notation;
 
 mod macros;
 
 impl ClassFile {
 	/// Converts the class file to binary representation.
 	pub fn to_bytes(&self) -> Vec<u8> {
-		let mut vec = Vec::with_capacity(self.jvms_len() as usize);
-		self.jvms_write(&mut vec).expect("Writing to a Vec<> should never fail");
+		let mut vec = Vec::with_capacity(self._len() as usize);
+		self._write(&mut vec).expect("Writing to a Vec<> should never fail");
 		vec
 	}
 
 	pub fn write(&self, writer: &mut impl std::io::Write) -> std::io::Result<()> {
-		self.jvms_write(writer)
+		self._write(writer)
 	}
 
 	pub fn read(reader: &mut impl std::io::Read) -> std::io::Result<ClassFile> {
-		ClassFile::jvms_read(reader, None)
+		ClassFile::_read(reader, None)
 	}
 
 	/// The length of the class file produced by [`Self::to_bytes`], in bytes.
 	pub fn length(&self) -> u32 {
-		self.jvms_len()
+		self._len()
 	}
 }
 
@@ -54,7 +54,7 @@ pub mod flags {
 	pub const ACC_MANDATED: u16     = 0x8000; // parameter, module, module requires, module exports, module opens
 }
 
-jvms_notation!(
+notation!(
 	struct ClassFile this {
 		const magic: u32 = 0xCAFEBABEu32,
 		mut minor_version: u16,
@@ -75,7 +75,7 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	enum CpInfo {
 		tag: u8,
 		Class {
@@ -162,7 +162,7 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	struct FieldInfo {
 		mut access_flags: u16,
 		mut name_index: u16,
@@ -173,7 +173,7 @@ jvms_notation!(
 );
 
 
-jvms_notation!(
+notation!(
 	struct MethodInfo {
 		mut access_flags: u16,
 		mut name_index: u16,
@@ -196,7 +196,7 @@ fn pool_has_utf8(pool: Option<&Vec<CpInfo>>, index: u16, value: &[u8]) -> Result
 	Ok(bytes.as_slice() == value)
 }
 
-jvms_notation!(
+notation!(
 	enum AttributeInfo [pool] {
 		attribute_name_index: u16,
 		ConstantValue {
@@ -208,7 +208,7 @@ jvms_notation!(
 		Code this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"Code")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 			mut max_stack: u16,
 			mut max_locals: u16,
 			//code_length: u32,
@@ -221,7 +221,7 @@ jvms_notation!(
 		StackMapTable this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"StackMapTable")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 			//number_of_entries: u16,
 			mut entries: Vec<StackMapFrame> [u16],
 		},
@@ -235,7 +235,7 @@ jvms_notation!(
 		InnerClasses this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"InnerClasses")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 			//number_of_classes: u16,
 			mut classes: Vec<InnerClassesEntry> [u16],
 		},
@@ -272,21 +272,21 @@ jvms_notation!(
 		LineNumberTable this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"LineNumberTable")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 			//line_number_table_length: u16,
 			mut line_number_table: Vec<LineNumberTableEntry> [u16],
 		},
 		LocalVariableTable this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"LocalVariableTable")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 			//local_variable_table_length: u16,
 			mut local_variable_table: Vec<LocalVariableTableEntry> [u16],
 		},
 		LocalVariableTypeTable this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"LocalVariableTypeTable")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 			//local_variable_type_table_length: u16,
 			mut local_variable_type_table: Vec<LocalVariableTypeTableEntry> [u16],
 		},
@@ -298,28 +298,28 @@ jvms_notation!(
 		RuntimeVisibleAnnotations this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"RuntimeVisibleAnnotations")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 			//num_annotations: u16,
 			mut annotations: Vec<Annotation> [u16],
 		},
 		RuntimeInvisibleAnnotations this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"RuntimeInvisibleAnnotations")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 			//num_annotations: u16,
 			mut annotations: Vec<Annotation> [u16],
 		},
 		RuntimeVisibleParameterAnnotations this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"RuntimeVisibleParameterAnnotations")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 			//num_parameters: u8,
 			mut parameter_annotations: Vec<ParameterAnnotationEntry> [u8],
 		},
 		RuntimeInvisibleParameterAnnotations this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"RuntimeInvisibleParameterAnnotations")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 			//num_parameters: u8,
 			mut parameter_annotations: Vec<ParameterAnnotationEntry> [u8],
 		},
@@ -328,27 +328,27 @@ jvms_notation!(
 		AnnotationDefault this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"AnnotationDefault")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 			mut default_value: ElementValue,
 		},
 		BootstrapMethods this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"BootstrapMethods")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 			//num_bootstrap_methods: u16,
 			mut bootstrap_methods: Vec<BootstrapMethodsEntry> [u16],
 		},
 		MethodParameters this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"MethodParameters")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 			//parameters_count: u16,
 			mut parameters: Vec<MethodParametersEntry> [u16],
 		},
 		Module this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"Module")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 
 			mut module_name_index: u16,
 			mut module_flags: u16,
@@ -398,7 +398,7 @@ jvms_notation!(
 		Record this {
 			= *attribute_name_index => attribute_name_index if pool_has_utf8(pool, attribute_name_index, b"Record")?,
 			mut attribute_name_index: u16 nowrite = attribute_name_index,
-			const attribute_length: u32 = this.jvms_len() - 6,
+			const attribute_length: u32 = this._len() - 6,
 			//components_count: u16,
 			mut components: Vec<RecordComponentInfo> [u16],
 		},
@@ -628,7 +628,7 @@ pub mod insn {
 	pub const impdep2: u8 = 0xff;
 }
 
-jvms_notation!(
+notation!(
 	struct ExceptionTableEntry {
 		mut start_pc: u16,
 		mut end_pc: u16,
@@ -637,7 +637,7 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	enum VerificationTypeInfo {
 		tag: u8,
 		Top {
@@ -675,7 +675,7 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	enum StackMapFrame {
 		frame_type: u8,
 		SameFrame {
@@ -720,7 +720,7 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	struct InnerClassesEntry {
 		mut inner_class_info_index: u16,
 		mut outer_class_info_index: u16,
@@ -729,14 +729,14 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	struct LineNumberTableEntry {
 		mut start_pc: u16,
 		mut line_number: u16,
 	}
 );
 
-jvms_notation!(
+notation!(
 	struct LocalVariableTableEntry {
 		mut start_pc: u16,
 		mut length: u16,
@@ -746,7 +746,7 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	struct LocalVariableTypeTableEntry {
 		mut start_pc: u16,
 		mut length: u16,
@@ -756,7 +756,7 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	struct Annotation {
 		mut type_index: u16,
 		//num_element_value_pairs: u16,
@@ -764,14 +764,14 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	struct ElementValuePairsEntry {
 		mut element_name_index: u16,
 		mut value: ElementValue,
 	}
 );
 
-jvms_notation!(
+notation!(
 	enum ElementValue {
 		tag: u8,
 		Byte {
@@ -834,7 +834,7 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	struct ParameterAnnotationEntry {
 		//num_annotation: u16,
 		mut annotations: Vec<Annotation> [u16],
@@ -843,7 +843,7 @@ jvms_notation!(
 
 // TODO: type_annotation struct
 
-jvms_notation!(
+notation!(
 	struct BootstrapMethodsEntry {
 		mut bootstrap_method_ref: u16,
 		//num_bootstrap_arguments: u16,
@@ -851,14 +851,14 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	struct MethodParametersEntry {
 		mut name_index: u16,
 		mut access_flags: u16,
 	}
 );
 
-jvms_notation!(
+notation!(
 	struct ModuleRequiresEntry {
 		mut requires_index: u16,
 		mut requires_flags: u16,
@@ -866,7 +866,7 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	struct ModuleExportsEntry {
 		mut exports_index: u16,
 		mut exports_flags: u16,
@@ -875,7 +875,7 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	struct ModuleOpensEntry {
 		mut opens_index: u16,
 		mut opens_flags: u16,
@@ -884,7 +884,7 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	struct ModuleProvidesEntry {
 		mut provides_index: u16,
 		//provides_with_count: u16,
@@ -892,7 +892,7 @@ jvms_notation!(
 	}
 );
 
-jvms_notation!(
+notation!(
 	struct RecordComponentInfo {
 		mut name_index: u16,
 		mut descriptor_index: u16,
