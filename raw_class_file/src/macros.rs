@@ -65,17 +65,23 @@ macro_rules! notation {
 	(len, $v:expr, $_t:ty) => { $v._len() };
 	// rules actually used in the definition of things
 	(
+		$( #[$nd:meta] )?
 		struct $n:ident $($s:ident)? {
 			$( const $c_0:ident: $ct_0:ident = $cv_0:expr, )*
 			$(
+				$( #[$id:meta] )?
 				mut $i:ident: $it:ident $( <$iit:tt> $([$iat:tt])? $({$l:expr})? )? $( ;$ps:expr )?,
 				$( const $c_1:ident: $ct_1:ident = $cv_1:expr, )*
 			)*
 		}
 	) => {
+		$( #[$nd] )?
 		#[derive(Debug, Clone, PartialEq)]
 		pub struct $n {
-			$( pub $i: $it $(<$iit>)?, )*
+			$(
+				$( #[$id] )?
+				pub $i: $it $(<$iit>)?,
+			)*
 		}
 
 		impl $n {
@@ -116,24 +122,36 @@ macro_rules! notation {
 		}
 	};
 	(
+		$( #[$nd:meta] )?
 		enum $n:ident $([$p:ident])? {
 			$t:ident: $tt:ident,
-			$( $v:ident $($s:ident)? {
-				= $tv:expr => $tm:pat $(if $tme:expr)?,
-				$( const $c_0:ident: $ct_0:ident = $cv_0:expr, )*
-				$(
-					mut $i:ident: $it:ident $( <$iit:tt> $([$iat:tt])? $({$l:expr})? )? $($nw:ident = $nwe:expr)?,
-					$( const $c_1:ident: $ct_1:ident = $cv_1:expr, )*
-				)*
-			}, )*
+			$(
+				$( #[$vd:meta] )?
+				$v:ident $($s:ident)? {
+					= $tv:expr => $tm:pat $(if $tme:expr)?,
+					$( const $c_0:ident: $ct_0:ident = $cv_0:expr, )*
+					$(
+						$( #[$id:meta] )?
+						mut $i:ident: $it:ident $( <$iit:tt> $([$iat:tt])? $({$l:expr})? )? $($nw:ident = $nwe:expr)?,
+						$( const $c_1:ident: $ct_1:ident = $cv_1:expr, )*
+					)*
+				},
+			)*
 			$( _ { $fm:pat => $f:expr, }, )?
 		}
 	) => {
+		$( #[$nd] )?
 		#[derive(Debug, Clone, PartialEq)]
 		pub enum $n {
-			$( $v {
-				$( $i: $it $(<$iit>)?, )*
-			}, )*
+			$(
+				$( #[$vd] )?
+				$v {
+					$(
+						$( #[$id] )?
+						$i: $it $(<$iit>)?,
+					)*
+				},
+			)*
 		}
 
 		impl $n {
