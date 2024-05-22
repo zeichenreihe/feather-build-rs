@@ -1,7 +1,94 @@
 //! This crate contains a direct binary representation of a java class file.
 //!
-//! Use the [Java Virtual Machine Specification, Chapter 4](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.7-320)
+//! Use the [Java Virtual Machine Specification, Chapter 4](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html)
 //! to build a class file. No format checking is done when creating a `Vec<u8>`.
+//!
+//! This code creates the same class as `javac` version `1.8_402` would, if ran on the class
+//! ```java,ignore
+//! package org.example;
+//!
+//! class Main {}
+//! ```
+//!
+//! You can write this to a `Vec<u8>` by using the [ClassFile::to_bytes] function.
+//! ```
+//! # use pretty_assertions::assert_eq;
+//! use raw_class_file::{AttributeInfo, ClassFile, CpInfo, flags, insn, LineNumberTableEntry, MethodInfo};
+//! let class = ClassFile {
+//!     minor_version: 0,
+//!     major_version: 52,
+//!     constant_pool: vec![
+//!         // the constant pool indices start at 1, not at 0
+//!         CpInfo::Methodref { class_index: 3,name_and_type_index: 10 },
+//!         CpInfo::Class { name_index: 11 },
+//!         CpInfo::Class { name_index: 12 },
+//!         CpInfo::Utf8 { bytes: b"<init>".to_vec() },
+//!         CpInfo::Utf8 { bytes: b"()V".to_vec() },
+//!         CpInfo::Utf8 { bytes: b"Code".to_vec() },
+//!         CpInfo::Utf8 { bytes: b"LineNumberTable".to_vec() },
+//!         CpInfo::Utf8 { bytes: b"SourceFile".to_vec() },
+//!         CpInfo::Utf8 { bytes: b"Main.java".to_vec() },
+//!         CpInfo::NameAndType { name_index: 4, descriptor_index: 5 },
+//!         CpInfo::Utf8 { bytes: b"org/example/Main".to_vec() },
+//!         CpInfo::Utf8 { bytes: b"java/lang/Object".to_vec() },
+//!     ],
+//!     access_flags: flags::ACC_SUPER,
+//!     this_class: 2,
+//!     super_class: 3,
+//!     interfaces: vec![],
+//!     fields: vec![],
+//!     methods: vec![
+//!         MethodInfo {
+//!             access_flags: 0,
+//!             name_index: 4,
+//!             descriptor_index: 5,
+//!             attributes: vec![
+//!                 AttributeInfo::Code {
+//!                     attribute_name_index: 6,
+//!                     max_stack: 1,
+//!                     max_locals: 1,
+//!                     code: vec![
+//!                         insn::aload_0,
+//!                         insn::invokespecial, 0, 1,
+//!                         insn::r#return,
+//!                     ],
+//!                     exception_table: vec![],
+//!                     attributes: vec![
+//!                         AttributeInfo::LineNumberTable {
+//!                             attribute_name_index: 7,
+//!                             line_number_table: vec![
+//!                                 LineNumberTableEntry { start_pc: 0,line_number: 3 },
+//!                             ],
+//!                         }
+//!                     ],
+//!                 },
+//!             ],
+//!         }
+//!     ],
+//!     attributes: vec![
+//!         AttributeInfo::SourceFile {
+//!             attribute_name_index: 8,
+//!             sourcefile_index: 9,
+//!         }
+//!     ],
+//! };
+//!
+//! let bytes = class.to_bytes();
+//!
+//! let class_2 = ClassFile::read(&mut std::io::Cursor::new(&bytes)).unwrap();
+//!
+//! assert_eq!(bytes.len(), class_2.length() as usize);
+//!
+//! let mut bytes_2 = Vec::new();
+//! class_2.write(&mut bytes_2).unwrap();
+//!
+//! assert_eq!(bytes, bytes_2);
+//! ```
+//!
+//! As you can see, [ClassFile] also has [ClassFile::read] and [ClassFile::write] to interface with things implementing [std::io::Read] and
+//! [std::io::Write].
+//!
+//! The [ClassFile::length] function gives the computed length of a class file, useful for allocating sufficient memory for buffers.
 use macros::notation;
 
 mod macros;
