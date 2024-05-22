@@ -51,6 +51,7 @@ macro_rules! notation {
 	};
 	(check, $c:ident, $_cv:expr) => { let _ = $c; };
 	// rules used for calculating lengths
+	(len, $_v:expr, $_t:ident $(<$_it:tt> $([$_iat:tt])?)? ;$_nw:ident) => { 0 };
 	(len, $v:expr, Vec<$it:tt> $([$iat:tt])? ) => {{
 		let mut len = 0 $( + notation!(len, $v, $iat) )?;
 		for _i in $v {
@@ -179,10 +180,10 @@ macro_rules! notation {
 						$( $i, )*
 					} => {
 						$( let _ = $s; )?
-						0
+						notation!(len, $tv as $tt, $tt)
 						$( + notation!(len, $cv_0, $ct_0) )*
 						$(
-							+ { let _i = $i; notation!(len, _i, $it $( <$iit> $([$iat])? )? ) }
+							+ { let _i = $i; notation!(len, _i, $it $( <$iit> $([$iat])? )? $(;$nw)? ) }
 							$( + notation!(len, $cv_1, $ct_1) )*
 						)*
 					}, )*
