@@ -244,7 +244,7 @@ notation!(
 			mut name_index: u16,
 		},
 		_ {
-			tag => Err(std::io::Error::other(format!("Unexpected constant pool tag {}", tag))),
+			tag => Err(std::io::Error::other(format!("unexpected constant pool tag {}", tag))),
 		},
 	}
 );
@@ -272,13 +272,13 @@ notation!(
 
 fn pool_has_utf8(pool: Option<&Vec<CpInfo>>, index: u16, value: &[u8]) -> Result<bool, std::io::Error> {
 	let Some(pool) = pool else {
-		return Err(std::io::Error::other("Expected to have constant pool at this point of reading"));
+		return Err(std::io::Error::other("expected to have constant pool at this point of reading"));
 	};
-	let Some(entry) = pool.get((index - 1 ) as usize) else {
-		return Err(std::io::Error::other(format!("No constant pool entry at position {}", index)));
+	let Some(entry) = pool.get((index - 1) as usize) else {
+		return Err(std::io::Error::other(format!("no constant pool entry at position {}", index)));
 	};
 	let CpInfo::Utf8 { bytes } = entry else {
-		return Err(std::io::Error::other(format!("Expected constant pool entry Utf8 at position {}, got {:?}", index, entry)));
+		return Err(std::io::Error::other(format!("expected constant pool entry `Utf8` at position {}, got {:?}", index, entry)));
 	};
 	Ok(bytes.as_slice() == value)
 }
@@ -757,7 +757,7 @@ notation!(
 			= 3 => 3,
 		},
 		_ {
-			tag => Err(std::io::Error::other(format!("Unexpected verification type info tag {}", tag))),
+			tag => Err(std::io::Error::other(format!("unexpected verification type info tag {}", tag))),
 		},
 	}
 );
@@ -802,7 +802,7 @@ notation!(
 			mut stack: Vec<VerificationTypeInfo> [u16],
 		},
 		_ {
-			tag => Err(std::io::Error::other(format!("Unexpected stack map frame tag {}", tag))),
+			tag => Err(std::io::Error::other(format!("unexpected stack map frame tag {}", tag))),
 		},
 	}
 );
@@ -916,7 +916,7 @@ notation!(
 			mut values: Vec<ElementValue> [u16],
 		},
 		_ {
-			tag => Err(std::io::Error::other(format!("Unexpected element value tag {}", tag))),
+			tag => Err(std::io::Error::other(format!("unexpected element value tag {}", tag))),
 		},
 	}
 );
