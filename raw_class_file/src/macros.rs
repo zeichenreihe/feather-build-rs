@@ -45,7 +45,7 @@ macro_rules! notation {
 	(check, $c:ident, $cv:literal) => {
 		if $c != $cv {
 			return Err(std::io::Error::other(format!(
-				"Unexpected constant value: expected {:?} (0x{:x?}), got {:?} (0x{:x?}) for constant `{}`", $cv, $cv, $c, $c, stringify!($c)
+				"unexpected constant value: expected {:?} (0x{:x?}), got {:?} (0x{:x?}) for constant `{}`", $cv, $cv, $c, $c, stringify!($c)
 			)));
 		}
 	};
