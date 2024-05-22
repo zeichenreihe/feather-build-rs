@@ -77,7 +77,7 @@
 //!
 //! let class_2 = ClassFile::read(&mut std::io::Cursor::new(&bytes)).unwrap();
 //!
-//! assert_eq!(bytes.len(), class_2.length() as usize);
+//! assert_eq!(bytes.len(), class_2.length());
 //!
 //! let mut bytes_2 = Vec::new();
 //! class_2.write(&mut bytes_2).unwrap();
@@ -96,8 +96,8 @@ mod macros;
 impl ClassFile {
 	/// Converts the class file to binary representation.
 	pub fn to_bytes(&self) -> Vec<u8> {
-		let mut vec = Vec::with_capacity(self._len() as usize);
-		self._write(&mut vec).expect("Writing to a Vec<> should never fail");
+		let mut vec = Vec::with_capacity(self.length());
+		self._write(&mut vec).expect("Writing to a Vec<u8> should never fail");
 		vec
 	}
 
@@ -110,8 +110,8 @@ impl ClassFile {
 	}
 
 	/// The length of the class file produced by [`Self::to_bytes`], in bytes.
-	pub fn length(&self) -> u32 {
-		self._len()
+	pub fn length(&self) -> usize {
+		self._len() as usize
 	}
 }
 
