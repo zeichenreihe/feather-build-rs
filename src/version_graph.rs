@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use anyhow::{anyhow, bail, Context, Result};
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
@@ -8,22 +9,11 @@ use serde::{Deserialize, Serialize};
 use crate::tree::mappings_diff::MappingsDiff;
 use crate::tree::mappings::Mappings;
 
-#[derive(Debug, Clone)]
-pub(crate) enum Format {
-	TinyV2,
-}
-
-impl Format {
-	fn mappings_extension(&self) -> &'static str {
-		".tiny"
-	}
-	fn diff_extension(&self) -> &'static str {
-		".tinydiff"
-	}
-}
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq, Deserialize, Serialize)]
 pub(crate) struct Version(pub(crate) String);
+const MAPPINGS_EXTENSION: &str = ".tiny";
+const DIFF_EXTENSION: &str = ".tinydiff";
 
 #[derive(Debug)]
 pub(crate) struct VersionGraph {
@@ -36,10 +26,9 @@ pub(crate) struct VersionGraph {
 }
 
 impl VersionGraph {
-	fn add_node(versions: &mut IndexMap<Version, NodeIndex>, graph: &mut Graph<Version, MappingsDiff>, version: String) -> NodeIndex {
-		versions.entry(Version(version.clone()))
-			.or_insert_with(|| graph.add_node(Version(version)))
-			.clone()
+	fn add_node(versions: &mut IndexMap<Version, NodeIndex>, graph: &mut Graph<Version, MappingsDiff>, version: &str) -> NodeIndex {
+		*versions.entry(Version(version.to_owned()))
+			.or_insert_with(|| graph.add_node(Version(version.to_owned())))
 	}
 
 	pub(crate) fn resolve(dir: &Path) -> Result<VersionGraph> {
@@ -48,11 +37,9 @@ impl VersionGraph {
 		let mut root = None;
 		let mut root_mapping = None;
 
-		let format = Format::TinyV2;
 		let mut versions = IndexMap::new();
 
 		Self::iterate_versions(
-			&format,
 			dir,
 			|parent, version, path| {
 				if let Some(parent) = parent {
@@ -60,18 +47,18 @@ impl VersionGraph {
 					let p = Self::add_node(&mut versions, &mut graph, parent);
 
 					let diff = crate::reader::tiny_v2_diff::read_file(&path)
-						.with_context(|| anyhow!("Failed to parse version diff from {path:?}"))?;
+						.with_context(|| anyhow!("failed to parse version diff from {path:?}"))?;
 
 					graph.add_edge(p, v, diff);
 				} else {
 					if let Some(root) = root {
-						bail!("Multiple roots present: {:?}, {version} ({path:?})", graph[root]);
+						bail!("multiple roots present: {:?}, {version} ({path:?})", graph[root]);
 					}
 
 					let v = Self::add_node(&mut versions, &mut graph, version);
 
 					let mapping = crate::reader::tiny_v2::read_file(&path)
-						.with_context(|| anyhow!("Failed to parse version mapping from {path:?}"))?;
+						.with_context(|| anyhow!("failed to parse version mapping from {path:?}"))?;
 
 					root = Some(v);
 					root_mapping = Some(mapping);
@@ -79,7 +66,7 @@ impl VersionGraph {
 
 				Ok(())
 			}
-		).context("Failed to read versions")?;
+		).context("failed to read versions")?;
 
 		let root = root.context("version graph does not have a root!")?;
 		let root_mapping = root_mapping.unwrap(); // see above + setting them together
@@ -93,40 +80,46 @@ impl VersionGraph {
 			graph,
 		};
 
-		g.walk()?;
+		let mut walkers = VecDeque::from([ (Vec::new(), g.root) ]);
+		while let Some((path, head)) = walkers.pop_front() {
+			for v in g.graph.neighbors_directed(head, Direction::Outgoing) {
+				if path.contains(&v) {
+					bail!("found a loop in the version graph: {:?}", v);
+				}
+
+				let mut path = path.clone();
+				path.push(v);
+
+				walkers.push_back((path, v));
+			}
+		}
 
 		Ok(g)
 	}
 
-	fn iterate_versions<F>(format: &Format, path: &Path, mut operation: F) -> Result<()>
+	fn iterate_versions<F>(dir: &Path, mut operation: F) -> Result<()>
 	where
-		F: FnMut(Option<String>, String, PathBuf) -> Result<()>,
+		F: FnMut(Option<&str>, &str, PathBuf) -> Result<()>,
 	{
-		for file in std::fs::read_dir(path)? {
+		for file in std::fs::read_dir(dir)? {
 			let file = file?;
 
 			let file_name: String = file.file_name().into_string().unwrap();
 
-			if file_name.ends_with(format.mappings_extension()) {
-				let version_length = file_name.len() - format.mappings_extension().len();
-				let version = file_name.split_at(version_length).0;
-
-				operation(None, version.to_owned(), file.path())
-					.with_context(|| anyhow!("Failed to read operate on {version} at {file:?}"))?;
-			}
-
-			if file_name.ends_with(format.diff_extension()) {
-				let version_length = file_name.len() - format.diff_extension().len();
-				let raw_versions = file_name.split_at(version_length).0;
-
+			if let Some(version) = file_name.strip_suffix(MAPPINGS_EXTENSION) {
+				operation(None, version, file.path())
+					.with_context(|| anyhow!("failed to read operate on {version} at {file:?}"))?;
+			} else if let Some(raw_versions) = file_name.strip_suffix(DIFF_EXTENSION) {
 				let versions: Vec<_> = raw_versions.split('#').collect();
 
 				if versions.len() == 2 {
-					let parent = versions[0].to_owned();
-					let version = versions[1].to_owned();
+					let parent = versions[0];
+					let version = versions[1];
 
 					operation(Some(parent), version, file.path())
-						.with_context(|| anyhow!("Failed to read operate on {} # {} at {file:?}", versions[0], versions[1]))?;
+						.with_context(|| anyhow!("failed to read operate on {} # {} at {file:?}", versions[0], versions[1]))?;
+				} else {
+					bail!("expected exactly two versions in diff file name {file_name:?}, got {versions:?}");
 				}
 			}
 		}
@@ -151,19 +144,19 @@ impl VersionGraph {
 
 		petgraph::algo::astar(
 			&self.graph,
-			self.root.clone(),
+			self.root,
 			|n| n == *to_node,
 			|_| 1,
 			|_| 0
 		)
-			.ok_or_else(|| anyhow!("There is no path in between {:?} and {to:?}", &self.root))?
+			.ok_or_else(|| anyhow!("there is no path in between {:?} and {to:?}", &self.root))?
 			.1
 			.windows(2)
 			.map(|x| {
 				let a = x[0];
 				let b = x[1];
 
-				if let Some(edge) = self.graph.find_edge(a, b.clone()) {
+				if let Some(edge) = self.graph.find_edge(a, b) {
 					Ok((&self.graph[a], &self.graph[b], &self.graph[edge]))
 				} else {
 					bail!("there is no edge between {a:?} and {b:?}");
@@ -183,29 +176,5 @@ impl VersionGraph {
 			})
 	}
 
-	fn walk(&self) -> Result<()> {
-		let mut walkers = vec![
-			(Vec::new(), self.root.clone())
-		];
-
-		while !walkers.is_empty() {
-			let (path, head) = walkers.remove(0);
-
-			for v in self.graph.neighbors_directed(head, Direction::Outgoing) {
-				if path.contains(&v) {
-					bail!("found a loop in the version graph: {:?}", v);
-				}
-
-				let path = {
-					let mut p = path.clone();
-					p.push(v.clone());
-					p
-				};
-
-				walkers.push((path, v));
-			}
-		}
-
-		Ok(())
 	}
 }
