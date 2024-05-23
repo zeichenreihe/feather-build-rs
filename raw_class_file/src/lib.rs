@@ -10,7 +10,7 @@
 //! class Main {}
 //! ```
 //!
-//! You can write this to a `Vec<u8>` by using the [ClassFile::to_bytes] function.
+//! You can write this to a `Vec<u8>` by using the [`ClassFile::to_bytes`] function.
 //! ```
 //! # use pretty_assertions::assert_eq;
 //! use raw_class_file::{AttributeInfo, ClassFile, CpInfo, flags, insn, LineNumberTableEntry, MethodInfo};
@@ -85,26 +85,32 @@
 //! assert_eq!(bytes, bytes_2);
 //! ```
 //!
-//! As you can see, [ClassFile] also has [ClassFile::read] and [ClassFile::write] to interface with things implementing [std::io::Read] and
-//! [std::io::Write].
+//! As you can see, [`ClassFile`] also has [`ClassFile::read`] and [`ClassFile::write`] to interface with things implementing [`std::io::Read`] and
+//! [`std::io::Write`].
 //!
-//! The [ClassFile::length] function gives the computed length of a class file, useful for allocating sufficient memory for buffers.
+//! The [`ClassFile::length`] function gives the computed length of a class file, useful for allocating sufficient memory for buffers.
 use macros::notation;
 
 mod macros;
 
 impl ClassFile {
 	/// Converts the class file to binary representation.
+	///
+	/// No format checking of any kind is done.
 	pub fn to_bytes(&self) -> Vec<u8> {
 		let mut vec = Vec::with_capacity(self.length());
 		self._write(&mut vec).expect("Writing to a Vec<u8> should never fail");
 		vec
 	}
 
+	/// Writes the class file in the binary representation to the writer.
+	///
+	/// No format checking of any kind is done.
 	pub fn write(&self, writer: &mut impl std::io::Write) -> std::io::Result<()> {
 		self._write(writer)
 	}
 
+	/// Attempts to read the class file in binary representation from the reader.
 	pub fn read(reader: &mut impl std::io::Read) -> std::io::Result<ClassFile> {
 		ClassFile::_read(reader, None)
 	}
@@ -116,30 +122,77 @@ impl ClassFile {
 }
 
 pub mod flags {
-	pub const ACC_PUBLIC: u16       = 0x0001; // class, field, method, inner class
-	pub const ACC_PRIVATE: u16      = 0x0002; // field, method, inner class
-	pub const ACC_PROTECTED: u16    = 0x0004; // field, method, inner class
-	pub const ACC_STATIC: u16       = 0x0008; // field, method, inner class
-	pub const ACC_FINAL: u16        = 0x0010; // class, field, method, inner class, parameter
-	pub const ACC_SUPER: u16        = 0x0020; // class
-	pub const ACC_OPEN: u16         = 0x0020; // module
-	pub const ACC_TRANSITIVE: u16   = 0x0020; // module requires
-	pub const ACC_SYNCHRONIZED: u16 = 0x0020; // method
-	pub const ACC_VOLATILE: u16     = 0x0040; // field
-	pub const ACC_BRIDGE: u16       = 0x0040; // method
-	pub const ACC_STATIC_PHASE: u16 = 0x0040; // module requires
-	pub const ACC_TRANSIENT: u16    = 0x0080; // field
-	pub const ACC_VARARGS: u16      = 0x0080; // method
-	pub const ACC_NATIVE: u16       = 0x0100; // method
-	pub const ACC_INTERFACE: u16    = 0x0200; // class, inner class
-	pub const ACC_ABSTRACT: u16     = 0x0400; // class, method, inner class
-	pub const ACC_STRICT: u16       = 0x0800; // method
-	pub const ACC_SYNTHETIC: u16    = 0x1000; // class, field, method, inner class, parameter, module, module requires, module exports, module opens
-	pub const ACC_ANNOTATION: u16   = 0x2000; // class, inner class
-	pub const ACC_ENUM: u16         = 0x4000; // class, field, inner class
-	pub const ACC_MODULE: u16       = 0x8000; // class
+	//! The various access flags specified in the Java Virtual Machine Specification.
+	//!
+	//! Use [bitwise or] to combine multiple ones.
+	//!
+	//! These would be the access flags of a `public static final` field or method:
+	//! ```
+	//! use raw_class_file::flags;
+	//! let public_static_final = flags::ACC_PUBLIC | flags::ACC_STATIC | flags::ACC_FINAL;
+	//! # assert_eq!(public_static_final, 0x0019);
+	//! ```
+	//!
+	//! See the documentation of each constant for all members you're allowed to use it on.
+	//!
+	//! [bitwise or]: std::ops::BitOr
+
+	#[allow(unused_imports)]
+	use super::*; // for the doc comments
+
+	// TODO: figure out if links to fields of structs are possible
+
+	/// The `public` flag. May be used in [`ClassFile`], [`FieldInfo`], [`MethodInfo`] and [`InnerClassesEntry`].
+	pub const ACC_PUBLIC: u16       = 0x0001;
+	/// The `private` flag. May be used in [`FieldInfo`], [`MethodInfo`] and [`InnerClassesEntry`].
+	pub const ACC_PRIVATE: u16      = 0x0002;
+	/// The `protected` flag. May be used in [`FieldInfo`], [`MethodInfo`] and [`InnerClassesEntry`].
+	pub const ACC_PROTECTED: u16    = 0x0004;
+	/// The `static` flag. May be used in [`FieldInfo`], [`MethodInfo`] and [`InnerClassesEntry`].
+	pub const ACC_STATIC: u16       = 0x0008;
+	/// The `final` flag. May be used in [`ClassFile`], [`FieldInfo`], [`MethodInfo`], [`InnerClassesEntry`] and [`MethodParametersEntry`].
+	pub const ACC_FINAL: u16        = 0x0010;
+	/// The `super` flag. May be used in [`ClassFile`].
+	pub const ACC_SUPER: u16        = 0x0020;
+	/// The `open` flag. May be used in [`AttributeInfo::Module`].
+	pub const ACC_OPEN: u16         = 0x0020;
+	/// The `transitive` flag. May be used in [`ModuleRequiresEntry`].
+	pub const ACC_TRANSITIVE: u16   = 0x0020;
+	/// The `synchronized` flag. May be used in [`MethodInfo`].
+	pub const ACC_SYNCHRONIZED: u16 = 0x0020;
+	/// The `volatile` flag. May be used in [`FieldInfo`].
+	pub const ACC_VOLATILE: u16     = 0x0040;
+	/// The `bridge` flag. May be used in [`MethodInfo`].
+	pub const ACC_BRIDGE: u16       = 0x0040;
+	/// The `static-phase` flag. May be used in [`ModuleRequiresEntry`].
+	pub const ACC_STATIC_PHASE: u16 = 0x0040;
+	/// The `transient` flag. May be used in [`FieldInfo`].
+	pub const ACC_TRANSIENT: u16    = 0x0080;
+	/// The `varargs` flag. May be used in [`MethodInfo`].
+	pub const ACC_VARARGS: u16      = 0x0080;
+	/// The `native` flag. May be used in [`MethodInfo`].
+	pub const ACC_NATIVE: u16       = 0x0100;
+	/// The `interface` flag. May be used in [`ClassFile`] and [`InnerClassesEntry`].
+	pub const ACC_INTERFACE: u16    = 0x0200;
+	/// The `abstract` flag. May be used in [`ClassFile`], [`MethodInfo`] and [`InnerClassesEntry`].
+	pub const ACC_ABSTRACT: u16     = 0x0400;
+	/// The `strict` flag. May be used in [`MethodInfo`].
+	pub const ACC_STRICT: u16       = 0x0800;
+	/// The `synthetic` flag. May be used in [`ClassFile`], [`FieldInfo`], [`MethodInfo`], [`InnerClassesEntry`], [`MethodParametersEntry`],
+	/// [`AttributeInfo::Module`], [`ModuleRequiresEntry`], [`ModuleExportsEntry`] and [`ModuleOpensEntry`].
+	pub const ACC_SYNTHETIC: u16    = 0x1000;
+	/// The `annotation` flag. May be used in [`ClassFile`] and [`InnerClassesEntry`].
+	pub const ACC_ANNOTATION: u16   = 0x2000;
+	/// The `enum` flag. May be used in [`ClassFile`], [`FieldInfo`] and [`InnerClassesEntry`].
+	pub const ACC_ENUM: u16         = 0x4000;
+	/// The `module` flag. May be used in [`ClassFile`].
+	pub const ACC_MODULE: u16       = 0x8000;
+	/// The `mandated` flag. May be used in [`MethodParametersEntry`], [`AttributeInfo::Module`], [`ModuleRequiresEntry`],
+	/// [`ModuleExportsEntry`] and [`ModuleOpensEntry`].
 	pub const ACC_MANDATED: u16     = 0x8000; // parameter, module, module requires, module exports, module opens
 }
+
+// TODO: write more documentations
 
 notation!(
 	struct ClassFile this {
