@@ -340,80 +340,9 @@ impl Jar {
 		)?;
 
 		let specialized_methods =
-			main_jar.get_specialized_methods()?; // official
-		//dbg!(specialized_methods.bridge_to_specialized.iter().filter(|x| x.0.class == "aaf").collect::<IndexMap<_, _>>());
-		dbg!(specialized_methods.bridge_to_specialized.iter().filter(|x| x.0.class == "bka").collect::<IndexMap<_, _>>());
-		let specialized_methods =
-			specialized_methods.remap(&remapper_calamus)?; // intermediary
-		//dbg!(specialized_methods.bridge_to_specialized.iter().filter(|x| x.0.class == "aso$1" || x.0.class == "net/minecraft/unmapped/C_1184371$1").collect::<IndexMap<_, _>>());
-		dbg!(specialized_methods.bridge_to_specialized.iter().filter(|x| x.0.class == "bka" || x.0.class == "net/minecraft/unmapped/C_6254461").collect::<IndexMap<_, _>>());
-		//panic!();
+			main_jar.get_specialized_methods()? // official
+			.remap(&remapper_calamus)?; // intermediary
 
-		//let x: IndexMap<_, _> = specialized_methods.bridge_to_specialized.iter()
-		//	.filter(|(a, b)| a.name.as_str().len() < 3 || b.name.as_str().len() < 3)
-		//	.collect();
-		//dbg!(x);
-		//panic!();
-
-
-		//mappings.classes.iter().filter(|(k, _)| k.src == "aso$1" || k.src == "net/minecraft/unmapped/C_1184371$1").map(|x| dbg!(x)).for_each(|_| {});
-
-/*
-		let mappings = mappings.clone(); // "calamus", "named"
-		let second = mappings.get_namespace("named")?;
-		let mut mappings = Mappings {
-			info: mappings.info,
-			classes: mappings.classes.into_iter()
-				.map(|(class_key, class)| Ok((class_key.clone(), ClassNowodeMapping {
-					info: class.info,
-					fields: class.fields,
-					methods: {
-						let mut index_map = IndexMap::new();
-
-						for (method_key, method) in class.methods {
-							let method_ref = key_to_ref(class_key.clone(), method_key);
-							// If the names in the `named` namespace of the specialized and corresponding bridge method don't match,
-							// set the name of the specialized method to the name of the bridge method.
-							if let Some(bridge) = specialized_methods.specialized_to_bridge.get(&method_ref) {
-								let specialized = method_ref;
-
-								let name_bridge = {
-									let (class_key, method_key) = ref_to_key_both(bridge.clone());
-									remapper_named.map_method(&class_key, &method_key)?.src
-								};
-								let name_specialized = {
-									let (class_key, method_key) = ref_to_key_both(specialized.clone());
-									remapper_named.map_method(&class_key, &method_key)?.src
-								};
-
-								if name_specialized != name_bridge {
-									//eprintln!("nonmatching names: bridge: {:?} and specialized: {:?}", name_bridge, name_specialized);
-
-									// replace the name with the one from the specialized method
-									let mut x = method.info.names.clone();
-									if let Some(y) = x.get_mut(second).as_mut() {
-										*y = name_bridge;
-									}
-									//method.info.names = x;
-									//println!("from: {:?} to {:?}", method.info.names, x);
-								}
-
-								index_map.insert(method.info.get_key(), method);
-							} else {
-								index_map.insert(method.info.get_key(), method);
-							}
-						}
-
-						index_map
-					},
-					javadoc: class.javadoc,
-				})))
-				.collect::<Result<_>>()?,
-			javadoc: mappings.javadoc,
-		};
- */
-		// TODO: it seems like this doesn't make a difference...
-		// (using this instead of the large commented out block above
 		let mut mappings = mappings.clone();
 
 		for (bridge, specialized) in specialized_methods.bridge_to_specialized {
@@ -443,20 +372,8 @@ impl Jar {
 						e.insert(MethodNowodeMapping::new(info));
 					},
 				}
-			} else {
-				if bridge.class == "net/minecraft/unmapped/C_6254461" {
-					dbg!("no class");
-					// note: this can be solved by having more complete mappings...
-					// note: blindly putting in a class mapping also doesn't work, this would add mappings that are not existant in the other mapping
-					//       we merge later
-				}
 			}
 		}
-
-		//panic!();
-
-		//mappings.classes.iter().filter(|(k, _)| k.src == "aso$1" || k.src == "net/minecraft/unmapped/C_1184371$1").map(|x| dbg!(x)).for_each(|_| {});
-		//panic!();
 
 		Ok(mappings)
 	}
@@ -524,6 +441,245 @@ mod testing {
 					name: "setData".into(),
 					desc: "(Ljava/lang/Object;)V".into(),
 				}),
+			])
+		);
+
+		Ok(())
+	}
+
+	/// Tests having a specialized method with a different name than the bridge method.
+	/// Classes are written by hand to not worry about javac.
+	/// ```txt,ignore
+	/// class MyNode extends Node {
+	///     public MyNode(java.lang.Integer a) { super(a); }
+	///     @Override
+	///     public void setData(java.lang.Object a) { // this is the bridge method
+	///         this.specialized((java.lang.Integer) a);
+	///     }
+	///     public synthetic void specialized(java.lang.Integer a) { } // the actual override
+	/// }
+	/// class Node<T> { // note that we don't construct signature attributes
+	///     public T data;
+	///     public Node(T data) { super(); }
+	///     public void setData(T a) { self.data = a; }
+	/// }
+	/// ```
+	#[test]
+	fn class_files_2() -> Result<()> {
+		// TODO: use the raw_class_file crate to write these out manually
+		// TODO: nah instead commit the .java and .class files...
+		let visitor = MultiClassVisitorImpl::default();
+
+		let bytes = ClassFile {
+			minor_version: 0,
+			major_version: 52,
+			constant_pool: vec![
+				CpInfo::Utf8 { bytes: b"MyNode".to_vec() }, // 1
+				CpInfo::Class { name_index: 1 }, // 2
+				CpInfo::Utf8 { bytes: b"Node".to_vec() }, // 3
+				CpInfo::Class { name_index: 3 }, // 4
+				CpInfo::Utf8 { bytes: b"<init>".to_vec() }, // 5
+				CpInfo::Utf8 { bytes: b"(Ljava/lang/Integer;)V".to_vec() }, // 6
+				CpInfo::Utf8 { bytes: b"Code".to_vec() }, // 7
+				CpInfo::NameAndType { name_index: 5, descriptor_index: 6 }, // 8
+				CpInfo::Methodref { class_index: 4, name_and_type_index: 8 }, // 9
+				CpInfo::Utf8 { bytes: b"specialized".to_vec() }, // 10
+				CpInfo::Utf8 { bytes: b"setData".to_vec() }, // 11
+				CpInfo::Utf8 { bytes: b"(Ljava/lang/Object;)V".to_vec() }, // 12
+				CpInfo::Utf8 { bytes: b"java/lang/Integer".to_vec() }, // 13
+				CpInfo::Class { name_index: 13 }, // 14
+				CpInfo::NameAndType { name_index: 10, descriptor_index: 6 }, // 15
+				CpInfo::Methodref { class_index: 2, name_and_type_index: 15 }, // 16
+			],
+			access_flags: flags::ACC_SUPER,
+			this_class: 2,
+			super_class: 4,
+			interfaces: vec![],
+			fields: vec![],
+			methods: vec![
+				MethodInfo {
+					access_flags: flags::ACC_PUBLIC,
+					name_index: 5,
+					descriptor_index: 6,
+					attributes: vec![
+						AttributeInfo::Code {
+							attribute_name_index: 7,
+							max_stack: 2,
+							max_locals: 2,
+							code: vec![
+								insn::aload_0,
+								insn::aload_1,
+								insn::invokespecial, 0, 9,
+								insn::r#return,
+							],
+							exception_table: vec![],
+							attributes: vec![],
+						},
+					],
+				},
+				MethodInfo {
+					access_flags: flags::ACC_PUBLIC,
+					name_index: 10,
+					descriptor_index: 6,
+					attributes: vec![
+						AttributeInfo::Code {
+							attribute_name_index: 7,
+							max_stack: 0,
+							max_locals: 2,
+							code: vec![
+								insn::r#return,
+							],
+							exception_table: vec![],
+							attributes: vec![],
+						},
+					]
+				},
+				MethodInfo {
+					access_flags: flags::ACC_PUBLIC | flags::ACC_SYNTHETIC,
+					name_index: 11,
+					descriptor_index: 12,
+					attributes: vec![
+						AttributeInfo::Code {
+							attribute_name_index: 7,
+							max_stack: 2,
+							max_locals: 2,
+							code: vec![
+								insn::aload_0,
+								insn::aload_1,
+								insn::checkcast, 0, 14,
+								insn::invokevirtual, 0, 16,
+								insn::r#return,
+							],
+							exception_table: vec![],
+							attributes: vec![],
+						},
+					],
+				},
+			],
+			attributes: vec![],
+		}.to_bytes();
+		let mut cursor = Cursor::new(bytes);
+		let visitor = class_file::read_class_multi(&mut cursor, visitor)?;
+
+		let bytes = ClassFile {
+			minor_version: 0,
+			major_version: 52,
+			constant_pool: vec![
+				CpInfo::Utf8 { bytes: b"Node".to_vec() }, // 1
+				CpInfo::Class { name_index: 1 }, // 2
+				CpInfo::Utf8 { bytes: b"java/lang/Object".to_vec() }, // 3
+				CpInfo::Class { name_index: 3 }, // 4
+				CpInfo::Utf8 { bytes: b"data".to_vec() }, // 5
+				CpInfo::Utf8 { bytes: b"Ljava/lang/Object;".to_vec() }, // 6
+				CpInfo::Utf8 { bytes: b"<init>".to_vec() }, // 7
+				CpInfo::Utf8 { bytes: b"(Ljava/lang/Integer;)V".to_vec() }, // 8
+				CpInfo::Utf8 { bytes: b"Code".to_vec() }, // 9
+				CpInfo::Utf8 { bytes: b"()V".to_vec() }, // 10
+				CpInfo::NameAndType { name_index: 7, descriptor_index: 10 }, // 11
+				CpInfo::Methodref { class_index: 4, name_and_type_index: 11 }, // 12
+				CpInfo::Utf8 { bytes: b"setData".to_vec() }, // 13
+				CpInfo::Utf8 { bytes: b"(Ljava/lang/Object;)V".to_vec() }, // 14
+				CpInfo::NameAndType { name_index: 5, descriptor_index: 6 }, // 15
+				CpInfo::Fieldref { class_index: 2, name_and_type_index: 15 }, // 16
+			],
+			access_flags: flags::ACC_SUPER,
+			this_class: 2,
+			super_class: 4,
+			interfaces: vec![],
+			fields: vec![
+				FieldInfo {
+					access_flags: flags::ACC_PUBLIC,
+					name_index: 5,
+					descriptor_index: 6,
+					attributes: vec![], // Signature: TT;
+				}
+			],
+			methods: vec![
+				MethodInfo {
+					access_flags: flags::ACC_PUBLIC,
+					name_index: 7,
+					descriptor_index: 8,
+					attributes: vec![
+						AttributeInfo::Code {
+							attribute_name_index: 9,
+							max_stack: 1,
+							max_locals: 2,
+							code: vec![
+								insn::aload_0,
+								insn::invokespecial, 0, 12,
+								insn::r#return,
+							],
+							exception_table: vec![],
+							attributes: vec![],
+						},
+					], // Signature: (TT;)V
+				},
+				MethodInfo {
+					access_flags: flags::ACC_PUBLIC,
+					name_index: 13,
+					descriptor_index: 14,
+					attributes: vec![
+						AttributeInfo::Code {
+							attribute_name_index: 9,
+							max_stack: 2,
+							max_locals: 2,
+							code: vec![
+								insn::aload_0,
+								insn::aload_1,
+								insn::putfield, 0, 16,
+								insn::r#return,
+							],
+							exception_table: vec![],
+							attributes: vec![],
+						},
+					], // Signature: (TT;)V
+				},
+			],
+			attributes: vec![], // Signature: <T:Ljava/lang/Object;>Ljava/lang/Object;
+		}.to_bytes();
+		let mut cursor = Cursor::new(bytes);
+		let visitor = class_file::read_class_multi(&mut cursor, visitor)?;
+
+		let specialized_methods = visitor.get_specialized_methods()?;
+
+		assert_eq!(
+			specialized_methods.bridge_to_specialized,
+			IndexMap::from([
+				(MethodRef {
+					class: "MyNode".into(),
+					name: "setData".into(),
+					desc: "(Ljava/lang/Object;)V".into(),
+				}, MethodRef {
+					class: "MyNode".into(),
+					name: "specialized".into(),
+					desc: "(Ljava/lang/Integer;)V".into(),
+				}),
+			])
+		);
+		assert_eq!(
+			specialized_methods.specialized_to_bridge,
+			IndexMap::from([
+				(MethodRef {
+					class: "MyNode".into(),
+					name: "specialized".into(),
+					desc: "(Ljava/lang/Integer;)V".into(),
+				}, MethodRef {
+					class: "MyNode".into(),
+					name: "setData".into(),
+					desc: "(Ljava/lang/Object;)V".into(),
+				}),
+				/*
+				// TODO: see todo about putting more stuff into that map
+				(MethodRef {
+					class: "MyNode".into(),
+					name: "setData".into(),
+					desc: "(Ljava/lang/Integer;)V".into(),
+				}, MethodRef {
+					class: "MyNode".into(),
+					name: "setData".into(),
+					desc: "(Ljava/lang/Object;)V".into(),
+				}),
+				 */
 			])
 		);
 
