@@ -32,10 +32,10 @@ use crate::tree::NodeInfo;
 ///
 /// ```
 /// use std::path::Path;
-/// use mappings_rw::tree::mappings::Mappings;
+/// use quill::tree::mappings::Mappings;
 ///
 /// let path = Path::new("tests/remap_input.tiny");
-/// let mappings: Mappings<2> = mappings_rw::tiny_v2::read_file(path).unwrap();
+/// let mappings: Mappings<2> = quill::tiny_v2::read_file(path).unwrap();
 ///
 /// mappings.info.namespaces.check_that(["namespaceA", "namespaceB"]).unwrap();
 /// ```
@@ -51,7 +51,7 @@ pub fn read_file<const N: usize>(path: impl AsRef<Path> + Debug) -> Result<Mappi
 /// See [`Namespaces::check_that`] for more info.
 ///
 /// ```
-/// use mappings_rw::tree::mappings::Mappings;
+/// use quill::tree::mappings::Mappings;
 /// let string = "\
 /// tiny	2	0	namespaceA	namespaceB	namespaceC
 /// c	A	B	C
@@ -60,7 +60,7 @@ pub fn read_file<const N: usize>(path: impl AsRef<Path> + Debug) -> Result<Mappi
 /// ";
 ///
 /// let reader = &mut string.as_bytes();
-/// let mappings: Mappings<3> = mappings_rw::tiny_v2::read(reader).unwrap();
+/// let mappings: Mappings<3> = quill::tiny_v2::read(reader).unwrap();
 ///
 /// mappings.info.namespaces.check_that(["namespaceA", "namespaceB", "namespaceC"]).unwrap();
 /// ```
@@ -184,7 +184,7 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 /// The example from the [`write`][fn@write] method could look like this:
 /// ```
 /// # use pretty_assertions::assert_eq;
-/// use mappings_rw::tree::mappings::Mappings;
+/// use quill::tree::mappings::Mappings;
 /// let input = "\
 /// tiny	2	0	namespaceA	namespaceB
 /// c	D	E
@@ -196,9 +196,9 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 /// ";
 ///
 /// let reader = &mut input.as_bytes();
-/// let mappings: Mappings<2> = mappings_rw::tiny_v2::read(reader).unwrap();
+/// let mappings: Mappings<2> = quill::tiny_v2::read(reader).unwrap();
 ///
-/// let written = mappings_rw::tiny_v2::write_string(&mappings).unwrap();
+/// let written = quill::tiny_v2::write_string(&mappings).unwrap();
 ///
 /// let output = "\
 /// tiny	2	0	namespaceA	namespaceB
@@ -227,7 +227,7 @@ pub fn write_string<const N: usize>(mappings: &Mappings<N>) -> Result<String> {
 /// The example from the [`write`][fn@write] method could look like this:
 /// ```
 /// # use pretty_assertions::assert_eq;
-/// use mappings_rw::tree::mappings::Mappings;
+/// use quill::tree::mappings::Mappings;
 /// let input = "\
 /// tiny	2	0	namespaceA	namespaceB
 /// c	D	E
@@ -239,9 +239,9 @@ pub fn write_string<const N: usize>(mappings: &Mappings<N>) -> Result<String> {
 /// ";
 ///
 /// let reader = &mut input.as_bytes();
-/// let mappings: Mappings<2> = mappings_rw::tiny_v2::read(reader).unwrap();
+/// let mappings: Mappings<2> = quill::tiny_v2::read(reader).unwrap();
 ///
-/// let buf = mappings_rw::tiny_v2::write_vec(&mappings).unwrap();
+/// let buf = quill::tiny_v2::write_vec(&mappings).unwrap();
 /// let written = String::from_utf8(buf).unwrap();
 ///
 /// let output = "\
@@ -291,7 +291,7 @@ fn write_names<const N: usize, T>(w: &mut impl Write, names: &Names<N, T>) -> Re
 ///
 /// ```
 /// # use pretty_assertions::assert_eq;
-/// use mappings_rw::tree::mappings::Mappings;
+/// use quill::tree::mappings::Mappings;
 /// let input = "\
 /// tiny	2	0	namespaceA	namespaceB
 /// c	D	E
@@ -303,10 +303,10 @@ fn write_names<const N: usize, T>(w: &mut impl Write, names: &Names<N, T>) -> Re
 /// ";
 ///
 /// let reader = &mut input.as_bytes();
-/// let mappings: Mappings<2> = mappings_rw::tiny_v2::read(reader).unwrap();
+/// let mappings: Mappings<2> = quill::tiny_v2::read(reader).unwrap();
 ///
 /// let mut buf: Vec<u8> = Vec::new();
-/// mappings_rw::tiny_v2::write(&mappings, &mut buf).unwrap();
+/// quill::tiny_v2::write(&mappings, &mut buf).unwrap();
 /// let written = String::from_utf8(buf).unwrap();
 ///
 /// let output = "\

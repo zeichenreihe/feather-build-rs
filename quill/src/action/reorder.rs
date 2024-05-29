@@ -39,9 +39,9 @@ impl<const N: usize> Mappings<N> {
 	/// 	f	LA;	a	b	c
 	/// 	m	(LA;)V	a	b	c
 	/// ";
-	/// let b = mappings_rw::tiny_v2::read(input.as_bytes()).unwrap()
+	/// let b = quill::tiny_v2::read(input.as_bytes()).unwrap()
 	/// 	.reorder(["namespaceA", "namespaceB", "namespaceC"]).unwrap();
-	/// let c = mappings_rw::tiny_v2::write_string(&b).unwrap();
+	/// let c = quill::tiny_v2::write_string(&b).unwrap();
 	/// assert_eq!(output, c);
 	/// ```
 	pub fn reorder(&self, namespaces: [&str; N]) -> Result<Mappings<N>> {

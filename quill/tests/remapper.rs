@@ -3,14 +3,14 @@ use anyhow::Result;
 use indexmap::{IndexMap, IndexSet};
 use pretty_assertions::assert_eq;
 use duke::tree::class::ClassName;
-use mappings_rw::tree::action::remapper::{ARemapper, BRemapper, JarSuperProv};
-use mappings_rw::tree::mappings::{FieldKey, Mappings, MethodKey};
+use quill::remapper::{ARemapper, BRemapper, JarSuperProv};
+use quill::tree::mappings::{FieldKey, Mappings, MethodKey};
 
 #[test]
 fn remap() -> Result<()> {
 	let input_a = include_str!("remap_input.tiny");
 
-	let input_a: Mappings<2> = mappings_rw::tiny_v2::read(input_a.as_bytes())?;
+	let input_a: Mappings<2> = quill::tiny_v2::read(input_a.as_bytes())?;
 
 	let super_classes_provider = JarSuperProv { super_classes: IndexMap::from([
 		(ClassName::from("classS1"), IndexSet::from([
