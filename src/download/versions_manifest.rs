@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use crate::version_graph::Version;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct VersionsManifest {
@@ -11,18 +10,21 @@ pub(crate) struct VersionsManifest {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct Latest {
-	pub(crate) old_alpha: Version,
-	pub(crate) classic_server: Version,
-	pub(crate) alpha_server: Version,
-	pub(crate) old_beta: Version,
-	pub(crate) snapshot: Version,
-	pub(crate) release: Version,
-	pub(crate) pending: Version,
+	pub(crate) old_alpha: MinecraftVersion,
+	pub(crate) classic_server: MinecraftVersion,
+	pub(crate) alpha_server: MinecraftVersion,
+	pub(crate) old_beta: MinecraftVersion,
+	pub(crate) snapshot: MinecraftVersion,
+	pub(crate) release: MinecraftVersion,
+	pub(crate) pending: MinecraftVersion,
 }
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq, Deserialize, Serialize)]
+pub(crate) struct MinecraftVersion(pub(crate) String);
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct VersionInfo {
-	pub(crate) id: Version,
+	pub(crate) id: MinecraftVersion,
 	#[serde(rename = "type")]
 	pub(crate) version_type: VersionType,
 	pub(crate) url: String,
@@ -33,4 +35,19 @@ pub(crate) struct VersionInfo {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct VersionType(String); // TODO: enum of ???
+pub(crate) enum VersionType {
+	#[serde(rename = "release")]
+	Release,
+	#[serde(rename = "snapshot")]
+	Snapshot,
+	#[serde(rename = "pending")]
+	Pending,
+	#[serde(rename = "old_beta")]
+	OldBeta,
+	#[serde(rename = "old_alpha")]
+	OldAlpha,
+	#[serde(rename = "alpha_server")]
+	AlphaServer,
+	#[serde(rename = "classic_server")]
+	ClassicServer,
+}

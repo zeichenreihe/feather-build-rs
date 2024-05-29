@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
-use crate::version_graph::Version;
+use crate::download::versions_manifest::MinecraftVersion;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct VersionDetails {
-	pub(crate) id: Version,
+	pub(crate) id: MinecraftVersion,
 	pub(crate) client: bool,
 	pub(crate) server: bool,
 	#[serde(rename = "sharedMappings")]
@@ -55,7 +55,16 @@ pub(crate) struct ManifestInfo {
 
 
 #[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct ReleaseType(String); // TODO: enum of min: `release`, `snapshot`, `old_alpha`, `old_beta`
+pub(crate) enum ReleaseType {
+	#[serde(rename = "release")]
+	Release,
+	#[serde(rename = "snapshot")]
+	Snapshot,
+	#[serde(rename = "old_alpha")]
+	OldAlpha,
+	#[serde(rename = "old_beta")]
+	OldBeta,
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct ProtocolInfo {
@@ -65,7 +74,16 @@ pub(crate) struct ProtocolInfo {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct ProtocolType(String); // TODO: enum of `classic`, `modern`, `netty`, `netty-snapshot`
+pub(crate) enum ProtocolType {
+	#[serde(rename = "classic")]
+	Classic,
+	#[serde(rename = "modern")]
+	Modern,
+	#[serde(rename = "netty")]
+	Netty,
+	#[serde(rename = "netty-snapshot")]
+	NettySnapshot,
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct WorldInfo {
@@ -74,4 +92,11 @@ pub(crate) struct WorldInfo {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct WorldFormat(String); // TODO: enum of `alpha`, `region`, `anvil`
+pub(crate) enum WorldFormat {
+	#[serde(rename = "alpha")]
+	Alpha,
+	#[serde(rename = "region")]
+	Region,
+	#[serde(rename = "anvil")]
+	Anvil,
+}
