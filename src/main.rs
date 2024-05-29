@@ -252,12 +252,11 @@ async fn main() -> Result<()> {
 
     let dir = Path::new("mappings/mappings");
 
-    let start = std::time::Instant::now();
+    let start = Instant::now();
 
     let v = VersionGraph::resolve(dir)?;
 
-    let elapsed = start.elapsed();
-    println!("version graph reading took: {elapsed:?}");
+    println!("graph took {:?}", start.elapsed());
 
     let version = v.get("1.12.2").unwrap();
 
