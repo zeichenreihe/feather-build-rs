@@ -5,13 +5,10 @@ use std::path::{Path, PathBuf};
 use indexmap::IndexMap;
 use petgraph::{Direction, Graph};
 use petgraph::graph::NodeIndex;
-use serde::{Deserialize, Serialize};
 use crate::tree::mappings_diff::MappingsDiff;
 use crate::tree::mappings::Mappings;
+use crate::Version;
 
-
-#[derive(Debug, Clone, PartialEq, Hash, Eq, Deserialize, Serialize)]
-pub(crate) struct Version(pub(crate) String);
 const MAPPINGS_EXTENSION: &str = ".tiny";
 const DIFF_EXTENSION: &str = ".tinydiff";
 
@@ -165,16 +162,13 @@ impl VersionGraph {
 			.collect()
 	}
 
-	pub(crate) fn apply_diffs(&self, to: &Version) -> Result<Mappings<2>> {
-		self.get_diffs_from_root(to)?
+	pub(crate) fn apply_diffs(&self, target_version: &Version) -> Result<Mappings<2>> {
+		self.get_diffs_from_root(target_version)?
 			.iter()
-			.try_fold(self.root_mapping.clone(), |m, (diff_from, diff_to, diff)| {
-				diff.apply_to(m)
-					.with_context(|| anyhow!("Failed to apply diff from version {:?} to version {:?} to mappings, for version {:?}",
-					diff_from, diff_to, to.clone()
-				))
-			})
-	}
-
+			.try_fold(self.root_mapping.clone(), |m, (from, to, diff)| {
+				diff.apply_to(m, "named")
+					.with_context(|| anyhow!("failed to apply diff from version {from:?} to version {to:?} to mappings, for version {target_version:?}"))
+			})?
+			.extend_inner_class_names("named")
 	}
 }

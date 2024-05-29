@@ -1,0 +1,15 @@
+tiny	2	0	namespaceA	namespaceB
+c	A	a
+	f	LA;	untouched	field
+c	A$B	a$b
+	m	(LA$B;)LA$B$C;	untouched	method
+c	A$B$C	a$b$c
+	c	Untouched comment
+c	Outer	MappedOuter
+	m	(I)V	untouched	method
+		c	Untouched method comment
+		p	0	untouched	parameter
+			c	Untouched parameter comment
+c	Outer$Inner	MappedOuter$MappedInner
+	f	I	untouched	field
+		c	Untouched field comment
