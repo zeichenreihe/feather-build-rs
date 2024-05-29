@@ -1,7 +1,6 @@
 
 pub mod mappings;
 pub mod mappings_diff;
-pub mod action;
 
 pub trait NodeInfo<I> {
 	fn get_node_info(&self) -> &I;

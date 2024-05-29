@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use indexmap::IndexMap;
-use crate::tree::action::remapper::ARemapper;
+use crate::remapper::ARemapper;
 use crate::tree::names::Namespace;
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, FieldNowodeMapping, MappingInfo, Mappings, MethodMapping, MethodNowodeMapping, ParameterMapping, ParameterNowodeMapping};
 use crate::tree::NodeInfo;

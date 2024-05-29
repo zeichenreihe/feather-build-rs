@@ -3,8 +3,10 @@ use anyhow::Result;
 use crate::tree::mappings::Mappings;
 
 impl<const N: usize> Mappings<N> {
-	/// Removed so called "dummy" mappings. Whether or not a mapping is considered a dummy mapping only depends on the mapping
-	/// in the namespace given.
+	/// Removed so called "dummy" mappings.
+	///
+	/// Whether or not a mapping is considered a dummy mapping only depends on the mapping in the namespace given.
+	///
 	/// # Removal Rules
 	/// - a class mappings is removed if in the given namespace its name starts with `C_` or `net/minecraft/unmapped/C_`, and
 	///   there are no members, i.e. fields, methods, javadoc, left.

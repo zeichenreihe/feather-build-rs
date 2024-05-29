@@ -1,3 +1,16 @@
+//! Remappers for remapping class names, descriptors, fields and methods.
+//!
+//! For remapping just classes and descriptors, you're interested in [`ARemapper`].
+//! If you also want to remap field names and method names, use the [`BRemapper`].
+//!
+//! Note that implementors of these traits can be created by the methods
+//! [`Mappings::remapper_a`] and [`Mappings::remapper_b`] for remapping
+//! between given namespaces.
+//!
+//! # What is a "remapper"?
+//! A remapper answers the question for you "what is the name of X in namespace Y?"
+//!
+
 use anyhow::{bail, Result};
 use indexmap::{IndexMap, IndexSet};
 use class_file::tree::class::ClassName;
@@ -55,7 +68,7 @@ pub trait ARemapper {
 }
 
 #[derive(Debug)]
-pub(crate) struct ARemapperImpl<'a, const N: usize> {
+pub struct ARemapperImpl<'a, const N: usize> {
 	classes: IndexMap<&'a ClassName, &'a ClassName>,
 }
 
@@ -69,7 +82,7 @@ impl<'a, const N: usize> ARemapper for ARemapperImpl<'a, N> {
 }
 
 impl<const N: usize> Mappings<N> {
-	pub(crate) fn remapper_a(&self, from: Namespace<N>, to: Namespace<N>) -> Result<ARemapperImpl<'_, N>> {
+	pub fn remapper_a(&self, from: Namespace<N>, to: Namespace<N>) -> Result<ARemapperImpl<'_, N>> {
 		let mut classes = IndexMap::new();
 		for class in self.classes.values() {
 			if let (Some(from), Some(to)) = (&class.info.names[from], &class.info.names[to]) {
@@ -227,6 +240,11 @@ impl JarSuperProv {
 	}
 }
 
+
+pub trait SuperClassProvider {
+	fn get_super_classes(&self, class: &ClassName) -> Result<Option<&IndexSet<ClassName>>>;
+}
+
 impl SuperClassProvider for JarSuperProv {
 	fn get_super_classes(&self, class: &ClassName) -> Result<Option<&IndexSet<ClassName>>> {
 		Ok(self.super_classes.get(class))
@@ -242,10 +260,6 @@ impl<S: SuperClassProvider> SuperClassProvider for Vec<S> {
 		}
 		Ok(None)
 	}
-}
-
-pub trait SuperClassProvider {
-	fn get_super_classes(&self, class: &ClassName) -> Result<Option<&IndexSet<ClassName>>>;
 }
 
 #[cfg(test)]

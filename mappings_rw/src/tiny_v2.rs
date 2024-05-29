@@ -1,4 +1,4 @@
-//! A module containing methods to read and write mappings in the "Tiny v2" format.
+//! Methods to read and write mappings in the "Tiny v2" format.
 //!
 //! # Reading
 //! You can read a `.tiny` file using the [`read_file`] method, by passing a path.

@@ -116,6 +116,7 @@ where
 }
 
 impl Mappings<2> {
+	// TODO: docs
 	pub fn merge(a: &Mappings<2>, b: &Mappings<2>) -> Result<Mappings<3>> {
 		Ok(Mappings {
 			info: MappingInfo {

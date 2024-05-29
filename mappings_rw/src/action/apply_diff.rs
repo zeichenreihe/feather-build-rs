@@ -164,6 +164,7 @@ fn apply_diff_map<const N: usize, Key, Diff, Target, Name, Mapping>(
 }
 
 impl MappingsDiff {
+	// TODO: docs
 	pub fn apply_to<const N: usize>(&self, target: Mappings<N>, namespace: &str) -> Result<Mappings<N>> {
 		let namespace = target.get_namespace(namespace)?;
 		Ok(Mappings {
