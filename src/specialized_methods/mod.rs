@@ -191,25 +191,6 @@ impl MultiClassVisitorImpl {
 			})
 		}
 
-		for bridge in &self.methods {
-			if bridge.access_flags.is_synthetic {
-				if let Some(specialized) = find_specialized_method(&self, bridge) {
-					if bridge.access_flags.is_bridge || is_potential_bridge(bridge, specialized) {
-						match methods.entry(bridge.into()) {
-							Entry::Occupied(e) => {
-								// we already have a bridge for this method, so we keep the one higher in the hierarchy
-								// can happen with a class inheriting from a superclass with one or more bridge method(s)
-								println!("entry already full: {:?}", e.get());
-								todo!()
-							},
-							Entry::Vacant(e) => {
-								e.insert(specialized.into());
-							},
-						}
-					}
-				}
-			}
-		}
 		fn get_higher_method(inheritance: &InheritanceIndex, bridge_1: &MethodRef, bridge_2: &MethodRef) -> MethodRef {
 			if inheritance.get_descendants(&bridge_1.class).contains(&&bridge_2.class) {
 				bridge_1.clone()
