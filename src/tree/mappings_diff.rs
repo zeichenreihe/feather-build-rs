@@ -1,7 +1,11 @@
 use anyhow::{bail, Result};
 use indexmap::IndexMap;
 use indexmap::map::Entry;
-use crate::tree::mappings::{ClassKey, ClassMapping, FieldKey, FieldMapping, JavadocMapping, MappingInfo, MethodKey, MethodMapping, ParameterKey, ParameterMapping};
+use class_file::tree::class::ClassName;
+use class_file::tree::field::FieldName;
+use class_file::tree::method::{MethodName, ParameterName};
+use crate::tree::mappings::{FieldKey, JavadocMapping, MethodKey,ParameterKey};
+use crate::tree::NodeInfo;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) enum Action<T> {
@@ -14,24 +18,34 @@ pub(crate) enum Action<T> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct MappingsDiff {
-	pub(crate) info: Action<MappingInfo<2>>,
-	pub(crate) classes: IndexMap<ClassKey, ClassNowodeDiff>,
+	pub(crate) info: Action<String>,
+	pub(crate) classes: IndexMap<ClassName, ClassNowodeDiff>,
 	pub(crate) javadoc: Option<Action<JavadocMapping>>,
 }
 
-impl MappingsDiff {
-	pub(crate) fn new(info: Action<MappingInfo<2>>) -> MappingsDiff {
+impl NodeInfo<Action<String>> for MappingsDiff {
+	fn get_node_info(&self) -> &Action<String> {
+		&self.info
+	}
+
+	fn get_node_info_mut(&mut self) -> &mut Action<String> {
+		&mut self.info
+	}
+
+	fn new(info: Action<String>) -> Self {
 		MappingsDiff {
 			info,
 			javadoc: None,
 			classes: IndexMap::new(),
 		}
 	}
+}
 
-	pub(crate) fn add_class(&mut self, key: ClassKey, child: ClassNowodeDiff) -> Result<()> {
+impl MappingsDiff {
+	pub(crate) fn add_class(&mut self, key: ClassName, child: ClassNowodeDiff) -> Result<()> {
 		match self.classes.entry(key) {
 			Entry::Occupied(e) => {
-				bail!("Cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
+				bail!("cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
 			},
 			Entry::Vacant(e) => {
 				e.insert(child);
@@ -44,14 +58,22 @@ impl MappingsDiff {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ClassNowodeDiff {
-	pub(crate) info: Action<ClassMapping<2>>,
+	pub(crate) info: Action<ClassName>,
 	pub(crate) fields: IndexMap<FieldKey, FieldNowodeDiff>,
 	pub(crate) methods: IndexMap<MethodKey, MethodNowodeDiff>,
 	pub(crate) javadoc: Option<Action<JavadocMapping>>,
 }
 
-impl ClassNowodeDiff {
-	pub(crate) fn new(info: Action<ClassMapping<2>>) -> ClassNowodeDiff {
+impl NodeInfo<Action<ClassName>> for ClassNowodeDiff {
+	fn get_node_info(&self) -> &Action<ClassName> {
+		&self.info
+	}
+
+	fn get_node_info_mut(&mut self) -> &mut Action<ClassName> {
+		&mut self.info
+	}
+
+	fn new(info: Action<ClassName>) -> Self {
 		ClassNowodeDiff {
 			info,
 			fields: IndexMap::new(),
@@ -59,11 +81,13 @@ impl ClassNowodeDiff {
 			javadoc: None,
 		}
 	}
+}
 
+impl ClassNowodeDiff {
 	pub(crate) fn add_field(&mut self, key: FieldKey, child: FieldNowodeDiff) -> Result<()> {
 		match self.fields.entry(key) {
 			Entry::Occupied(e) => {
-				bail!("Cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
+				bail!("cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
 			},
 			Entry::Vacant(e) => {
 				e.insert(child);
@@ -76,7 +100,7 @@ impl ClassNowodeDiff {
 	pub(crate) fn add_method(&mut self, key: MethodKey, child: MethodNowodeDiff) -> Result<()> {
 		match self.methods.entry(key) {
 			Entry::Occupied(e) => {
-				bail!("Cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
+				bail!("cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
 			},
 			Entry::Vacant(e) => {
 				e.insert(child);
@@ -89,12 +113,20 @@ impl ClassNowodeDiff {
 
 #[derive(Debug, Clone)]
 pub(crate) struct FieldNowodeDiff {
-	pub(crate) info: Action<FieldMapping<2>>,
+	pub(crate) info: Action<FieldName>,
 	pub(crate) javadoc: Option<Action<JavadocMapping>>,
 }
 
-impl FieldNowodeDiff {
-	pub(crate) fn new(info: Action<FieldMapping<2>>) -> FieldNowodeDiff {
+impl NodeInfo<Action<FieldName>> for FieldNowodeDiff {
+	fn get_node_info(&self) -> &Action<FieldName> {
+		&self.info
+	}
+
+	fn get_node_info_mut(&mut self) -> &mut Action<FieldName> {
+		&mut self.info
+	}
+
+	fn new(info: Action<FieldName>) -> FieldNowodeDiff {
 		FieldNowodeDiff {
 			info,
 			javadoc: None,
@@ -104,24 +136,34 @@ impl FieldNowodeDiff {
 
 #[derive(Debug, Clone)]
 pub(crate) struct MethodNowodeDiff {
-	pub(crate) info: Action<MethodMapping<2>>,
+	pub(crate) info: Action<MethodName>,
 	pub(crate) parameters: IndexMap<ParameterKey, ParameterNowodeDiff>,
 	pub(crate) javadoc: Option<Action<JavadocMapping>>,
 }
 
-impl MethodNowodeDiff {
-	pub(crate) fn new(info: Action<MethodMapping<2>>) -> MethodNowodeDiff {
+impl NodeInfo<Action<MethodName>> for MethodNowodeDiff {
+	fn get_node_info(&self) -> &Action<MethodName> {
+		&self.info
+	}
+
+	fn get_node_info_mut(&mut self) -> &mut Action<MethodName> {
+		&mut self.info
+	}
+
+	fn new(info: Action<MethodName>) -> Self {
 		MethodNowodeDiff {
 			info,
 			parameters: IndexMap::new(),
 			javadoc: None,
 		}
 	}
+}
 
+impl MethodNowodeDiff {
 	pub(crate) fn add_parameter(&mut self, key: ParameterKey, child: ParameterNowodeDiff) -> Result<()> {
 		match self.parameters.entry(key) {
 			Entry::Occupied(e) => {
-				bail!("Cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
+				bail!("cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
 			},
 			Entry::Vacant(e) => {
 				e.insert(child);
@@ -134,12 +176,20 @@ impl MethodNowodeDiff {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ParameterNowodeDiff {
-	pub(crate) info: Action<ParameterMapping<2>>,
+	pub(crate) info: Action<ParameterName>,
 	pub(crate) javadoc: Option<Action<JavadocMapping>>,
 }
 
-impl ParameterNowodeDiff {
-	pub(crate) fn new(info: Action<ParameterMapping<2>>) -> ParameterNowodeDiff {
+impl NodeInfo<Action<ParameterName>> for ParameterNowodeDiff {
+	fn get_node_info(&self) -> &Action<ParameterName> {
+		&self.info
+	}
+
+	fn get_node_info_mut(&mut self) -> &mut Action<ParameterName> {
+		&mut self.info
+	}
+
+	fn new(info: Action<ParameterName>) -> ParameterNowodeDiff {
 		ParameterNowodeDiff {
 			info,
 			javadoc: None,

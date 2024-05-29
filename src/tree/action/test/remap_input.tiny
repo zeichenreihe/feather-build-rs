@@ -1,0 +1,46 @@
+tiny	2	0	namespaceA	namespaceB
+c	classA1	classB1
+	f	I	field1A1	field1B1
+	f	Ljava/lang/Object;	field1A2	field1B2
+	f	LclassA1;	field1A3	field1B3
+	f	LclassA2$innerA1;	field1A4	field1B4
+	f	[I	field1A1	field1B1
+	f	[Ljava/lang/Object;	field1A2	field1B2
+	f	[LclassA1;	field1A3	field1B3
+	f	[LclassA2$innerA1;	field1A4	field1B4
+	f	[[[[I	field1A1	field1B1
+	f	[[[[Ljava/lang/Object;	field1A2	field1B2
+	f	[[[[LclassA1;	field1A3	field1B3
+	f	[[[[LclassA2$innerA1;	field1A4	field1B4
+c	classA2	classB2
+	m	()V	method2A1	method2B1
+	m	(I)I	method2A2	method2B2
+	m	(Ljava/lang/Integer;)Ljava/lang/Object;	method2A3	method2B3
+c	classA2$innerA1	classB2$innerB1
+	m	()V	<init>	<init>
+c	classA3	classB3
+	m	(BCDFJSZ)V	method3A1	method3B1
+	m	(LclassA1;LclassA2$innerA1;LclassA2;)LclassA3;	method3A2	method3B2
+	m	([LclassA1;[LclassA2$innerA1;[LclassA2;)[LclassA3;	method3A2	method3B2
+	m	([LclassA2$innerA1;LclassA2$innerA1;[[[LclassA2;)[[[LclassA3;	method3A2	method3B2
+	m	([LclassA1;[[[LclassA2$innerA1;LclassA2;)[[[LclassA2$innerA1;	method3A2	method3B2
+	m	([B[C[D[F[J[S[Z)I	method3A3	method3B3
+	m	([[B[[C[[D[[F[[J[[S[[Z)[[I	method3A3	method3B3
+c	classA4L	classB4L
+	f	LclassA4L;	field4A1	field4B1
+	m	(LclassA4L;)LclassA4L;	method4A1	method4B1
+c	classS1	classS1_
+	f	I	fieldFromS1	fieldFromS1_
+	m	(I)I	methodFromS1	methodFromS1_
+c	classS2	classS2_
+	f	I	fieldFromS2	fieldFromS2_
+	m	(I)I	methodFromS2	methodFromS2_
+c	classS3	classS3_
+	f	I	fieldFromS3	fieldFromS3_
+	m	(I)I	methodFromS3	methodFromS3_
+c	classS4	classS4_
+	f	I	fieldFromS4	fieldFromS4_
+	m	(I)I	methodFromS4	methodFromS4_
+c	classS5	classS5_
+	f	I	fieldFromS5	fieldFromS5_
+	m	(I)I	methodFromS5	methodFromS5_

@@ -1,16 +1,17 @@
 use std::fmt::Debug;
 use std::hash::Hash;
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use indexmap::{IndexMap, IndexSet};
-use crate::tree::{ClassNowode, FieldNowode, MethodNowode, Names, NodeDataMut, ParameterNowode};
-use crate::tree::mappings::{ClassMapping, FieldMapping, MappingInfo, Mappings, MethodMapping, ParameterMapping};
+use crate::tree::names::Namespaces;
+use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, FieldNowodeMapping, MappingInfo, Mappings, MethodMapping, MethodNowodeMapping, ParameterMapping, ParameterNowodeMapping};
+use crate::tree::NodeInfo;
 
 fn merge_option<F, T, V>(f: F, a: &Option<T>, b: &Option<T>) -> Result<Option<V>>
 where
 	F: Fn(&T) -> &Option<V>,
 	V: Clone + Debug,
 {
-	Ok(match (a.as_ref().map(|x| f(x)), b.as_ref().map(|x| f(x))) {
+	Ok(match (a.as_ref().map(&f), b.as_ref().map(f)) {
 		(None, None) => unreachable!(),
 		(None, Some(b)) => b.clone(),
 		(Some(a), None) => a.clone(),
@@ -19,16 +20,15 @@ where
 				(None, None) => None,
 				(None, Some(b)) => Some(b.clone()),
 				(Some(a), None) => Some(a.clone()),
-				(Some(a), Some(b)) => bail!("Cannot merge: both left {a:?} and right {b:?} are given"),
+				(Some(a), Some(b)) => bail!("cannot merge: both left {a:?} and right {b:?} are given"),
 			}
 		},
 	})
 }
 
-fn merge_map<K, V, W, F, I>(a: Option<&IndexMap<K, V>>, b: Option<&IndexMap<K, V>>, merger: F) -> Result<IndexMap<K, W>>
+fn merge_map<K, V, W, F>(a: Option<&IndexMap<K, V>>, b: Option<&IndexMap<K, V>>, merger: F) -> Result<IndexMap<K, W>>
 where
 	K: Hash + Eq + Clone,
-	V: NodeDataMut<I>,
 	F: Fn(Option<&V>, Option<&V>) -> Result<W>,
 {
 	let keys_a = a.iter().map(|x| x.keys());
@@ -39,8 +39,8 @@ where
 	let mut result = IndexMap::new();
 
 	for key in keys {
-		let a = a.map(|x| x.get(key)).flatten();
-		let b = b.map(|x| x.get(key)).flatten();
+		let a = a.and_then(|x| x.get(key));
+		let b = b.and_then(|x| x.get(key));
 
 		let merged = merger(a, b)?;
 		result.insert(key.clone(), merged);
@@ -49,46 +49,54 @@ where
 	Ok(result)
 }
 
-fn merge(a: &[String; 2], b: &[String; 2]) -> Result<[String; 3]> {
+fn merge_namespaces(a: &Namespaces<2>, b: &Namespaces<2>) -> Result<Namespaces<3>> {
+	let a: [String; 2] = a.clone().into();
+	let b: [String; 2] = b.clone().into();
+
 	if a[0] != b[0] {
-		bail!("Cannot merge namespaces {a:?} and {b:?}: First namespaces don't match up");
+		bail!("cannot merge namespaces {a:?} and {b:?}: first namespaces don't match up");
 	}
-	Ok([a[0].clone(), a[1].clone(), b[1].clone()])
+	let [_, c] = b;
+	let [a, b] = a;
+	Ok([a, b, c].into())
 }
 
-fn merge_names<F, T>(f: F, a: &Option<T>, b: &Option<T>) -> Result<Names<3>>
+fn merge_names<F, T, U, N2, N3, V>(f: F, a: Option<&T>, b: Option<&T>) -> Result<N3>
 where
-	F: Fn(&T) -> &Names<2>,
+	F: Fn(&V) -> &N2 + Copy,
+	T: NodeInfo<V>,
+	for<'a> &'a N2: Into<&'a [Option<U>; 2]>,
+	[Option<U>; 3]: Into<N3>,
+	U: Debug + Clone + PartialEq,
 {
-	Ok(match (a.as_ref().map(|x| f(x)), b.as_ref().map(|x| f(x))) {
+	Ok(match (a.map(NodeInfo::get_node_info).map(f), b.map(NodeInfo::get_node_info).map(f)) {
 		(None, None) => unreachable!(),
 		(None, Some(b)) => {
-			let b: &[Option<String>; 2] = b.into();
+			let b: &[Option<U>; 2] = b.into();
 			[b[0].clone(), None, b[1].clone()].into()
 		},
 		(Some(a), None) => {
-			let a: &[Option<String>; 2] = a.into();
+			let a: &[Option<U>; 2] = a.into();
 			[a[0].clone(), a[1].clone(), None].into()
 		},
 		(Some(a), Some(b)) => {
-			let a: &[Option<String>; 2] = a.into();
-			let b: &[Option<String>; 2] = b.into();
+			let a: &[Option<U>; 2] = a.into();
+			let b: &[Option<U>; 2] = b.into();
 			if a[0] != b[0] {
-				bail!("Cannot merge {a:?} and {b:?}: The first names must match up");
+				bail!("cannot merge {a:?} and {b:?}: the first names must match up");
 			}
 			[a[0].clone(), a[1].clone(), b[1].clone()].into()
 		}
 	})
 }
 
-// merge two equal ones
 fn merge_equal<F, T, V>(f: F, a: &Option<T>, b: &Option<T>) -> Result<V>
 where
 	F: Fn(&T) -> &V,
 	V: Clone + PartialEq + Debug,
 {
-	let a = a.as_ref().map(|x| f(x));
-	let b = b.as_ref().map(|x| f(x));
+	let a = a.as_ref().map(&f);
+	let b = b.as_ref().map(f);
 
 	match (a, b) {
 		(None, None) => unreachable!(),
@@ -100,7 +108,7 @@ where
 		},
 		(Some(a), Some(b)) => {
 			if a != b {
-				bail!("Cannot merge {a:?} and {b:?}: expected them to be equal, but they are not equal");
+				bail!("cannot merge {a:?} and {b:?}: expected them to be equal, but they are not equal");
 			}
 			Ok(a.clone())
 		}
@@ -109,48 +117,42 @@ where
 
 impl Mappings<2> {
 	pub(crate) fn merge(a: &Mappings<2>, b: &Mappings<2>) -> Result<Mappings<3>> {
-		// new CommandMergeTinyV2().run([b, a, return, "intermediary", "official"])
-
-		if a.info.namespaces[0] != b.info.namespaces[0] {
-			bail!("Cant merge two differently named namespaces: {:?} and {:?}", a.info.namespaces, b.info.namespaces);
-		}
-
 		Ok(Mappings {
 			info: MappingInfo {
-				namespaces: merge(&a.info.namespaces, &b.info.namespaces)?,
+				namespaces: merge_namespaces(&a.info.namespaces, &b.info.namespaces).context("failed to merge namespaces")?,
 			},
-			javadoc: merge_option(|x| &x.javadoc, &Some(a), &Some(b))?,
+			javadoc: merge_option(|x| &x, &Some(&a.javadoc), &Some(&b.javadoc))?,
 			classes: merge_map(
 				Some(&a.classes), Some(&b.classes),
-				|a, b| Ok(ClassNowode {
+				|a, b| Ok(ClassNowodeMapping {
 					info: ClassMapping {
-						names: merge_names(|x| &x.info.names, &a, &b)?,
+						names: merge_names(|x| &x.names, a, b)?,
 					},
 					javadoc: merge_option(|x| &x.javadoc, &a, &b)?,
 					fields: merge_map(
 						a.map(|x| &x.fields), b.map(|x| &x.fields),
-						|a, b| Ok(FieldNowode {
+						|a, b| Ok(FieldNowodeMapping {
 							info: FieldMapping {
-								desc: merge_equal(|x| &x.info.desc, &a, &b)?,
-								names: merge_names(|x| &x.info.names, &a, &b)?,
+								desc: merge_equal(|x| &x.info.desc, &a, &b).context("cannot merge field descriptors")?,
+								names: merge_names(|x| &x.names, a, b)?,
 							},
 							javadoc: merge_option(|x| &x.javadoc, &a, &b)?,
 						})
 					)?,
 					methods: merge_map(
 						a.map(|x| &x.methods), b.map(|x| &x.methods),
-						|a, b| Ok(MethodNowode {
+						|a, b| Ok(MethodNowodeMapping {
 							info: MethodMapping {
-								desc: merge_equal(|x| &x.info.desc, &a, &b)?,
-								names: merge_names(|x| &x.info.names, &a, &b)?,
+								desc: merge_equal(|x| &x.info.desc, &a, &b).context("cannot merge method descriptors")?,
+								names: merge_names(|x| &x.names, a, b)?,
 							},
 							javadoc: merge_option(|x| &x.javadoc, &a, &b)?,
 							parameters: merge_map(
 								a.map(|x| &x.parameters), b.map(|x| &x.parameters),
-								|a, b| Ok(ParameterNowode {
+								|a, b| Ok(ParameterNowodeMapping {
 									info: ParameterMapping {
-										index: merge_equal(|x| &x.info.index, &a, &b)?,
-										names: merge_names(|x| &x.info.names, &a, &b)?,
+										index: merge_equal(|x| &x.info.index, &a, &b).context("cannot merge parameter indices")?,
+										names: merge_names(|x| &x.names, a, b)?,
 									},
 									javadoc: merge_option(|x| &x.javadoc, &a, &b)?,
 								})
@@ -165,21 +167,25 @@ impl Mappings<2> {
 
 #[cfg(test)]
 mod testing {
+	use anyhow::Result;
+	use pretty_assertions::assert_eq;
 	use crate::tree::mappings::Mappings;
 
 	#[test]
-	fn merge() {
+	fn merge() -> Result<()> {
 		let input_a = include_str!("test/merge_input_a.tiny");
 		let input_b = include_str!("test/merge_input_b.tiny");
 		let expected = include_str!("test/merge_output.tiny");
 
-		let input_a = crate::reader::tiny_v2::read(input_a.as_bytes()).unwrap();
-		let input_b = crate::reader::tiny_v2::read(input_b.as_bytes()).unwrap();
+		let input_a = crate::reader::tiny_v2::read(input_a.as_bytes())?;
+		let input_b = crate::reader::tiny_v2::read(input_b.as_bytes())?;
 
-		let actual = Mappings::merge(&input_a, &input_b).unwrap();
+		let output = Mappings::merge(&input_a, &input_b)?;
 
-		let actual = crate::writer::tiny_v2::write_string(&actual).unwrap();
+		let actual = crate::writer::tiny_v2::write_string(&output)?;
 
-		assert_eq!(actual, expected, "\nactual: {actual}\nexpected: {expected}");
+		assert_eq!(actual, expected, "left: actual, right: expected");
+
+		Ok(())
 	}
 }
