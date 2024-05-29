@@ -25,7 +25,7 @@ pub mod names {
 	/// Describes a given namespace of a mapping tree.
 	///
 	/// This object exists to remove out of bounds checks. If this object exists from a given mapping (obtained via
-	/// [Namespaces::get_namespace]), no range checking is necessary.
+	/// [`Namespaces::get_namespace`]), no range checking is necessary.
 	#[derive(Debug, Copy, Clone, PartialEq)]
 	pub struct Namespace<const N: usize>(usize);
 

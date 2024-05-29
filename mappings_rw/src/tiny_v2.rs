@@ -8,9 +8,9 @@
 //! See [`Namespaces::check_that`] for more info.
 //!
 //! # Writing
-//! For writing `.tiny` files, there are the [`write`] as well as the [`write_vec`] and [`write_string`] methods.
+//! For writing `.tiny` files, there are the [`write`][fn@write] as well as the [`write_vec`] and [`write_string`] methods.
 //!
-//! Note that there's also a [`write_zip`] method, tho most likely it's not what you actually want.
+//! Note that there's also a [`write_zip_file`] method, tho most likely it's not what you actually want.
 //!
 //! Note that all writing sorts the tiny files.
 
@@ -178,7 +178,7 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 	Ok(mappings)
 }
 
-/// writes the given mappings into a zip file, returning the zip file buffer.
+/// Writes the given mappings into a zip file, returning the zip file buffer.
 ///
 /// This method places the mappings into the file `mappings/mappings.tiny` in the zip file.
 pub fn write_zip_file<const N: usize>(mappings: &Mappings<N>) -> Result<Vec<u8>> {
@@ -198,7 +198,7 @@ pub fn write_zip_file<const N: usize>(mappings: &Mappings<N>) -> Result<Vec<u8>>
 ///
 /// Note that this currently sorts the classes, fields, methods and parameters.
 ///
-/// The example from the [`write`] method could look like this:
+/// The example from the [`write`][fn@write] method could look like this:
 /// ```
 /// # use pretty_assertions::assert_eq;
 /// use mappings_rw::tree::mappings::Mappings;
@@ -241,7 +241,7 @@ pub fn write_string<const N: usize>(mappings: &Mappings<N>) -> Result<String> {
 ///
 /// Note that this currently sorts the classes, fields, methods and parameters.
 ///
-/// The example from the [`write`] method could look like this:
+/// The example from the [`write`][fn@write] method could look like this:
 /// ```
 /// # use pretty_assertions::assert_eq;
 /// use mappings_rw::tree::mappings::Mappings;
