@@ -12,7 +12,7 @@ impl<const N: usize> Mappings<N> {
 	/// - a method mapping is removed if in the given namespace its name starts with `m_`, or its name is equal to either
 	///   `<init>` or `<clinit>`, and it doesn't have any members, i.e. javadoc or parameter mappings.
 	/// - a parameter mapping is removed if its name starts with `p_` and it doesn't have any javadoc.
-	pub(crate) fn remove_dummy(mut self, namespace: &str) -> Result<Self> {
+	pub fn remove_dummy(mut self, namespace: &str) -> Result<Self> {
 		let namespace = self.get_namespace(namespace)?;
 
 		self.classes.retain(|_, v| {
@@ -60,11 +60,11 @@ mod testing {
 		let input = include_str!("test/remove_dummy_input.tiny");
 		let expected = include_str!("test/remove_dummy_output.tiny");
 
-		let input: Mappings<2> = crate::reader::tiny_v2::read(input.as_bytes())?;
+		let input: Mappings<2> = crate::tiny_v2::read(input.as_bytes())?;
 
 		let output = input.remove_dummy("namespaceB")?;
 
-		let actual = crate::writer::tiny_v2::write_string(&output)?;
+		let actual = crate::tiny_v2::write_string(&output)?;
 
 		assert_eq!(actual, expected, "left: actual, right: expected");
 

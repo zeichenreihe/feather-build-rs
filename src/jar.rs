@@ -1,12 +1,18 @@
 pub(crate) mod merge;
 
+use std::convert::Infallible;
 use std::fmt::{Debug, Formatter};
 use std::fs::File;
 use std::io::{Cursor, Read, Seek};
+use std::ops::ControlFlow;
 use std::path::PathBuf;
 use anyhow::Result;
+use indexmap::{IndexMap, IndexSet};
 use zip::ZipArchive;
+use class_file::tree::class::{ClassAccess, ClassName};
+use class_file::tree::version::Version;
 use class_file::visitor::MultiClassVisitor;
+use mappings_rw::tree::action::remapper::JarSuperProv;
 
 #[derive(Clone)]
 pub(crate) enum Jar {
@@ -100,5 +106,35 @@ impl Jar {
 				action(reader, f)
 			},
 		}
+	}
+}
+
+impl Jar {
+	pub(crate) fn get_super_classes_provider(&self) -> Result<JarSuperProv> {
+		struct MyJarSuperProv(JarSuperProv);
+		impl MultiClassVisitor for MyJarSuperProv {
+			type ClassVisitor = Infallible;
+			type ClassResidual = Infallible;
+
+			fn visit_class(mut self, _version: Version, _access: ClassAccess, name: ClassName, super_class: Option<ClassName>, interfaces: Vec<ClassName>)
+				-> Result<ControlFlow<Self, (Self::ClassResidual, Self::ClassVisitor)>>
+			{
+				let mut set = IndexSet::new();
+				if let Some(super_class) = super_class {
+					set.insert(super_class);
+				}
+				for interface in interfaces {
+					set.insert(interface);
+				}
+				self.0.super_classes.insert(name, set);
+				Ok(ControlFlow::Break(self))
+			}
+
+			fn finish_class(_this: Self::ClassResidual, _class_visitor: Self::ClassVisitor) -> Result<Self> {
+				unreachable!()
+			}
+		}
+
+		Ok(self.read_into(MyJarSuperProv(JarSuperProv { super_classes: IndexMap::new() }))?.0)
 	}
 }

@@ -1,18 +1,13 @@
-use std::convert::Infallible;
-use std::ops::ControlFlow;
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use indexmap::{IndexMap, IndexSet};
-use class_file::tree::class::{ClassAccess, ClassName};
+use class_file::tree::class::ClassName;
 use class_file::tree::field::{FieldDescriptor, FieldName};
 use class_file::tree::method::{MethodDescriptor, MethodName};
-use class_file::tree::version::Version;
-use class_file::visitor::MultiClassVisitor;
-use crate::jar::Jar;
 use crate::tree::mappings::{FieldKey, Mappings, MethodKey};
 use crate::tree::names::Namespace;
 
 /// A remapper supporting remapping of class names and descriptors.
-pub(crate) trait ARemapper {
+pub trait ARemapper {
 	fn map_class_fail(&self, class: &ClassName) -> Result<Option<ClassName>>;
 
 	fn map_class(&self, class: &ClassName) -> Result<ClassName> {
@@ -88,7 +83,7 @@ impl<const N: usize> Mappings<N> {
 /// A remapper supporting remapping fields and methods, as well as class names and descriptors.
 ///
 /// If you only want to remap class names and descriptors, consider using [ARemapper] instead.
-pub(crate) trait BRemapper: ARemapper {
+pub trait BRemapper: ARemapper {
 	fn map_field_fail(&self, owner_name: &ClassName, field_key: &FieldKey) -> Result<Option<FieldKey>>;
 
 	fn map_field(&self, class: &ClassName, field: &FieldKey) -> Result<FieldKey> {
@@ -110,7 +105,7 @@ struct BRemapperClass<'a> {
 }
 
 #[derive(Debug)]
-pub(crate) struct BRemapperImpl<'a, 'i, const N: usize, I> {
+pub struct BRemapperImpl<'a, 'i, const N: usize, I> {
 	classes: IndexMap<&'a ClassName, BRemapperClass<'a>>,
 	inheritance: &'i I,
 }
@@ -175,7 +170,7 @@ impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 
 
 
 impl<const N: usize> Mappings<N> {
-	pub(crate) fn remapper_b<'i, I>(&self, from: Namespace<N>, to: Namespace<N>, inheritance: &'i I) -> Result<BRemapperImpl<'_, 'i, N, I>> {
+	pub fn remapper_b<'i, I>(&self, from: Namespace<N>, to: Namespace<N>, inheritance: &'i I) -> Result<BRemapperImpl<'_, 'i, N, I>> {
 		let remapper_a_from = self.remapper_a(Namespace::new(0)?, from)?;
 		let remapper_a_to = self.remapper_a(Namespace::new(0)?, to)?;
 
@@ -210,12 +205,12 @@ impl<const N: usize> Mappings<N> {
 }
 
 
-pub(crate) struct JarSuperProv {
-	super_classes: IndexMap<ClassName, IndexSet<ClassName>>,
+pub struct JarSuperProv {
+	pub super_classes: IndexMap<ClassName, IndexSet<ClassName>>,
 }
 
 impl JarSuperProv {
-	pub(crate) fn remap(re: &impl ARemapper, prov: &Vec<JarSuperProv>) -> Result<Vec<JarSuperProv>> {
+	pub fn remap(re: &impl ARemapper, prov: &Vec<JarSuperProv>) -> Result<Vec<JarSuperProv>> {
 		let mut r = Vec::new();
 		for i in prov {
 			let mut super_classes = IndexMap::new();
@@ -249,36 +244,7 @@ impl<S: SuperClassProvider> SuperClassProvider for Vec<S> {
 	}
 }
 
-impl Jar {
-	pub(crate) fn get_super_classes_provider(&self) -> Result<JarSuperProv> {
-		impl MultiClassVisitor for JarSuperProv {
-			type ClassVisitor = Infallible;
-			type ClassResidual = Infallible;
-
-			fn visit_class(mut self, _version: Version, _access: ClassAccess, name: ClassName, super_class: Option<ClassName>, interfaces: Vec<ClassName>)
-					-> Result<ControlFlow<Self, (Self::ClassResidual, Self::ClassVisitor)>>
-			{
-				let mut set = IndexSet::new();
-				if let Some(super_class) = super_class {
-					set.insert(super_class);
-				}
-				for interface in interfaces {
-					set.insert(interface);
-				}
-				self.super_classes.insert(name, set);
-				Ok(ControlFlow::Break(self))
-			}
-
-			fn finish_class(_this: Self::ClassResidual, _class_visitor: Self::ClassVisitor) -> Result<Self> {
-				unreachable!()
-			}
-		}
-
-		self.read_into(JarSuperProv { super_classes: IndexMap::new() })
-	}
-}
-
-pub(crate) trait SuperClassProvider {
+pub trait SuperClassProvider {
 	fn get_super_classes(&self, class: &ClassName) -> Result<Option<&IndexSet<ClassName>>>;
 }
 
@@ -295,7 +261,7 @@ mod testing {
 	fn remap() -> Result<()> {
 		let input_a = include_str!("test/remap_input.tiny");
 
-		let input_a: Mappings<2> = crate::reader::tiny_v2::read(input_a.as_bytes())?;
+		let input_a: Mappings<2> = crate::tiny_v2::read(input_a.as_bytes())?;
 
 		let super_classes_provider = JarSuperProv { super_classes: IndexMap::from([
 			(ClassName::from("classS1"), IndexSet::from([

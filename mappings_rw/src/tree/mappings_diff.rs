@@ -17,7 +17,7 @@ pub(crate) enum Action<T> {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct MappingsDiff {
+pub struct MappingsDiff {
 	pub(crate) info: Action<String>,
 	pub(crate) classes: IndexMap<ClassName, ClassNowodeDiff>,
 	pub(crate) javadoc: Option<Action<JavadocMapping>>,

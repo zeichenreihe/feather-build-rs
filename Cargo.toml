@@ -1,7 +1,8 @@
 [workspace]
 members = [
 	"class_file",
-	"raw_class_file",
+	"mappings_rw",
+	"raw_class_file"
 ]
 
 [package]
@@ -31,6 +32,7 @@ zip = "0.6.6"
 pretty_assertions = "1.4.0"
 
 class_file = { path = "class_file" }
+mappings_rw = { path = "mappings_rw" }
 
 [dev-dependencies]
 raw_class_file = { path = "raw_class_file" }

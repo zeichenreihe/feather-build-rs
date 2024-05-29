@@ -1,0 +1,18 @@
+[package]
+name = "mappings_rw"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = { version = "1.0.71", features = ["backtrace"] }
+
+indexmap = "2.0.2"
+
+zip = "0.6.6"
+
+class_file = { path = "../class_file" }
+
+[dev-dependencies]
+pretty_assertions = "1.4.0"

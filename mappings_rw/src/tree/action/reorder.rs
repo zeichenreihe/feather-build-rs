@@ -6,16 +6,19 @@ use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, Fiel
 use crate::tree::NodeInfo;
 
 impl<const N: usize> Mappings<N> {
+	#[allow(clippy::tabs_in_doc_comments)]
 	/// Reorders the namespaces to the given order.
 	/// # Example
 	/// If you call this on a mapping like
 	/// ```txt,ignore
+	/// tiny	2	0	namespaceA	namespaceB	namespaceC
 	/// c	A	B	C
 	/// 	m	(LA;)V	a	b	c
 	/// 	f	LA;	a	b	c
 	/// ```
-	/// with the given namespaces being `["C", "B", "A"]`, you get:
+	/// with the given namespaces being `["namespaceC", "namespaceB", "namespaceA"]`, you get:
 	/// ```txt,ignore
+	/// tiny	2	0	namespaceC	namespaceB	namespaceA
 	/// c	C	B	A
 	/// 	m	(LC;)V	c	b	a
 	/// 	f	LC;	c	b	a
@@ -23,13 +26,21 @@ impl<const N: usize> Mappings<N> {
 	///
 	// TODO: finish this test when we move this stuff to own crate (lib)
 	/// ```
-	/// let input = """
-	/// tiny	2	0
+	/// # use pretty_assertions::assert_eq;
+	/// let input = "
+	/// tiny	2	0	namespaceC	namespaceB	namespaceA
 	/// c	C	B	A
-	/// 	m	(LC;)V	c	b	a
-	/// 	f	LC;	c	b	a""";
-	/// println!(input);
-	/// panic!();
+	/// 	f	LC;	c	b	a
+	/// 	m	(LC;)V	c	b	a";
+	/// let output = "
+	/// tiny	2	0	namespaceA	namespaceB	namespaceC
+	/// c	A	B	C
+	/// 	f	LA;	a	b	c
+	/// 	m	(LA;)V	a	b	c";
+	/// let b = mappings_rw::tiny_v2::read(input.as_bytes()).unwrap()
+	/// 	.reorder(["namespaceA", "namespaceB", "namespaceC"]).unwrap();
+	/// let c = mappings_rw::tiny_v2::write_string(&b).unwrap();
+	/// assert_eq!(output, c);
 	/// ```
 	pub fn reorder(&self, namespaces: [&str; N]) -> Result<Mappings<N>> {
 		// new CommandReorderTinyV2().run([self, return, "intermediary", "official"])
@@ -122,11 +133,11 @@ mod testing {
 		let input = include_str!("test/reorder_input.tiny");
 		let expected = include_str!("test/reorder_output.tiny");
 
-		let input = crate::reader::tiny_v2::read(input.as_bytes())?;
+		let input = crate::tiny_v2::read(input.as_bytes())?;
 
 		let output = input.reorder(["namespaceB", "namespaceA"])?;
 
-		let actual = crate::writer::tiny_v2::write_string(&output)?;
+		let actual = crate::tiny_v2::write_string(&output)?;
 
 		assert_eq!(actual, expected, "left: actual, right: expected");
 

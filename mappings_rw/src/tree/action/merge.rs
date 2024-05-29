@@ -116,12 +116,12 @@ where
 }
 
 impl Mappings<2> {
-	pub(crate) fn merge(a: &Mappings<2>, b: &Mappings<2>) -> Result<Mappings<3>> {
+	pub fn merge(a: &Mappings<2>, b: &Mappings<2>) -> Result<Mappings<3>> {
 		Ok(Mappings {
 			info: MappingInfo {
 				namespaces: merge_namespaces(&a.info.namespaces, &b.info.namespaces).context("failed to merge namespaces")?,
 			},
-			javadoc: merge_option(|x| &x, &Some(&a.javadoc), &Some(&b.javadoc))?,
+			javadoc: merge_option(|x| x, &Some(&a.javadoc), &Some(&b.javadoc))?,
 			classes: merge_map(
 				Some(&a.classes), Some(&b.classes),
 				|a, b| Ok(ClassNowodeMapping {
@@ -177,12 +177,12 @@ mod testing {
 		let input_b = include_str!("test/merge_input_b.tiny");
 		let expected = include_str!("test/merge_output.tiny");
 
-		let input_a = crate::reader::tiny_v2::read(input_a.as_bytes())?;
-		let input_b = crate::reader::tiny_v2::read(input_b.as_bytes())?;
+		let input_a = crate::tiny_v2::read(input_a.as_bytes())?;
+		let input_b = crate::tiny_v2::read(input_b.as_bytes())?;
 
 		let output = Mappings::merge(&input_a, &input_b)?;
 
-		let actual = crate::writer::tiny_v2::write_string(&output)?;
+		let actual = crate::tiny_v2::write_string(&output)?;
 
 		assert_eq!(actual, expected, "left: actual, right: expected");
 

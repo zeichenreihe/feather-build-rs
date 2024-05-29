@@ -7,15 +7,12 @@ use class_file::tree::method::ParameterName;
 use crate::download::Downloader;
 use crate::download::versions_manifest::MinecraftVersion;
 use crate::jar::Jar;
-use crate::tree::mappings::Mappings;
-use crate::tree::names::Names;
+use mappings_rw::tree::mappings::Mappings;
+use mappings_rw::tree::names::Names;
 use crate::version_graph::VersionGraph;
 
-mod reader;
 mod version_graph;
-mod writer;
 mod download;
-mod tree;
 mod specialized_methods;
 
 mod jar;
@@ -71,7 +68,7 @@ fn inspect<const N: usize>(mappings: &Mappings<N>, path: &str) -> Result<()> {
 	 */
 
     let mut file = File::create(path)?;
-    writer::tiny_v2::write(mappings, &mut file)?;
+    mappings_rw::tiny_v2::write(mappings, &mut file)?;
     Ok(())
 }
 
@@ -94,11 +91,11 @@ async fn build(downloader: &mut Downloader, version_graph: &VersionGraph, versio
     inspect(&merge_v2, "/tmp/out.tiny")?;
 
     let name = format!("feather-{feather_version}-mergedv2.jar");
-    let data = writer::tiny_v2::write_zip_file(&merge_v2)?;
+    let data = mappings_rw::tiny_v2::write_zip_file(&merge_v2)?;
     let merged_feather = Jar::new_mem(name, data);
 
     let name = format!("feather-{feather_version}-v2.jar");
-    let data = writer::tiny_v2::write_zip_file(&build_feather_tiny)?;
+    let data = mappings_rw::tiny_v2::write_zip_file(&build_feather_tiny)?;
     let unmerged_feather = Jar::new_mem(name, data);
 
     Ok(BuildResult { merged_feather, unmerged_feather })
@@ -117,7 +114,9 @@ fn merge_v2(feather: &Mappings<2>, calamus: &Mappings<2>) -> Result<Mappings<3>>
     merged.reorder(["official", "intermediary", "named"])
 }
 
-impl Mappings<3> {
+trait ApplyFix: Sized { fn apply_our_fix(self) -> Result<Self>; }
+
+impl ApplyFix for Mappings<3> {
     fn apply_our_fix(mut self) -> Result<Self> {
         let official = self.get_namespace("official")?;
         let intermediary = self.get_namespace("intermediary")?;

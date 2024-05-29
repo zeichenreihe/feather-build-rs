@@ -6,12 +6,12 @@ use std::path::Path;
 use class_file::tree::class::ClassName;
 use class_file::tree::field::{FieldDescriptor, FieldName};
 use class_file::tree::method::{MethodDescriptor, MethodName, ParameterName};
-use crate::reader::tiny_v2_line::{Line, WithMoreIdentIter};
+use crate::tiny_v2_line::{Line, WithMoreIdentIter};
 use crate::tree::mappings::{FieldKey, MethodKey, ParameterKey};
 use crate::tree::mappings_diff::{Action, ClassNowodeDiff, FieldNowodeDiff, MappingsDiff, MethodNowodeDiff, ParameterNowodeDiff};
 use crate::tree::NodeInfo;
 
-pub(crate) fn read_file(path: impl AsRef<Path> + Debug) -> Result<MappingsDiff> {
+pub fn read_file(path: impl AsRef<Path> + Debug) -> Result<MappingsDiff> {
 	read(File::open(&path)?)
 		.with_context(|| anyhow!("failed to read mappings file {path:?}"))
 }

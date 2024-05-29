@@ -42,7 +42,7 @@ impl<const N: usize> Mappings<N> {
 	// "wrong", since this moves inner classes around...), this produces
 	// the mappings A -> a, A$B -> a$b, A$B$C -> a$b$c, fixing this
 	// inconsistency
-	pub(crate) fn extend_inner_class_names(&self, namespace: &str) -> Result<Mappings<N>> {
+	pub fn extend_inner_class_names(&self, namespace: &str) -> Result<Mappings<N>> {
 		let namespace = self.get_namespace(namespace)?;
 		Ok(Mappings {
 			info: self.info.clone(),
@@ -72,11 +72,11 @@ mod testing {
 		let input = include_str!("test/extend_inner_class_names_input.tiny");
 		let expected = include_str!("test/extend_inner_class_names_output.tiny");
 
-		let input: Mappings<2> = crate::reader::tiny_v2::read(input.as_bytes())?;
+		let input: Mappings<2> = crate::tiny_v2::read(input.as_bytes())?;
 
 		let output = input.extend_inner_class_names("namespaceB")?;
 
-		let actual = crate::writer::tiny_v2::write_string(&output)?;
+		let actual = crate::tiny_v2::write_string(&output)?;
 
 		assert_eq!(actual, expected, "left: actual, right: expected");
 

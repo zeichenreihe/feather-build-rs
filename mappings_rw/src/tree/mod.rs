@@ -1,15 +1,15 @@
 
-pub(crate) mod mappings;
-pub(crate) mod mappings_diff;
-pub(crate) mod action;
+pub mod mappings;
+pub mod mappings_diff;
+pub mod action;
 
-pub(crate) trait NodeInfo<I> {
+pub trait NodeInfo<I> {
 	fn get_node_info(&self) -> &I;
 	fn get_node_info_mut(&mut self) -> &mut I;
 	fn new(info: I) -> Self;
 }
 
-pub(crate) trait ToKey<K> {
+pub trait ToKey<K> {
 	fn get_key(&self) -> K;
 }
 
@@ -17,17 +17,17 @@ pub(crate) trait FromKey<K> {
 	fn from_key(key: K) -> Self;
 }
 
-pub(crate) mod names {
+pub mod names {
 	use std::fmt::{Debug, Formatter};
 	use std::ops::{Index, IndexMut};
-	use anyhow::{bail, Context, Error, Result};
+	use anyhow::{bail, Result};
 
 	/// Describes a given namespace of a mapping tree.
 	///
 	/// This object exists to remove out of bounds checks. If this object exists from a given mapping (obtained via
 	/// [Namespaces::get_namespace]), no range checking is necessary.
 	#[derive(Debug, Copy, Clone, PartialEq)]
-	pub(crate) struct Namespace<const N: usize>(usize);
+	pub struct Namespace<const N: usize>(usize);
 
 	impl<const N: usize> Namespace<N> {
 		pub(crate) fn new(id: usize) -> Result<Namespace<N>> {
@@ -42,7 +42,7 @@ pub(crate) mod names {
 	///
 	/// Implements the [Index] and [IndexMut] traits for [Namespace].
 	#[derive(Clone, PartialEq)]
-	pub(crate) struct Namespaces<const N: usize> {
+	pub struct Namespaces<const N: usize> {
 		names: [String; N]
 	}
 
@@ -76,7 +76,7 @@ pub(crate) mod names {
 
 		/// Returns an error if the names of `self` aren't the names given in the argument.
 		/// This can be used to check that after reading mappings, you have the correct namespaces in them.
-		pub(crate) fn check_that(&self, names: [&str; N]) -> Result<()> {
+		pub fn check_that(&self, names: [&str; N]) -> Result<()> {
 			if self.names != names {
 				bail!("expected namespaces {names:?}, got {self:?}");
 			}
@@ -135,7 +135,7 @@ pub(crate) mod names {
 	///
 	/// Implements the [Index] and [IndexMut] traits for [Namespace].
 	#[derive(Clone, PartialEq, PartialOrd, Eq, Ord)]
-	pub(crate) struct Names<const N: usize, T> {
+	pub struct Names<const N: usize, T> {
 		/// Invariants:
 		/// the first item, is always [Some]
 		names: [Option<T>; N],
