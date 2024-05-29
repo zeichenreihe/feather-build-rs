@@ -217,4 +217,4 @@ impl MappingsDiff {
 	}
 }
 
-// TODO: write tests, see other test cases for what to do
+// TODO: consider testing internals (see extend_inner_class_names.rs for example)

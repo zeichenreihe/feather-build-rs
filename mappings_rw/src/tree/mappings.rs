@@ -228,8 +228,8 @@ impl<const N: usize> FromKey<ClassName> for ClassMapping<N> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FieldKey {
-	pub(crate) desc: FieldDescriptor,
-	pub(crate) name: FieldName,
+	pub desc: FieldDescriptor,
+	pub name: FieldName,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]

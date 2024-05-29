@@ -125,23 +125,5 @@ impl<const N: usize> Mappings<N> {
 
 #[cfg(test)]
 mod testing {
-	use anyhow::Result;
-	use pretty_assertions::assert_eq;
-
-	#[test]
-	fn reorder() -> Result<()> {
-		let input = include_str!("test/reorder_input.tiny");
-		let expected = include_str!("test/reorder_output.tiny");
-
-		let input = crate::tiny_v2::read(input.as_bytes())?;
-
-		let output = input.reorder(["namespaceB", "namespaceA"])?;
-
-		let actual = crate::tiny_v2::write_string(&output)?;
-
-		assert_eq!(actual, expected, "left: actual, right: expected");
-
-		Ok(())
-
-	}
+	// TODO: test internals
 }
