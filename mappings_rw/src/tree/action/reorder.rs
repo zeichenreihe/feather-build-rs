@@ -24,19 +24,21 @@ impl<const N: usize> Mappings<N> {
 	/// 	f	LC;	c	b	a
 	/// ```
 	///
-	// TODO: finish this test when we move this stuff to own crate (lib)
+	/// You could do it like this for example:
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// let input = "
+	/// let input = "\
 	/// tiny	2	0	namespaceC	namespaceB	namespaceA
 	/// c	C	B	A
 	/// 	f	LC;	c	b	a
-	/// 	m	(LC;)V	c	b	a";
-	/// let output = "
+	/// 	m	(LC;)V	c	b	a
+	/// ";
+	/// let output = "\
 	/// tiny	2	0	namespaceA	namespaceB	namespaceC
 	/// c	A	B	C
 	/// 	f	LA;	a	b	c
-	/// 	m	(LA;)V	a	b	c";
+	/// 	m	(LA;)V	a	b	c
+	/// ";
 	/// let b = mappings_rw::tiny_v2::read(input.as_bytes()).unwrap()
 	/// 	.reorder(["namespaceA", "namespaceB", "namespaceC"]).unwrap();
 	/// let c = mappings_rw::tiny_v2::write_string(&b).unwrap();

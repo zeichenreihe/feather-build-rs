@@ -3,28 +3,27 @@ use class_file::tree::class::ClassName;
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, Mappings};
 use crate::tree::names::{Names, Namespace};
 
+fn map<const N: usize>(mappings: &Mappings<N>, namespace: Namespace<N>, name: &str, mapped: &ClassName) -> Result<ClassName> {
+	if let Some((parent, _)) = name.rsplit_once('$') {
+
+		let parent_name = parent.to_owned().into();
+
+		let mapped_parent = mappings.get_class_name(&parent_name, namespace)?;
+
+		let mut result = map(mappings, namespace, parent, mapped_parent)?;
+
+		let s = result.as_mut_string();
+		s.push('$');
+		s.push_str(mapped.as_str());
+
+		Ok(result)
+	} else {
+		Ok(mapped.clone())
+	}
+}
+
 impl<const N: usize> Names<N, ClassName> {
 	fn extend_inner_class_name(&self, mappings: &Mappings<N>, namespace: Namespace<N>) -> Result<Names<N, ClassName>> {
-
-		fn map<const N: usize>(mappings: &Mappings<N>, namespace: Namespace<N>, name: &str, mapped: &ClassName) -> Result<ClassName> {
-			if let Some((parent, _)) = name.rsplit_once('$') {
-
-				let parent_name = parent.to_owned().into();
-
-				let mapped_parent = mappings.get_class_name(&parent_name, namespace)?;
-
-				let mut result = map(mappings, namespace, parent, mapped_parent)?;
-
-				let s = result.as_mut_string();
-				s.push('$');
-				s.push_str(mapped.as_str());
-
-				Ok(result)
-			} else {
-				Ok(mapped.clone())
-			}
-		}
-
 		let mut names = self.clone();
 
 		if let (src, Some(b)) = names.get_mut_with_src(namespace)? {
