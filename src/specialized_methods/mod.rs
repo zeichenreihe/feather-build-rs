@@ -13,10 +13,10 @@ use class_file::tree::version::Version;
 use class_file::visitor::MultiClassVisitor;
 use class_file::visitor::simple::class::SimpleClassVisitor;
 use crate::Jar;
-use mappings_rw::remapper::{BRemapper, JarSuperProv};
-use mappings_rw::tree::mappings::{Mappings, MethodKey, MethodMapping, MethodNowodeMapping};
-use mappings_rw::tree::names::Names;
-use mappings_rw::tree::{NodeInfo, ToKey};
+use quill::remapper::{BRemapper, JarSuperProv};
+use quill::tree::mappings::{Mappings, MethodKey, MethodMapping, MethodNowodeMapping};
+use quill::tree::names::Names;
+use quill::tree::{NodeInfo, ToKey};
 
 /// Stores all known entries
 #[derive(Default)]

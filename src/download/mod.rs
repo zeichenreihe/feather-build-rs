@@ -11,7 +11,7 @@ use crate::download::version_manifest::VersionManifest;
 use crate::download::versions_manifest::VersionsManifest;
 use crate::{Environment, Jar};
 use crate::download::maven_metadata::MavenMetadata;
-use mappings_rw::tree::mappings::Mappings;
+use quill::tree::mappings::Mappings;
 use crate::Version;
 
 pub(crate) mod versions_manifest;
@@ -156,7 +156,7 @@ impl Downloader {
 		let mappings = zip.by_name("mappings/mappings.tiny")
 			.with_context(|| anyhow!("cannot find mappings in zip file from {:?}", url))?;
 
-		let mappings = mappings_rw::tiny_v2::read(mappings)
+		let mappings = quill::tiny_v2::read(mappings)
 			.with_context(|| anyhow!("failed to read mappings from mappings/mappings.tiny of {:?}", url))?;
 
 		mappings.info.namespaces.check_that(["official", "intermediary"])?;

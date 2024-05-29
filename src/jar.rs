@@ -12,7 +12,7 @@ use zip::ZipArchive;
 use class_file::tree::class::{ClassAccess, ClassName};
 use class_file::tree::version::Version;
 use class_file::visitor::MultiClassVisitor;
-use mappings_rw::remapper::JarSuperProv;
+use quill::remapper::JarSuperProv;
 
 #[derive(Clone)]
 pub(crate) enum Jar {

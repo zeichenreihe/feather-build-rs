@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use indexmap::IndexMap;
 use petgraph::{Direction, Graph};
 use petgraph::graph::NodeIndex;
-use mappings_rw::tree::mappings_diff::MappingsDiff;
-use mappings_rw::tree::mappings::Mappings;
+use quill::tree::mappings_diff::MappingsDiff;
+use quill::tree::mappings::Mappings;
 use crate::Version;
 
 const MAPPINGS_EXTENSION: &str = ".tiny";
@@ -43,7 +43,7 @@ impl VersionGraph {
 					let v = Self::add_node(&mut versions, &mut graph, version);
 					let p = Self::add_node(&mut versions, &mut graph, parent);
 
-					let diff = mappings_rw::tiny_v2_diff::read_file(&path)
+					let diff = quill::tiny_v2_diff::read_file(&path)
 						.with_context(|| anyhow!("failed to parse version diff from {path:?}"))?;
 
 					graph.add_edge(p, v, diff);
@@ -54,7 +54,7 @@ impl VersionGraph {
 
 					let v = Self::add_node(&mut versions, &mut graph, version);
 
-					let mapping = mappings_rw::tiny_v2::read_file(&path)
+					let mapping = quill::tiny_v2::read_file(&path)
 						.with_context(|| anyhow!("failed to parse version mapping from {path:?}"))?;
 
 					root = Some(v);

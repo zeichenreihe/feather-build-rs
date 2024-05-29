@@ -10,8 +10,8 @@ use class_file::tree::method::ParameterName;
 use crate::download::Downloader;
 use crate::download::versions_manifest::MinecraftVersion;
 use crate::jar::Jar;
-use mappings_rw::tree::mappings::Mappings;
-use mappings_rw::tree::names::Names;
+use quill::tree::mappings::Mappings;
+use quill::tree::names::Names;
 use crate::version_graph::VersionGraph;
 
 mod version_graph;
@@ -71,7 +71,7 @@ fn inspect<const N: usize>(mappings: &Mappings<N>, path: &str) -> Result<()> {
 	 */
 
     let mut file = File::create(path)?;
-    mappings_rw::tiny_v2::write(mappings, &mut file)?;
+    quill::tiny_v2::write(mappings, &mut file)?;
     Ok(())
 }
 
@@ -109,7 +109,7 @@ fn tiny_v2_write_zip_file<const N: usize>(mappings: &Mappings<N>) -> Result<Vec<
 
     zip.start_file("mappings/mappings.tiny", FileOptions::default())?;
 
-    mappings_rw::tiny_v2::write(mappings, &mut zip)?;
+    quill::tiny_v2::write(mappings, &mut zip)?;
 
     Ok(zip.finish()?.into_inner())
 }
