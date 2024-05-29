@@ -1,5 +1,5 @@
 use anyhow::Result;
-use class_file::tree::class::ClassName;
+use duke::tree::class::ClassName;
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, Mappings};
 use crate::tree::names::{Names, Namespace};
 

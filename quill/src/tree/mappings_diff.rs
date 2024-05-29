@@ -1,9 +1,9 @@
 use anyhow::{bail, Result};
 use indexmap::IndexMap;
 use indexmap::map::Entry;
-use class_file::tree::class::ClassName;
-use class_file::tree::field::FieldName;
-use class_file::tree::method::{MethodName, ParameterName};
+use duke::tree::class::ClassName;
+use duke::tree::field::FieldName;
+use duke::tree::method::{MethodName, ParameterName};
 use crate::tree::mappings::{FieldKey, JavadocMapping, MethodKey,ParameterKey};
 use crate::tree::NodeInfo;
 

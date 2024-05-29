@@ -1,6 +1,6 @@
 [workspace]
 members = [
-	"class_file",
+	"duke",
 	"quill",
 	"raw_class_file"
 ]
@@ -31,7 +31,7 @@ zip = "0.6.6"
 # TODO: move to dev-dependencies at some point again
 pretty_assertions = "1.4.0"
 
-class_file = { path = "class_file" }
+duke = { path = "duke" }
 quill = { path = "quill" }
 
 [dev-dependencies]

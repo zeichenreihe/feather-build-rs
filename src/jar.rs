@@ -9,9 +9,9 @@ use std::path::PathBuf;
 use anyhow::Result;
 use indexmap::{IndexMap, IndexSet};
 use zip::ZipArchive;
-use class_file::tree::class::{ClassAccess, ClassName};
-use class_file::tree::version::Version;
-use class_file::visitor::MultiClassVisitor;
+use duke::tree::class::{ClassAccess, ClassName};
+use duke::tree::version::Version;
+use duke::visitor::MultiClassVisitor;
 use quill::remapper::JarSuperProv;
 
 #[derive(Clone)]
@@ -58,7 +58,7 @@ impl Jar {
 					file.read_to_end(&mut vec)?;
 					let mut reader = Cursor::new(vec);
 
-					visitor = class_file::read_class_multi(&mut reader, visitor)?;
+					visitor = duke::read_class_multi(&mut reader, visitor)?;
 				}
 			}
 

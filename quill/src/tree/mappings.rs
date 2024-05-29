@@ -1,9 +1,9 @@
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use indexmap::map::Entry;
-use class_file::tree::class::ClassName;
-use class_file::tree::field::{FieldDescriptor, FieldName};
-use class_file::tree::method::{MethodDescriptor, MethodName, ParameterName};
+use duke::tree::class::ClassName;
+use duke::tree::field::{FieldDescriptor, FieldName};
+use duke::tree::method::{MethodDescriptor, MethodName, ParameterName};
 use crate::tree::names::{Names, Namespace, Namespaces};
 use crate::tree::{FromKey, NodeInfo, ToKey};
 

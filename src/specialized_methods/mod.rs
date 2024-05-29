@@ -4,14 +4,14 @@ use std::io::{Read, Seek};
 use std::ops::ControlFlow;
 use indexmap::{IndexMap, IndexSet};
 use indexmap::map::Entry;
-use class_file::tree::class::{ClassAccess, ClassName};
-use class_file::tree::descriptor::Type;
-use class_file::tree::field::{FieldAccess, FieldDescriptor, FieldName};
-use class_file::tree::method::{Method, MethodAccess, MethodDescriptor, MethodName, MethodRef};
-use class_file::tree::method::code::Instruction;
-use class_file::tree::version::Version;
-use class_file::visitor::MultiClassVisitor;
-use class_file::visitor::simple::class::SimpleClassVisitor;
+use duke::tree::class::{ClassAccess, ClassName};
+use duke::tree::descriptor::Type;
+use duke::tree::field::{FieldAccess, FieldDescriptor, FieldName};
+use duke::tree::method::{Method, MethodAccess, MethodDescriptor, MethodName, MethodRef};
+use duke::tree::method::code::Instruction;
+use duke::tree::version::Version;
+use duke::visitor::MultiClassVisitor;
+use duke::visitor::simple::class::SimpleClassVisitor;
 use crate::Jar;
 use quill::remapper::{BRemapper, JarSuperProv};
 use quill::tree::mappings::{Mappings, MethodKey, MethodMapping, MethodNowodeMapping};
@@ -392,7 +392,7 @@ mod testing {
 	use anyhow::Result;
 	use std::io::Cursor;
 	use indexmap::IndexMap;
-	use class_file::tree::method::MethodRef;
+	use duke::tree::method::MethodRef;
 	use raw_class_file::{AttributeInfo, ClassFile, CpInfo, FieldInfo, flags, insn, MethodInfo};
 	use crate::specialized_methods::MultiClassVisitorImpl;
 
@@ -402,15 +402,15 @@ mod testing {
 
 		let bytes = include_bytes!("test/MyNode.class");
 		let mut cursor = Cursor::new(bytes);
-		let visitor = class_file::read_class_multi(&mut cursor, visitor)?;
+		let visitor = duke::read_class_multi(&mut cursor, visitor)?;
 
 		let bytes = include_bytes!("test/Node.class");
 		let mut cursor = Cursor::new(bytes);
-		let visitor = class_file::read_class_multi(&mut cursor, visitor)?;
+		let visitor = duke::read_class_multi(&mut cursor, visitor)?;
 
 		let bytes = include_bytes!("test/SpecializedMethods.class");
 		let mut cursor = Cursor::new(bytes);
-		let visitor = class_file::read_class_multi(&mut cursor, visitor)?;
+		let visitor = duke::read_class_multi(&mut cursor, visitor)?;
 
 
 		let specialized_methods = visitor.get_specialized_methods()?;
@@ -559,7 +559,7 @@ mod testing {
 			attributes: vec![],
 		}.to_bytes();
 		let mut cursor = Cursor::new(bytes);
-		let visitor = class_file::read_class_multi(&mut cursor, visitor)?;
+		let visitor = duke::read_class_multi(&mut cursor, visitor)?;
 
 		let bytes = ClassFile {
 			minor_version: 0,
@@ -638,7 +638,7 @@ mod testing {
 			attributes: vec![], // Signature: <T:Ljava/lang/Object;>Ljava/lang/Object;
 		}.to_bytes();
 		let mut cursor = Cursor::new(bytes);
-		let visitor = class_file::read_class_multi(&mut cursor, visitor)?;
+		let visitor = duke::read_class_multi(&mut cursor, visitor)?;
 
 		let specialized_methods = visitor.get_specialized_methods()?;
 

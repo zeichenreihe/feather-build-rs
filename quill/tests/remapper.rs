@@ -2,7 +2,7 @@
 use anyhow::Result;
 use indexmap::{IndexMap, IndexSet};
 use pretty_assertions::assert_eq;
-use class_file::tree::class::ClassName;
+use duke::tree::class::ClassName;
 use mappings_rw::tree::action::remapper::{ARemapper, BRemapper, JarSuperProv};
 use mappings_rw::tree::mappings::{FieldKey, Mappings, MethodKey};
 

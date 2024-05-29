@@ -263,12 +263,12 @@ impl From<ClassAccess> for u16 {
 /// # Examples
 /// The java class `java.lang.Thread` would get:
 /// ```
-/// use class_file::tree::class::ClassName;
+/// use duke::tree::class::ClassName;
 /// let java_lang_thread = ClassName::from("java/lang/Thread");
 /// ```
 /// Note that there's an associated constant holding the name of the `java.lang.Object` class:
 /// ```
-/// use class_file::tree::class::ClassName;
+/// use duke::tree::class::ClassName;
 /// let java_lang_object = ClassName::JAVA_LANG_OBJECT.clone();
 /// assert_eq!(java_lang_object, ClassName::from("java/lang/Object"));
 /// ```

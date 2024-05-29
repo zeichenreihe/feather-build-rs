@@ -6,7 +6,7 @@ use std::time::Instant;
 use anyhow::{anyhow, bail, Context, Result};
 use zip::write::FileOptions;
 use zip::ZipWriter;
-use class_file::tree::method::ParameterName;
+use duke::tree::method::ParameterName;
 use crate::download::Downloader;
 use crate::download::versions_manifest::MinecraftVersion;
 use crate::jar::Jar;

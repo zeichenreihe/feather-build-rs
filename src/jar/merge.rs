@@ -7,10 +7,10 @@ use indexmap::IndexMap;
 use zip::{DateTime, ZipArchive, ZipWriter};
 use zip::read::ZipFile;
 use zip::write::FileOptions;
-use class_file::tree::annotation::{Annotation, ElementValue, ElementValuePair};
-use class_file::tree::class::{ClassFile, ClassName};
-use class_file::tree::field::{Field, FieldDescriptor};
-use class_file::tree::method::Method;
+use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
+use duke::tree::class::{ClassFile, ClassName};
+use duke::tree::field::{Field, FieldDescriptor};
+use duke::tree::method::Method;
 use crate::jar::Jar;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -153,8 +153,8 @@ fn sided_annotation(side: Side) -> Annotation {
 }
 
 fn class_merger_merge(client: &[u8], server: &[u8]) -> Result<Vec<u8>> {
-	let client = class_file::read_class(&mut Cursor::new(client))?;
-	let server = class_file::read_class(&mut Cursor::new(server))?;
+	let client = duke::read_class(&mut Cursor::new(client))?;
+	let server = duke::read_class(&mut Cursor::new(server))?;
 
 	let interfaces: Vec<_> = merge_preserve_order(&client.interfaces, &server.interfaces).collect();
 
@@ -320,17 +320,17 @@ fn class_merger_merge(client: &[u8], server: &[u8]) -> Result<Vec<u8>> {
 	};
 
 	let mut buf = Vec::new();
-	class_file::write_class(&mut buf, &out)?;
+	duke::write_class(&mut buf, &out)?;
 	Ok(buf)
 }
 
 fn sided_class_visitor(data: &[u8], side: Side) -> Result<Vec<u8>> {
-	let mut class = class_file::read_class(&mut Cursor::new(data))?;
+	let mut class = duke::read_class(&mut Cursor::new(data))?;
 
 	class.runtime_visible_annotations.push(sided_annotation(side));
 
 	let mut buf = Vec::new();
-	class_file::write_class(&mut buf, &class)?;
+	duke::write_class(&mut buf, &class)?;
 	Ok(buf)
 }
 

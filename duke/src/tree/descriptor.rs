@@ -10,7 +10,7 @@ use crate::tree::method::MethodDescriptor;
 /// In case of an array, use the [`Type::Array`] variant.
 ///
 /// ```
-/// use class_file::tree::descriptor::{ArrayType, Type};
+/// use duke::tree::descriptor::{ArrayType, Type};
 ///
 /// // the type of a java `int`
 /// let int_type = Type::I;
@@ -24,7 +24,7 @@ use crate::tree::method::MethodDescriptor;
 /// Note: you should never construct the [`Type::Array`] variant with a dimension
 /// of zero, as the [`Eq`] and [`PartialEq`] implementations don't respect that:
 /// ```
-/// use class_file::tree::descriptor::{ArrayType, Type};
+/// use duke::tree::descriptor::{ArrayType, Type};
 /// let double_type = Type::D;
 /// let double_array_zero_type = Type::Array(0, ArrayType::D); // a "D" with zero "[" in front of it
 /// assert_ne!(double_type, double_array_zero_type);
@@ -200,9 +200,9 @@ impl FieldDescriptor {
 	/// # Examples
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use class_file::tree::class::ClassName;
-	/// use class_file::tree::descriptor::{ArrayType, ParsedFieldDescriptor, Type};
-	/// use class_file::tree::field::FieldDescriptor;
+	/// use duke::tree::class::ClassName;
+	/// use duke::tree::descriptor::{ArrayType, ParsedFieldDescriptor, Type};
+	/// use duke::tree::field::FieldDescriptor;
 	///
 	/// assert_eq!(
 	///     FieldDescriptor::from("I").parse().unwrap(),
@@ -242,9 +242,9 @@ impl ParsedFieldDescriptor {
 	/// # Examples
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use class_file::tree::class::ClassName;
-	/// use class_file::tree::descriptor::{ArrayType, ParsedFieldDescriptor, Type};
-	/// use class_file::tree::field::FieldDescriptor;
+	/// use duke::tree::class::ClassName;
+	/// use duke::tree::descriptor::{ArrayType, ParsedFieldDescriptor, Type};
+	/// use duke::tree::field::FieldDescriptor;
 	///
 	/// assert_eq!(
 	///     ParsedFieldDescriptor(Type::I).write(),

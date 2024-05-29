@@ -10,7 +10,7 @@ anyhow = { version = "1.0.71", features = ["backtrace"] }
 
 indexmap = "2.0.2"
 
-class_file = { path = "../class_file" }
+duke = { path = "../duke" }
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"

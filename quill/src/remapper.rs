@@ -13,9 +13,9 @@
 
 use anyhow::{bail, Result};
 use indexmap::{IndexMap, IndexSet};
-use class_file::tree::class::ClassName;
-use class_file::tree::field::{FieldDescriptor, FieldName};
-use class_file::tree::method::{MethodDescriptor, MethodName};
+use duke::tree::class::ClassName;
+use duke::tree::field::{FieldDescriptor, FieldName};
+use duke::tree::method::{MethodDescriptor, MethodName};
 use crate::tree::mappings::{FieldKey, Mappings, MethodKey};
 use crate::tree::names::Namespace;
 
