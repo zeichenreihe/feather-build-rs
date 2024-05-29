@@ -10,17 +10,13 @@
 //! # Writing
 //! For writing `.tiny` files, there are the [`write`][fn@write] as well as the [`write_vec`] and [`write_string`] methods.
 //!
-//! Note that there's also a [`write_zip_file`] method, tho most likely it's not what you actually want.
-//!
 //! Note that all writing sorts the tiny files.
 
 use std::fmt::Debug;
 use std::fs::File;
 use anyhow::{anyhow, bail, Context, Result};
-use std::io::{BufRead, BufReader, Cursor, Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
-use zip::write::FileOptions;
-use zip::ZipWriter;
 use class_file::tree::class::ClassName;
 use class_file::tree::field::FieldName;
 use class_file::tree::method::{MethodName, ParameterName};
@@ -176,19 +172,6 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 	}
 
 	Ok(mappings)
-}
-
-/// Writes the given mappings into a zip file, returning the zip file buffer.
-///
-/// This method places the mappings into the file `mappings/mappings.tiny` in the zip file.
-pub fn write_zip_file<const N: usize>(mappings: &Mappings<N>) -> Result<Vec<u8>> {
-	let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
-
-	zip.start_file("mappings/mappings.tiny", FileOptions::default())?;
-
-	write(mappings, &mut zip)?;
-
-	Ok(zip.finish()?.into_inner())
 }
 
 #[allow(clippy::tabs_in_doc_comments)]

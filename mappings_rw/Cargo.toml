@@ -10,8 +10,6 @@ anyhow = { version = "1.0.71", features = ["backtrace"] }
 
 indexmap = "2.0.2"
 
-zip = "0.6.6"
-
 class_file = { path = "../class_file" }
 
 [dev-dependencies]

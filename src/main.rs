@@ -1,8 +1,11 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::fs::File;
+use std::io::Cursor;
 use std::path::Path;
 use std::time::Instant;
 use anyhow::{anyhow, bail, Context, Result};
+use zip::write::FileOptions;
+use zip::ZipWriter;
 use class_file::tree::method::ParameterName;
 use crate::download::Downloader;
 use crate::download::versions_manifest::MinecraftVersion;
@@ -91,14 +94,24 @@ async fn build(downloader: &mut Downloader, version_graph: &VersionGraph, versio
     inspect(&merge_v2, "/tmp/out.tiny")?;
 
     let name = format!("feather-{feather_version}-mergedv2.jar");
-    let data = mappings_rw::tiny_v2::write_zip_file(&merge_v2)?;
+    let data = tiny_v2_write_zip_file(&merge_v2)?;
     let merged_feather = Jar::new_mem(name, data);
 
     let name = format!("feather-{feather_version}-v2.jar");
-    let data = mappings_rw::tiny_v2::write_zip_file(&build_feather_tiny)?;
+    let data = tiny_v2_write_zip_file(&build_feather_tiny)?;
     let unmerged_feather = Jar::new_mem(name, data);
 
     Ok(BuildResult { merged_feather, unmerged_feather })
+}
+
+fn tiny_v2_write_zip_file<const N: usize>(mappings: &Mappings<N>) -> Result<Vec<u8>> {
+    let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
+
+    zip.start_file("mappings/mappings.tiny", FileOptions::default())?;
+
+    mappings_rw::tiny_v2::write(mappings, &mut zip)?;
+
+    Ok(zip.finish()?.into_inner())
 }
 
 /// Merges the calamus intermediary with the created mappings.
