@@ -9,9 +9,10 @@ use zip::ZipArchive;
 use crate::download::version_details::VersionDetails;
 use crate::download::version_manifest::VersionManifest;
 use crate::download::versions_manifest::VersionsManifest;
-use crate::{Environment, Jar};
+use crate::Environment;
 use crate::download::maven_metadata::MavenMetadata;
 use quill::tree::mappings::Mappings;
+use crate::jar::FileJar;
 use crate::Version;
 
 pub(crate) mod versions_manifest;
@@ -43,7 +44,7 @@ impl Downloader {
 		}
 	}
 
-	pub(crate) async fn get_jar(&mut self, url: &str) -> Result<Jar> {
+	pub(crate) async fn get_jar(&mut self, url: &str) -> Result<FileJar> {
 		let downloads = Path::new("./download");
 
 		let path = Path::new(url).strip_prefix(Path::new("https://"))
@@ -63,7 +64,7 @@ impl Downloader {
 			std::io::copy(&mut src, &mut dest)?;
 		}
 
-		Ok(Jar::new(path))
+		Ok(FileJar::new(path))
 	}
 
 	async fn versions_manifest(&mut self) -> Result<&VersionsManifest> {
@@ -163,7 +164,7 @@ impl Downloader {
 
 		Ok(mappings)
 	}
-	pub(crate) async fn mc_libs(&mut self, version: &Version) -> Result<Vec<Jar>> {
+	pub(crate) async fn mc_libs(&mut self, version: &Version) -> Result<Vec<FileJar>> {
 		let version_file = self.wanted_version_manifest(version).await?;
 
 		let mut libs = Vec::new();

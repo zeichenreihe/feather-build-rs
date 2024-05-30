@@ -12,11 +12,11 @@ use duke::tree::method::code::Instruction;
 use duke::tree::version::Version;
 use duke::visitor::MultiClassVisitor;
 use duke::visitor::simple::class::SimpleClassVisitor;
-use crate::Jar;
 use quill::remapper::{BRemapper, JarSuperProv};
 use quill::tree::mappings::{Mappings, MethodKey, MethodMapping, MethodNowodeMapping};
 use quill::tree::names::Names;
 use quill::tree::{NodeInfo, ToKey};
+use crate::jar::Jar;
 
 /// Stores all known entries
 #[derive(Default)]
@@ -315,70 +315,69 @@ fn ref_to_key_both(method_ref: MethodRef) -> (ClassName, MethodKey) {
 	(method_ref.class, MethodKey { name: method_ref.name, desc: method_ref.desc })
 }
 
-impl Jar {
-	pub(crate) fn add_specialized_methods_to_mappings(
-		main_jar: &Jar, // official
-		calamus: &Mappings<2>, // official -> intermediary
-		libraries: &[Jar], // official
-		mappings: &Mappings<2> // intermediary -> named
-	) -> Result<Mappings<2>> {
-		let mut super_classes_provider = vec![main_jar.get_super_classes_provider()?];
-		for library in libraries {
-			super_classes_provider.push(library.get_super_classes_provider()?);
-		}
-
-		let remapper_calamus = calamus.remapper_b(
-			calamus.get_namespace("official")?,
-			calamus.get_namespace("intermediary")?,
-			&super_classes_provider
-		)?;
-		let x = JarSuperProv::remap(&remapper_calamus, &super_classes_provider)?;
-		let remapper_named = mappings.remapper_b(
-			mappings.get_namespace("calamus")?,
-			mappings.get_namespace("named")?,
-			&x
-		)?;
-
-		let specialized_methods =
-			main_jar.get_specialized_methods()? // official
-			.remap(&remapper_calamus)?; // intermediary
-
-		let mut mappings = mappings.clone();
-
-		for (bridge, specialized) in specialized_methods.bridge_to_specialized {
-			let named_specialized = {
-				let (class_key, method_key) = ref_to_key_both(bridge.clone());
-				let result = remapper_named.map_method(&class_key, &method_key)?;
-				key_to_ref(class_key, result).name
-			};
-
-			let info = MethodMapping {
-				names: Names::from([specialized.name, named_specialized]),
-				desc: specialized.desc,
-			};
-
-			if let Some(class) = mappings.classes.get_mut(&bridge.class) {
-				match class.methods.entry(info.get_key()) {
-					Entry::Occupied(mut e) => {
-						if e.get().info != info {
-							//eprintln!("replaced old mapping: {:#?} with different {info:?}", e.get());
-						} else {
-						}
-
-						// only replace the info, not the rest
-						e.get_mut().info = info;
-					},
-					Entry::Vacant(e) => {
-						e.insert(MethodNowodeMapping::new(info));
-					},
-				}
-			}
-		}
-
-		Ok(mappings)
+pub(crate) fn add_specialized_methods_to_mappings(
+	main_jar: &impl Jar, // official
+	calamus: &Mappings<2>, // official -> intermediary
+	libraries: &[impl Jar], // official
+	mappings: &Mappings<2> // intermediary -> named
+) -> Result<Mappings<2>> {
+	let mut super_classes_provider = vec![main_jar.get_super_classes_provider()?];
+	for library in libraries {
+		super_classes_provider.push(library.get_super_classes_provider()?);
 	}
 
-	pub(crate) fn get_specialized_methods(&self) -> Result<SpecializedMethods> {
+	let remapper_calamus = calamus.remapper_b(
+		calamus.get_namespace("official")?,
+		calamus.get_namespace("intermediary")?,
+		&super_classes_provider
+	)?;
+	let x = JarSuperProv::remap(&remapper_calamus, &super_classes_provider)?;
+	let remapper_named = mappings.remapper_b(
+		mappings.get_namespace("calamus")?,
+		mappings.get_namespace("named")?,
+		&x
+	)?;
+
+	let specialized_methods =
+		main_jar.get_specialized_methods()? // official
+			.remap(&remapper_calamus)?; // intermediary
+
+	let mut mappings = mappings.clone();
+
+	for (bridge, specialized) in specialized_methods.bridge_to_specialized {
+		let named_specialized = {
+			let (class_key, method_key) = ref_to_key_both(bridge.clone());
+			let result = remapper_named.map_method(&class_key, &method_key)?;
+			key_to_ref(class_key, result).name
+		};
+
+		let info = MethodMapping {
+			names: Names::from([specialized.name, named_specialized]),
+			desc: specialized.desc,
+		};
+
+		if let Some(class) = mappings.classes.get_mut(&bridge.class) {
+			match class.methods.entry(info.get_key()) {
+				Entry::Occupied(mut e) => {
+					// only replace the info, not the rest
+					e.get_mut().info = info;
+				},
+				Entry::Vacant(e) => {
+					e.insert(MethodNowodeMapping::new(info));
+				},
+			}
+		}
+	}
+
+	Ok(mappings)
+}
+
+pub(crate) trait GetSpecializedMethods {
+	fn get_specialized_methods(&self) -> Result<SpecializedMethods>;
+}
+
+impl<J: Jar> GetSpecializedMethods for J {
+	fn get_specialized_methods(&self) -> Result<SpecializedMethods> {
 		let visitor = MultiClassVisitorImpl::default();
 
 		let visitor = self.read_into(visitor)?;

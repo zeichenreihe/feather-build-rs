@@ -9,7 +9,7 @@ use zip::ZipWriter;
 use duke::tree::method::ParameterName;
 use crate::download::Downloader;
 use crate::download::versions_manifest::MinecraftVersion;
-use crate::jar::Jar;
+use crate::jar::{EnumJar, MemJar};
 use quill::tree::mappings::Mappings;
 use quill::tree::names::Names;
 use crate::version_graph::VersionGraph;
@@ -87,7 +87,7 @@ async fn build(downloader: &mut Downloader, version_graph: &VersionGraph, versio
     let calamus_v2 = downloader.calamus_v2(version).await?;
     let libraries = downloader.mc_libs(version).await?;
 
-    let build_feather_tiny = Jar::add_specialized_methods_to_mappings(&main_jar, &calamus_v2, &libraries, &mappings)
+    let build_feather_tiny = specialized_methods::add_specialized_methods_to_mappings(&main_jar, &calamus_v2, &libraries, &mappings)
         .context("failed to add specialized methods to mappings")?;
 
     let merge_v2 = merge_v2(&build_feather_tiny, &calamus_v2)?;
@@ -96,11 +96,11 @@ async fn build(downloader: &mut Downloader, version_graph: &VersionGraph, versio
 
     let name = format!("feather-{feather_version}-mergedv2.jar");
     let data = tiny_v2_write_zip_file(&merge_v2)?;
-    let merged_feather = Jar::new_mem(name, data);
+    let merged_feather = MemJar::new(name, data);
 
     let name = format!("feather-{feather_version}-v2.jar");
     let data = tiny_v2_write_zip_file(&build_feather_tiny)?;
-    let unmerged_feather = Jar::new_mem(name, data);
+    let unmerged_feather = MemJar::new(name, data);
 
     Ok(BuildResult { merged_feather, unmerged_feather })
 }
@@ -236,27 +236,27 @@ impl ApplyFix for Mappings<3> {
 /// the two jars (client and server) will be merged.
 ///
 /// This jar is in the `official` mappings, i.e. obfuscated.
-async fn main_jar(downloader: &mut Downloader, version: &Version) -> Result<Jar> {
+async fn main_jar(downloader: &mut Downloader, version: &Version) -> Result<EnumJar> {
     let environment = version.get_environment();
 
     let version_details = downloader.version_details(version, &environment).await?;
 
-    match environment {
+    Ok(match environment {
         Environment::Merged => {
             let client = downloader.get_jar(&version_details.downloads.client.url).await?;
             let server = downloader.get_jar(&version_details.downloads.server.url).await?;
 
-            Jar::merge(client, server).with_context(|| anyhow!("failed to merge jars for version {version}"))
+            jar::merge::merge(client, server).with_context(|| anyhow!("failed to merge jars for version {version}"))?.into()
         },
-        Environment::Client => downloader.get_jar(&version_details.downloads.client.url).await,
-        Environment::Server => downloader.get_jar(&version_details.downloads.server.url).await,
-    }
+        Environment::Client => downloader.get_jar(&version_details.downloads.client.url).await?.into(),
+        Environment::Server => downloader.get_jar(&version_details.downloads.server.url).await?.into(),
+    })
 }
 
 #[derive(Debug)]
 struct BuildResult {
-    merged_feather: Jar,
-    unmerged_feather: Jar,
+    merged_feather: MemJar,
+    unmerged_feather: MemJar,
 }
 
 #[tokio::main]

@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::fs::File;
 use std::hash::Hash;
 use std::io::{Cursor, Read, Seek, Write};
 use anyhow::{bail, Result};
@@ -11,7 +10,7 @@ use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
 use duke::tree::class::{ClassFile, ClassName};
 use duke::tree::field::{Field, FieldDescriptor};
 use duke::tree::method::Method;
-use crate::jar::Jar;
+use crate::jar::{Jar, MemJar};
 
 #[derive(Clone, Debug, PartialEq)]
 enum Side {
@@ -124,7 +123,7 @@ fn merge_eq<T>(client: &T, server: &T) -> Result<T>
 	Ok(client.clone())
 }
 
-fn merge<T>(client: &T, server: &T) -> Result<T>
+fn merge_from_client<T>(client: &T, server: &T) -> Result<T>
 	where
 		T: Debug + Clone + PartialEq,
 {
@@ -171,8 +170,8 @@ fn class_merger_merge(client: &[u8], server: &[u8]) -> Result<Vec<u8>> {
 	}
 
 	let out = ClassFile {
-		version: merge(&client.version, &server.version)?,
-		access: merge(&client.access, &server.access)?,
+		version: merge_from_client(&client.version, &server.version)?,
+		access: merge_from_client(&client.access, &server.access)?,
 		name: merge_eq(&client.name, &server.name)?,
 		super_class: merge_eq(&client.super_class, &server.super_class)?,
 		interfaces: interfaces.into_iter().cloned().collect(),
@@ -193,8 +192,8 @@ fn class_merger_merge(client: &[u8], server: &[u8]) -> Result<Vec<u8>> {
 				name: merge_eq(&client.name, &server.name)?,
 				descriptor: merge_eq(&client.descriptor, &server.descriptor)?,
 
-				has_deprecated_attribute: merge(&client.has_deprecated_attribute, &server.has_deprecated_attribute)?,
-				has_synthetic_attribute: merge(&client.has_synthetic_attribute, &server.has_synthetic_attribute)?,
+				has_deprecated_attribute: merge_from_client(&client.has_deprecated_attribute, &server.has_deprecated_attribute)?,
+				has_synthetic_attribute: merge_from_client(&client.has_synthetic_attribute, &server.has_synthetic_attribute)?,
 
 				..client.clone() // TODO: handle more fields
 			})
@@ -215,15 +214,15 @@ fn class_merger_merge(client: &[u8], server: &[u8]) -> Result<Vec<u8>> {
 				name: merge_eq(&client.name, &server.name)?,
 				descriptor: merge_eq(&client.descriptor, &server.descriptor)?,
 
-				has_deprecated_attribute: merge(&client.has_deprecated_attribute, &server.has_deprecated_attribute)?,
-				has_synthetic_attribute: merge(&client.has_synthetic_attribute, &server.has_synthetic_attribute)?,
+				has_deprecated_attribute: merge_from_client(&client.has_deprecated_attribute, &server.has_deprecated_attribute)?,
+				has_synthetic_attribute: merge_from_client(&client.has_synthetic_attribute, &server.has_synthetic_attribute)?,
 
 				..client.clone() // TODO: handle more fields
 			}),
 		)?,
 
-		has_deprecated_attribute: merge(&client.has_deprecated_attribute, &server.has_deprecated_attribute)?,
-		has_synthetic_attribute: merge(&client.has_synthetic_attribute, &server.has_synthetic_attribute)?,
+		has_deprecated_attribute: merge_from_client(&client.has_deprecated_attribute, &server.has_deprecated_attribute)?,
+		has_synthetic_attribute: merge_from_client(&client.has_synthetic_attribute, &server.has_synthetic_attribute)?,
 
 		inner_classes: {
 			let inner_classes = merge_slice(
@@ -334,161 +333,150 @@ fn sided_class_visitor(data: &[u8], side: Side) -> Result<Vec<u8>> {
 	Ok(buf)
 }
 
-impl Jar {
 
-	fn read_to_map(&self) -> Result<IndexMap<String, Entry>> {
-		fn action(mut reader: impl Read + Seek) -> Result<IndexMap<String, Entry>> {
-			let mut zip = ZipArchive::new(&mut reader)?;
+fn read_to_map(jar: &impl Jar) -> Result<IndexMap<String, Entry>> {
+	fn action(mut reader: impl Read + Seek) -> Result<IndexMap<String, Entry>> {
+		let mut zip = ZipArchive::new(&mut reader)?;
 
-			let mut map = IndexMap::new();
+		let mut map = IndexMap::new();
 
-			for index in 0..zip.len() {
-				let mut file = zip.by_index(index)?;
+		for index in 0..zip.len() {
+			let mut file = zip.by_index(index)?;
 
-				if file.is_dir() {
-					continue;
-				}
-
-				match file.name().to_owned().as_str() {
-					name if name.ends_with(".class") => {
-						let mut vec = Vec::new();
-						file.read_to_end(&mut vec)?;
-
-						let e = Entry {
-							kind: EntryKind::Class,
-							path: name.to_owned(),
-							attr: BasicFileAttributes::new(&file),
-							data: vec,
-						};
-						map.insert(e.path.clone(), e);
-					},
-					name @ "/META-INF/MANIFEST.MF" => {
-						let v = b"Manifest-Version: 1.0\nMain-Class: net.minecraft.client.Main\n".to_vec();
-
-						let e = Entry {
-							kind: EntryKind::Other,
-							path: name.to_owned(),
-							attr: BasicFileAttributes::new(&file),
-							data: v,
-						};
-						map.insert(e.path.clone(), e);
-					},
-					name if name.starts_with("/META-INF/") && (
-						name.ends_with(".SF") || name.ends_with(".RSA")) => {
-					},
-					name => {
-						let mut vec = Vec::new();
-						file.read_to_end(&mut vec)?;
-
-						let e = Entry {
-							kind: EntryKind::Other,
-							path: name.to_owned(),
-							attr: BasicFileAttributes::new(&file),
-							data: vec,
-						};
-						map.insert(e.path.clone(), e);
-					},
-				}
+			if file.is_dir() {
+				continue;
 			}
 
-			Ok(map)
+			match file.name().to_owned().as_str() {
+				name if name.ends_with(".class") => {
+					let mut vec = Vec::new();
+					file.read_to_end(&mut vec)?;
+
+					let e = Entry {
+						kind: EntryKind::Class,
+						path: name.to_owned(),
+						attr: BasicFileAttributes::new(&file),
+						data: vec,
+					};
+					map.insert(e.path.clone(), e);
+				},
+				name @ "/META-INF/MANIFEST.MF" => {
+					let v = b"Manifest-Version: 1.0\nMain-Class: net.minecraft.client.Main\n".to_vec();
+
+					let e = Entry {
+						kind: EntryKind::Other,
+						path: name.to_owned(),
+						attr: BasicFileAttributes::new(&file),
+						data: v,
+					};
+					map.insert(e.path.clone(), e);
+				},
+				name if name.starts_with("/META-INF/") && (
+					name.ends_with(".SF") || name.ends_with(".RSA")) => {
+				},
+				name => {
+					let mut vec = Vec::new();
+					file.read_to_end(&mut vec)?;
+
+					let e = Entry {
+						kind: EntryKind::Other,
+						path: name.to_owned(),
+						attr: BasicFileAttributes::new(&file),
+						data: vec,
+					};
+					map.insert(e.path.clone(), e);
+				},
+			}
 		}
 
-		match self {
-			Jar::File { path } => {
-				let reader = File::open(path)?;
-				action(reader)
-			},
-			Jar::Mem { data, .. } => {
-				let reader = Cursor::new(data);
-				action(reader)
-			},
-		}
+		Ok(map)
 	}
 
+	let reader = jar.open()?;
+	action(reader)
+}
 
-	pub(crate) fn merge(client: Jar, server: Jar) -> Result<Jar> {
-		let entries_client = client.read_to_map()?;
-		let entries_server = server.read_to_map()?;
+pub(crate) fn merge(client: impl Jar, server: impl Jar) -> Result<MemJar> {
+	let entries_client = read_to_map(&client)?;
+	let entries_server = read_to_map(&server)?;
 
-		let mut resulting_entries = Vec::new();
-		for key in entries_client.keys().chain(entries_server.keys()) {
-			let is_class = key.ends_with(".class");
+	let mut resulting_entries = Vec::new();
+	for key in entries_client.keys().chain(entries_server.keys()) {
+		let is_class = key.ends_with(".class");
 
-			let entry_client = entries_client.get(key);
-			let entry_server = entries_server.get(key);
+		let entry_client = entries_client.get(key);
+		let entry_server = entries_server.get(key);
 
-			let side = match (entry_client, entry_server) {
-				(Some(_), Some(_)) => Side::Both,
-				(Some(_), None) => Side::Client,
-				(None, Some(_)) => Side::Server,
+		let side = match (entry_client, entry_server) {
+			(Some(_), Some(_)) => Side::Both,
+			(Some(_), None) => Side::Client,
+			(None, Some(_)) => Side::Server,
+			(None, None) => unreachable!(),
+		};
+
+		let is_minecraft = entries_client.contains_key(key)
+			|| key.starts_with("/net/minecraft/")
+			|| !key.strip_prefix('/').is_some_and(|x| x.contains('/'));
+
+		if !(is_class && !is_minecraft && side == Side::Server) {
+			let result = match (entry_client, entry_server) {
+				(Some(client), Some(server)) if client.data == server.data => client.clone(),
+				(Some(client), Some(server)) => {
+					if is_class {
+						assert_eq!(&client.kind, &server.kind);
+						assert_eq!(&client.path, &server.path);
+
+						Entry {
+							kind: client.kind.clone(),
+							path: client.path.clone(),
+							attr: client.attr.clone(), // TODO: ?= server.attr
+							data: class_merger_merge(&client.data, &server.data)?,
+						}
+					} else {
+						// TODO: warning here
+						client.clone()
+					}
+				},
+				(Some(client), None) => client.clone(),
+				(None, Some(server)) => server.clone(),
 				(None, None) => unreachable!(),
 			};
 
-			let is_minecraft = entries_client.contains_key(key)
-				|| key.starts_with("/net/minecraft/")
-				|| !key.strip_prefix('/').is_some_and(|x| x.contains('/'));
-
-			if !(is_class && !is_minecraft && side == Side::Server) {
-				let result = match (entry_client, entry_server) {
-					(Some(client), Some(server)) if client.data == server.data => client.clone(),
-					(Some(client), Some(server)) => {
-						if is_class {
-							assert_eq!(&client.kind, &server.kind);
-							assert_eq!(&client.path, &server.path);
-
-							Entry {
-								kind: client.kind.clone(),
-								path: client.path.clone(),
-								attr: client.attr.clone(), // TODO: ?= server.attr
-								data: class_merger_merge(&client.data, &server.data)?,
-							}
-						} else {
-							// TODO: warning here
-							client.clone()
-						}
-					},
-					(Some(client), None) => client.clone(),
-					(None, Some(server)) => server.clone(),
-					(None, None) => unreachable!(),
-				};
-
-				let r = if is_class && is_minecraft && side != Side::Both {
-					Entry {
-						kind: EntryKind::Class,
-						path: result.path,
-						attr: result.attr,
-						data: sided_class_visitor(&result.data, side)?,
-					}
-				} else {
-					result
-				};
-
-				resulting_entries.push(r);
-			}
-		}
-
-		let writer = Cursor::new(Vec::new());
-		let mut zip_out = ZipWriter::new(writer);
-
-		for e in resulting_entries {
-
-			let mut x = e.path.as_str();
-			while let Some((left, _)) = x.rsplit_once('/') {
-				if !left.is_empty() {
-					zip_out.add_directory(left, FileOptions::default())?;
+			let r = if is_class && is_minecraft && side != Side::Both {
+				Entry {
+					kind: EntryKind::Class,
+					path: result.path,
+					attr: result.attr,
+					data: sided_class_visitor(&result.data, side)?,
 				}
-				x = left;
+			} else {
+				result
+			};
+
+			resulting_entries.push(r);
+		}
+	}
+
+	let writer = Cursor::new(Vec::new());
+	let mut zip_out = ZipWriter::new(writer);
+
+	for e in resulting_entries {
+
+		let mut x = e.path.as_str();
+		while let Some((left, _)) = x.rsplit_once('/') {
+			if !left.is_empty() {
+				zip_out.add_directory(left, FileOptions::default())?;
 			}
-
-			zip_out.start_file(e.path, FileOptions::default().last_modified_time(e.attr.mtime))?;
-			// TODO: set the files ctime, atime, mtime to the ones from the file read
-			zip_out.write_all(&e.data)?;
-
+			x = left;
 		}
 
-		let vec = zip_out.finish()?.into_inner();
+		zip_out.start_file(e.path, FileOptions::default().last_modified_time(e.attr.mtime))?;
+		// TODO: set the files ctime, atime, mtime to the ones from the file read
+		zip_out.write_all(&e.data)?;
 
-		Ok(Jar::new_mem_unnamed(vec))
 	}
+
+	let vec = zip_out.finish()?.into_inner();
+
+	Ok(MemJar::new_unnamed(vec))
 }
