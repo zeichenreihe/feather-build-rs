@@ -23,63 +23,53 @@ pub(crate) struct VersionGraph {
 }
 
 impl VersionGraph {
-	fn add_node(versions: &mut IndexMap<Version, NodeIndex>, graph: &mut Graph<Version, MappingsDiff>, version: &str) -> NodeIndex {
-		*versions.entry(Version(version.to_owned()))
-			.or_insert_with(|| graph.add_node(Version(version.to_owned())))
-	}
-
 	pub(crate) fn resolve(dir: &Path) -> Result<VersionGraph> {
 		let mut graph: Graph<Version, MappingsDiff> = Graph::new();
 
-		let mut root = None;
-		let mut root_mapping = None;
+		let mut root: Option<(NodeIndex, PathBuf)> = None;
 
 		let mut versions = IndexMap::new();
 
-		Self::iterate_versions(
-			dir,
-			|parent, version, path| {
-				if let Some(parent) = parent {
-					let v = Self::add_node(&mut versions, &mut graph, version);
-					let p = Self::add_node(&mut versions, &mut graph, parent);
+		for file in std::fs::read_dir(dir)? {
+			let file = file?;
 
-					let diff = quill::tiny_v2_diff::read_file(&path)
-						.with_context(|| anyhow!("failed to parse version diff from {path:?}"))?;
+			let path = file.path();
 
-					graph.add_edge(p, v, diff);
-				} else {
-					if let Some(root) = root {
-						bail!("multiple roots present: {:?}, {version} ({path:?})", graph[root]);
-					}
+			let file_name = file.file_name().into_string().unwrap();
 
-					let v = Self::add_node(&mut versions, &mut graph, version);
+			let mut add_node = |version: &str| *versions.entry(Version(version.to_owned()))
+				.or_insert_with_key(|k| graph.add_node(k.clone()));
 
-					let mapping = quill::tiny_v2::read_file(&path)
-						.with_context(|| anyhow!("failed to parse version mapping from {path:?}"))?;
+			if let Some(version) = file_name.strip_suffix(MAPPINGS_EXTENSION) {
+				let v = add_node(version);
 
-					root = Some(v);
-					root_mapping = Some(mapping);
+				if let Some((old_root, ref old_path)) = root {
+					bail!("multiple roots present: {old_version:?} ({old_path:?}) and {version} ({path:?})", old_version = &graph[old_root]);
 				}
+				root = Some((v, path));
+			} else if let Some(raw_versions) = file_name.strip_suffix(DIFF_EXTENSION) {
+				let Some((parent, version)) = raw_versions.split_once('#') else {
+					bail!("expected there to be exactly one `#` in the diff file name {file_name:?}");
+				};
 
-				Ok(())
+				let v = add_node(version);
+				let p = add_node(parent);
+
+				let diff = quill::tiny_v2_diff::read_file(&path)
+					.with_context(|| anyhow!("failed to parse version diff from {path:?}"))?;
+
+				graph.add_edge(p, v, diff);
 			}
-		).context("failed to read versions")?;
+		}
 
-		let root = root.context("version graph does not have a root!")?;
-		let root_mapping = root_mapping.unwrap(); // see above + setting them together
+		let (root, root_path) = root.context("version graph does not have a root")?;
 
-		let g = VersionGraph {
-			root,
-			root_mapping,
+		let root_mapping = quill::tiny_v2::read_file(&root_path)
+			.with_context(|| anyhow!("failed to parse version mapping from {root_path:?}"))?;
 
-			versions,
-
-			graph,
-		};
-
-		let mut walkers = VecDeque::from([ (Vec::new(), g.root) ]);
+		let mut walkers: VecDeque<_> = [ (Vec::new(), root) ].into();
 		while let Some((path, head)) = walkers.pop_front() {
-			for v in g.graph.neighbors_directed(head, Direction::Outgoing) {
+			for v in graph.neighbors_directed(head, Direction::Outgoing) {
 				if path.contains(&v) {
 					bail!("found a loop in the version graph: {:?}", v);
 				}
@@ -91,37 +81,7 @@ impl VersionGraph {
 			}
 		}
 
-		Ok(g)
-	}
-
-	fn iterate_versions<F>(dir: &Path, mut operation: F) -> Result<()>
-	where
-		F: FnMut(Option<&str>, &str, PathBuf) -> Result<()>,
-	{
-		for file in std::fs::read_dir(dir)? {
-			let file = file?;
-
-			let file_name: String = file.file_name().into_string().unwrap();
-
-			if let Some(version) = file_name.strip_suffix(MAPPINGS_EXTENSION) {
-				operation(None, version, file.path())
-					.with_context(|| anyhow!("failed to read operate on {version} at {file:?}"))?;
-			} else if let Some(raw_versions) = file_name.strip_suffix(DIFF_EXTENSION) {
-				let versions: Vec<_> = raw_versions.split('#').collect();
-
-				if versions.len() == 2 {
-					let parent = versions[0];
-					let version = versions[1];
-
-					operation(Some(parent), version, file.path())
-						.with_context(|| anyhow!("failed to read operate on {} # {} at {file:?}", versions[0], versions[1]))?;
-				} else {
-					bail!("expected exactly two versions in diff file name {file_name:?}, got {versions:?}");
-				}
-			}
-		}
-
-		Ok(())
+		Ok(VersionGraph { root, root_mapping, versions, graph })
 	}
 
 	pub(crate) fn versions(&self) -> impl Iterator<Item=&Version> + '_ {
