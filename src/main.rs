@@ -9,7 +9,7 @@ use zip::ZipWriter;
 use duke::tree::method::ParameterName;
 use crate::download::Downloader;
 use crate::download::versions_manifest::MinecraftVersion;
-use crate::jar::{EnumJar, MemJar};
+use crate::jar::{EnumJarFromReader, MemJar};
 use quill::tree::mappings::Mappings;
 use quill::tree::names::Names;
 use crate::version_graph::VersionGraph;
@@ -236,7 +236,7 @@ impl ApplyFix for Mappings<3> {
 /// the two jars (client and server) will be merged.
 ///
 /// This jar is in the `official` mappings, i.e. obfuscated.
-async fn main_jar(downloader: &mut Downloader, version: &Version) -> Result<EnumJar> {
+async fn main_jar(downloader: &mut Downloader, version: &Version) -> Result<EnumJarFromReader> {
     let environment = version.get_environment();
 
     let version_details = downloader.version_details(version, &environment).await?;

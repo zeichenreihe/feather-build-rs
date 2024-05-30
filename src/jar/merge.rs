@@ -10,7 +10,7 @@ use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
 use duke::tree::class::{ClassFile, ClassName};
 use duke::tree::field::{Field, FieldDescriptor};
 use duke::tree::method::Method;
-use crate::jar::{Jar, MemJar};
+use crate::jar::{Jar, JarFromReader, MemJar};
 
 #[derive(Clone, Debug, PartialEq)]
 enum Side {
@@ -334,69 +334,65 @@ fn sided_class_visitor(data: &[u8], side: Side) -> Result<Vec<u8>> {
 }
 
 
-fn read_to_map(jar: &impl Jar) -> Result<IndexMap<String, Entry>> {
-	fn action(mut reader: impl Read + Seek) -> Result<IndexMap<String, Entry>> {
-		let mut zip = ZipArchive::new(&mut reader)?;
+fn read_to_map(jar: &(impl Jar + JarFromReader)) -> Result<IndexMap<String, Entry>> {
+	let reader = jar.open()?;
+	let mut zip = ZipArchive::new(reader)?;
 
-		let mut map = IndexMap::new();
+	let mut map = IndexMap::new();
 
-		for index in 0..zip.len() {
-			let mut file = zip.by_index(index)?;
+	for index in 0..zip.len() {
+		let mut file = zip.by_index(index)?;
 
-			if file.is_dir() {
-				continue;
-			}
-
-			match file.name().to_owned().as_str() {
-				name if name.ends_with(".class") => {
-					let mut vec = Vec::new();
-					file.read_to_end(&mut vec)?;
-
-					let e = Entry {
-						kind: EntryKind::Class,
-						path: name.to_owned(),
-						attr: BasicFileAttributes::new(&file),
-						data: vec,
-					};
-					map.insert(e.path.clone(), e);
-				},
-				name @ "/META-INF/MANIFEST.MF" => {
-					let v = b"Manifest-Version: 1.0\nMain-Class: net.minecraft.client.Main\n".to_vec();
-
-					let e = Entry {
-						kind: EntryKind::Other,
-						path: name.to_owned(),
-						attr: BasicFileAttributes::new(&file),
-						data: v,
-					};
-					map.insert(e.path.clone(), e);
-				},
-				name if name.starts_with("/META-INF/") && (
-					name.ends_with(".SF") || name.ends_with(".RSA")) => {
-				},
-				name => {
-					let mut vec = Vec::new();
-					file.read_to_end(&mut vec)?;
-
-					let e = Entry {
-						kind: EntryKind::Other,
-						path: name.to_owned(),
-						attr: BasicFileAttributes::new(&file),
-						data: vec,
-					};
-					map.insert(e.path.clone(), e);
-				},
-			}
+		if file.is_dir() {
+			continue;
 		}
 
-		Ok(map)
+		match file.name().to_owned().as_str() {
+			name if name.ends_with(".class") => {
+				let mut vec = Vec::new();
+				file.read_to_end(&mut vec)?;
+
+				let e = Entry {
+					kind: EntryKind::Class,
+					path: name.to_owned(),
+					attr: BasicFileAttributes::new(&file),
+					data: vec,
+				};
+				map.insert(e.path.clone(), e);
+			},
+			name @ "/META-INF/MANIFEST.MF" => {
+				let v = b"Manifest-Version: 1.0\nMain-Class: net.minecraft.client.Main\n".to_vec();
+
+				let e = Entry {
+					kind: EntryKind::Other,
+					path: name.to_owned(),
+					attr: BasicFileAttributes::new(&file),
+					data: v,
+				};
+				map.insert(e.path.clone(), e);
+			},
+			name if name.starts_with("/META-INF/") && (
+				name.ends_with(".SF") || name.ends_with(".RSA")) => {
+			},
+			name => {
+				let mut vec = Vec::new();
+				file.read_to_end(&mut vec)?;
+
+				let e = Entry {
+					kind: EntryKind::Other,
+					path: name.to_owned(),
+					attr: BasicFileAttributes::new(&file),
+					data: vec,
+				};
+				map.insert(e.path.clone(), e);
+			},
+		}
 	}
 
-	let reader = jar.open()?;
-	action(reader)
+	Ok(map)
 }
 
-pub(crate) fn merge(client: impl Jar, server: impl Jar) -> Result<MemJar> {
+pub(crate) fn merge(client: impl Jar + JarFromReader, server: impl Jar + JarFromReader) -> Result<MemJar> {
 	let entries_client = read_to_map(&client)?;
 	let entries_server = read_to_map(&server)?;
 
