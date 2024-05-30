@@ -135,40 +135,26 @@ impl VersionGraph {
 			.map(|node| &self.graph[node])
 	}
 
-	pub(crate) fn get_diffs_from_root(&self, to: &Version) -> Result<Vec<(&Version, &Version, &MappingsDiff)>> {
-
-		let to_node = self.versions.get(to).unwrap();
-
-		petgraph::algo::astar(
-			&self.graph,
-			self.root,
-			|n| n == *to_node,
-			|_| 1,
-			|_| 0
-		)
-			.ok_or_else(|| anyhow!("there is no path in between {:?} and {to:?}", &self.root))?
-			.1
-			.windows(2)
-			.map(|x| {
-				let a = x[0];
-				let b = x[1];
-
-				if let Some(edge) = self.graph.find_edge(a, b) {
-					Ok((&self.graph[a], &self.graph[b], &self.graph[edge]))
-				} else {
-					bail!("there is no edge between {a:?} and {b:?}");
-				}
-			})
-			.collect()
-	}
-
 	pub(crate) fn apply_diffs(&self, target_version: &Version) -> Result<Mappings<2>> {
-		self.get_diffs_from_root(target_version)?
-			.iter()
-			.try_fold(self.root_mapping.clone(), |m, (from, to, diff)| {
+		let to_node = self.versions.get(target_version).unwrap();
+
+		petgraph::algo::astar(&self.graph, self.root, |n| n == *to_node, |_| 1, |_| 0)
+			.ok_or_else(|| anyhow!("there is no path in between {:?} and {target_version:?}", &self.root))?
+			.1
+			.windows(2) // TODO: once array_windows is stable, use that
+			.try_fold(self.root_mapping.clone(), |m, x| {
+				let (a, b) = (x[0], x[1]);
+
+				let from = &self.graph[a];
+				let to = &self.graph[b];
+
+				let edge = self.graph.find_edge(a, b)
+					.ok_or_else(|| anyhow!("there is no edge between {a:?} ({from:?}) and {b:?} ({to:?})"))?;
+
+				let diff = &self.graph[edge];
+
 				diff.apply_to(m, "named")
 					.with_context(|| anyhow!("failed to apply diff from version {from:?} to version {to:?} to mappings, for version {target_version:?}"))
-			})?
-			.extend_inner_class_names("named")
+			})
 	}
 }

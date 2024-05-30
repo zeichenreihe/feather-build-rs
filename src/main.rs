@@ -80,6 +80,7 @@ async fn build(downloader: &mut Downloader, version_graph: &VersionGraph, versio
     let feather_version = next_feather_version(downloader, version, false).await?;
 
     let mappings = version_graph.apply_diffs(version)? // calamus -> named
+        .extend_inner_class_names("named")?
         .remove_dummy("named")?;
 
     let main_jar = main_jar(downloader, version).await?;
