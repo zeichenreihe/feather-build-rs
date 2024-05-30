@@ -5,7 +5,7 @@ use duke::tree::class::ClassName;
 use duke::tree::field::{FieldDescriptor, FieldName};
 use duke::tree::method::{MethodDescriptor, MethodName, ParameterName};
 use crate::tree::names::{Names, Namespace, Namespaces};
-use crate::tree::{FromKey, NodeInfo, ToKey};
+use crate::tree::{FromKey, GetNames, NodeInfo, ToKey};
 
 #[derive(Debug, Clone)]
 pub struct Mappings<const N: usize> {
@@ -226,6 +226,16 @@ impl<const N: usize> FromKey<ClassName> for ClassMapping<N> {
 	}
 }
 
+impl<const N: usize> GetNames<N, ClassName> for ClassMapping<N> {
+	fn get_names(&self) -> &Names<N, ClassName> {
+		&self.names
+	}
+
+	fn get_names_mut(&mut self) -> &mut Names<N, ClassName> {
+		&mut self.names
+	}
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FieldKey {
 	pub desc: FieldDescriptor,
@@ -253,6 +263,16 @@ impl<const N: usize> FromKey<FieldKey> for FieldMapping<N> {
 			desc: key.desc,
 			names: Names::from_first_name(key.name),
 		}
+	}
+}
+
+impl<const N: usize> GetNames<N, FieldName> for FieldMapping<N> {
+	fn get_names(&self) -> &Names<N, FieldName> {
+		&self.names
+	}
+
+	fn get_names_mut(&mut self) -> &mut Names<N, FieldName> {
+		&mut self.names
 	}
 }
 
@@ -286,6 +306,16 @@ impl<const N: usize> FromKey<MethodKey> for MethodMapping<N> {
 	}
 }
 
+impl<const N: usize> GetNames<N, MethodName> for MethodMapping<N> {
+	fn get_names(&self) -> &Names<N, MethodName> {
+		&self.names
+	}
+
+	fn get_names_mut(&mut self) -> &mut Names<N, MethodName> {
+		&mut self.names
+	}
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParameterKey {
 	pub(crate) index: usize,
@@ -313,6 +343,16 @@ impl<const N: usize> FromKey<ParameterKey> for ParameterMapping<N> {
 			index: key.index,
 			names: Names::from_first_name(key.name),
 		}
+	}
+}
+
+impl<const N: usize> GetNames<N, ParameterName> for ParameterMapping<N> {
+	fn get_names(&self) -> &Names<N, ParameterName> {
+		&self.names
+	}
+
+	fn get_names_mut(&mut self) -> &mut Names<N, ParameterName> {
+		&mut self.names
 	}
 }
 

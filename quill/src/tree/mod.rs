@@ -16,6 +16,11 @@ pub(crate) trait FromKey<K> {
 	fn from_key(key: K) -> Self;
 }
 
+pub(crate) trait GetNames<const N: usize, T> {
+	fn get_names(&self) -> &Names<N, T>;
+	fn get_names_mut(&mut self) -> &mut Names<N, T>;
+}
+
 pub mod names {
 	use std::fmt::{Debug, Formatter};
 	use std::ops::{Index, IndexMut};

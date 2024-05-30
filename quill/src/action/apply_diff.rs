@@ -4,8 +4,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use crate::tree::mappings::{ClassNowodeMapping, FieldNowodeMapping, Mappings, MethodNowodeMapping, ParameterNowodeMapping};
 use crate::tree::mappings_diff::{Action, MappingsDiff};
-use crate::tree::names::{Names, Namespace};
-use crate::tree::{FromKey, NodeInfo};
+use crate::tree::names::Namespace;
+use crate::tree::{FromKey, GetNames, NodeInfo};
 
 fn apply_diff_option<T>(
 	diff: &Option<Action<T>>,
@@ -58,7 +58,6 @@ fn apply_diff_map<const N: usize, Key, Diff, Target, Name, Mapping>(
 	target_namespace: Namespace<N>,
 	diffs: &IndexMap<Key, Diff>,
 	targets: IndexMap<Key, Target>,
-	names_get_mut: impl Fn(&mut Mapping) -> &mut Names<N, Name>,
 	apply_child: impl Fn(&Diff, Target) -> Result<Target>,
 ) -> Result<IndexMap<Key, Target>>
 	where
@@ -66,7 +65,7 @@ fn apply_diff_map<const N: usize, Key, Diff, Target, Name, Mapping>(
 		Diff: NodeInfo<Action<Name>>,
 		Target: Clone + NodeInfo<Mapping>,
 		Name: Debug + PartialEq + Clone,
-		Mapping: FromKey<Key>,
+		Mapping: FromKey<Key> + GetNames<N, Name>,
 {
 	// There are four different cases:
 	// 1. A key is in targets and diffs.
@@ -93,7 +92,8 @@ fn apply_diff_map<const N: usize, Key, Diff, Target, Name, Mapping>(
 			match action {
 				Action::Add(b) => {
 					// Add the name
-					names_get_mut(target.get_node_info_mut())
+					target.get_node_info_mut()
+						.get_names_mut()
 						.change_name(target_namespace, None, Some(b))
 						.with_context(|| anyhow!("cannot apply action {action:?} with same key {key:?}"))?;
 
@@ -102,7 +102,8 @@ fn apply_diff_map<const N: usize, Key, Diff, Target, Name, Mapping>(
 				},
 				Action::Remove(a) => {
 					// Check the name for removal
-					names_get_mut(target.get_node_info_mut())
+					target.get_node_info_mut()
+						.get_names_mut()
 						.change_name(target_namespace, Some(a), None)
 						.with_context(|| anyhow!("cannot apply action {action:?} with same key {key:?}"))?;
 
@@ -113,7 +114,8 @@ fn apply_diff_map<const N: usize, Key, Diff, Target, Name, Mapping>(
 				},
 				Action::Edit(a, b) => {
 					// Edit the name correctly
-					names_get_mut(target.get_node_info_mut())
+					target.get_node_info_mut()
+						.get_names_mut()
 						.change_name(target_namespace, Some(a), Some(b))
 						.with_context(|| anyhow!("cannot apply action {action:?} with same key {key:?}"))?;
 
@@ -145,7 +147,8 @@ fn apply_diff_map<const N: usize, Key, Diff, Target, Name, Mapping>(
 			Action::Add(b) => {
 				let mut info = Mapping::from_key(key.clone());
 
-				names_get_mut(&mut info)[target_namespace] = Some(b.clone());
+
+				info.get_names_mut()[target_namespace] = Some(b.clone());
 
 				let node = Target::new(info);
 
@@ -181,11 +184,11 @@ impl MappingsDiff {
 			},
 			javadoc: apply_diff_option(&self.javadoc, target.javadoc)?,
 			classes: apply_diff_map(namespace,
-				&self.classes, target.classes, |t| &mut t.names,
+				&self.classes, target.classes,
 				|diff, class| Ok(ClassNowodeMapping {
 					javadoc: apply_diff_option(&diff.javadoc, class.javadoc)?,
 					fields: apply_diff_map(namespace,
-						&diff.fields, class.fields, |t| &mut t.names,
+						&diff.fields, class.fields,
 						|diff, field| Ok(FieldNowodeMapping {
 							javadoc: apply_diff_option(&diff.javadoc, field.javadoc)
 								.with_context(|| anyhow!("failed to apply diff for javadoc in field {:?}", field.info))?,
@@ -194,12 +197,12 @@ impl MappingsDiff {
 					)
 						.with_context(|| anyhow!("failed to apply diff for field in class {:?}", class.info))?,
 					methods: apply_diff_map(namespace,
-						&diff.methods, class.methods, |t| &mut t.names,
+						&diff.methods, class.methods,
 						|diff, method| Ok(MethodNowodeMapping {
 							javadoc: apply_diff_option(&diff.javadoc, method.javadoc)
 								.with_context(|| anyhow!("failed to apply diff for javadoc in method {:?}", method.info))?,
 							parameters: apply_diff_map(namespace,
-								&diff.parameters, method.parameters, |t| &mut t.names,
+								&diff.parameters, method.parameters,
 								|diff, parameter| Ok(ParameterNowodeMapping {
 									javadoc: apply_diff_option(&diff.javadoc, parameter.javadoc)
 										.with_context(|| anyhow!("failed to apply diff for javadoc in parameter {:?}", parameter.info))?,
