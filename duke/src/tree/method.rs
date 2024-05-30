@@ -72,39 +72,44 @@ impl Method {
 
 				method_visitor.visit_deprecated_and_synthetic_attribute(self.has_deprecated_attribute, self.has_synthetic_attribute)?;
 
-				if let Some(code) = self.code {
-					method_visitor = code.accept(method_visitor)?;
+				if interests.code {
+					if let Some(code) = self.code {
+						method_visitor = code.accept(method_visitor)?;
+					}
 				}
-				if let Some(exceptions) = self.exceptions {
-					method_visitor.visit_exceptions(exceptions)?;
+				if interests.exceptions {
+					if let Some(exceptions) = self.exceptions {
+						method_visitor.visit_exceptions(exceptions)?;
+					}
 				}
-				if let Some(signature) = self.signature {
-					method_visitor.visit_signature(signature)?;
+				if interests.signature {
+					if let Some(signature) = self.signature {
+						method_visitor.visit_signature(signature)?;
+					}
 				}
 
-				// TODO: it would most likely be better to swap this check around (in all of the cases, in class/field/method/...)
-				if !self.runtime_visible_annotations.is_empty() && interests.runtime_visible_annotations {
+				if interests.runtime_visible_annotations && !self.runtime_visible_annotations.is_empty() {
 					let (visitor, mut annotations_visitor) = method_visitor.visit_annotations(true)?;
 					for annotation in self.runtime_visible_annotations {
 						annotations_visitor = annotation.accept(annotations_visitor)?;
 					}
 					method_visitor = MethodVisitor::finish_annotations(visitor, annotations_visitor)?;
 				}
-				if !self.runtime_invisible_annotations.is_empty() && interests.runtime_invisible_annotations {
+				if interests.runtime_invisible_annotations && !self.runtime_invisible_annotations.is_empty() {
 					let (visitor, mut annotations_visitor) = method_visitor.visit_annotations(false)?;
 					for annotation in self.runtime_invisible_annotations {
 						annotations_visitor = annotation.accept(annotations_visitor)?;
 					}
 					method_visitor = MethodVisitor::finish_annotations(visitor, annotations_visitor)?;
 				}
-				if !self.runtime_visible_type_annotations.is_empty() && interests.runtime_visible_type_annotations {
+				if interests.runtime_visible_type_annotations && !self.runtime_visible_type_annotations.is_empty() {
 					let (visitor, mut type_annotations_visitor) = method_visitor.visit_type_annotations(true)?;
 					for annotation in self.runtime_visible_type_annotations {
 						type_annotations_visitor = annotation.accept(type_annotations_visitor)?;
 					}
 					method_visitor = MethodVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;
 				}
-				if !self.runtime_invisible_type_annotations.is_empty() && interests.runtime_invisible_type_annotations {
+				if interests.runtime_invisible_type_annotations && !self.runtime_invisible_type_annotations.is_empty() {
 					let (visitor, mut type_annotations_visitor) = method_visitor.visit_type_annotations(false)?;
 					for annotation in self.runtime_invisible_type_annotations {
 						type_annotations_visitor = annotation.accept(type_annotations_visitor)?;
@@ -120,13 +125,17 @@ impl Method {
 						method_visitor = MethodVisitor::finish_annotation_default(visitor, x)?;
 					}
 				}
-				if let Some(method_parameters) = self.method_parameters {
-					method_visitor.visit_parameters(method_parameters)?;
+				if interests.method_parameters {
+					if let Some(method_parameters) = self.method_parameters {
+						method_visitor.visit_parameters(method_parameters)?;
+					}
 				}
 
-				for attribute in self.attributes {
-					if let Some(attribute) = UnknownAttributeVisitor::from_attribute(attribute)? {
-						method_visitor.visit_unknown_attribute(attribute)?;
+				if interests.unknown_attributes {
+					for attribute in self.attributes {
+						if let Some(attribute) = UnknownAttributeVisitor::from_attribute(attribute)? {
+							method_visitor.visit_unknown_attribute(attribute)?;
+						}
 					}
 				}
 

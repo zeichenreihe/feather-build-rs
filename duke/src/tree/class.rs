@@ -98,49 +98,59 @@ impl ClassFile {
 	pub fn accept<V: MultiClassVisitor>(self, visitor: V) -> Result<V> {
 		match visitor.visit_class(self.version, self.access, self.name, self.super_class, self.interfaces)? {
 			ControlFlow::Continue((visitor, mut class_visitor)) => {
-				let interests = class_visitor.interests(); // TODO: make even more use of them
+				let interests = class_visitor.interests();
 
 				class_visitor.visit_deprecated_and_synthetic_attribute(self.has_deprecated_attribute, self.has_synthetic_attribute)?;
 
-				if let Some(inner_classes) = self.inner_classes {
-					class_visitor.visit_inner_classes(inner_classes)?;
+				if interests.inner_classes {
+					if let Some(inner_classes) = self.inner_classes {
+						class_visitor.visit_inner_classes(inner_classes)?;
+					}
 				}
-				if let Some(enclosing_method) = self.enclosing_method {
-					class_visitor.visit_enclosing_method(enclosing_method)?;
+				if interests.enclosing_method {
+					if let Some(enclosing_method) = self.enclosing_method {
+						class_visitor.visit_enclosing_method(enclosing_method)?;
+					}
 				}
-				if let Some(signature) = self.signature {
-					class_visitor.visit_signature(signature)?;
+				if interests.signature {
+					if let Some(signature) = self.signature {
+						class_visitor.visit_signature(signature)?;
+					}
 				}
 
-				if let Some(source_file) = self.source_file {
-					class_visitor.visit_source_file(source_file)?;
+				if interests.source_file {
+					if let Some(source_file) = self.source_file {
+						class_visitor.visit_source_file(source_file)?;
+					}
 				}
-				if let Some(source_debug_extension) = self.source_debug_extension {
-					class_visitor.visit_source_debug_extension(source_debug_extension)?;
+				if interests.source_debug_extension {
+					if let Some(source_debug_extension) = self.source_debug_extension {
+						class_visitor.visit_source_debug_extension(source_debug_extension)?;
+					}
 				}
 
-				if !self.runtime_visible_annotations.is_empty() && interests.runtime_visible_annotations {
+				if interests.runtime_visible_annotations && !self.runtime_visible_annotations.is_empty() {
 					let (visitor, mut annotations_visitor) = class_visitor.visit_annotations(true)?;
 					for annotation in self.runtime_visible_annotations {
 						annotations_visitor = annotation.accept(annotations_visitor)?;
 					}
 					class_visitor = ClassVisitor::finish_annotations(visitor, annotations_visitor)?;
 				}
-				if !self.runtime_invisible_annotations.is_empty() && interests.runtime_invisible_annotations {
+				if interests.runtime_invisible_annotations && !self.runtime_invisible_annotations.is_empty() {
 					let (visitor, mut annotations_visitor) = class_visitor.visit_annotations(false)?;
 					for annotation in self.runtime_invisible_annotations {
 						annotations_visitor = annotation.accept(annotations_visitor)?;
 					}
 					class_visitor = ClassVisitor::finish_annotations(visitor, annotations_visitor)?;
 				}
-				if !self.runtime_visible_type_annotations.is_empty() && interests.runtime_visible_type_annotations {
+				if interests.runtime_visible_type_annotations && !self.runtime_visible_type_annotations.is_empty() {
 					let (visitor, mut type_annotations_visitor) = class_visitor.visit_type_annotations(true)?;
 					for annotation in self.runtime_visible_type_annotations {
 						type_annotations_visitor = annotation.accept(type_annotations_visitor)?;
 					}
 					class_visitor = ClassVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;
 				}
-				if !self.runtime_invisible_type_annotations.is_empty() && interests.runtime_invisible_type_annotations {
+				if interests.runtime_invisible_type_annotations && !self.runtime_invisible_type_annotations.is_empty() {
 					let (visitor, mut type_annotations_visitor) = class_visitor.visit_type_annotations(false)?;
 					for annotation in self.runtime_invisible_type_annotations {
 						type_annotations_visitor = annotation.accept(type_annotations_visitor)?;
@@ -148,41 +158,61 @@ impl ClassFile {
 					class_visitor = ClassVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;
 				}
 
-				if let Some(module) = self.module {
-					class_visitor.visit_module(module)?;
+				if interests.module {
+					if let Some(module) = self.module {
+						class_visitor.visit_module(module)?;
+					}
 				}
-				if let Some(module_packages) = self.module_packages {
-					class_visitor.visit_module_packages(module_packages)?;
+				if interests.module_packages {
+					if let Some(module_packages) = self.module_packages {
+						class_visitor.visit_module_packages(module_packages)?;
+					}
 				}
-				if let Some(module_main_class) = self.module_main_class {
-					class_visitor.visit_module_main_class(module_main_class)?;
-				}
-
-				if let Some(nest_host_class) = self.nest_host_class {
-					class_visitor.visit_nest_host_class(nest_host_class)?;
-				}
-				if let Some(nest_members) = self.nest_members {
-					class_visitor.visit_nest_members(nest_members)?;
-				}
-				if let Some(permitted_subclasses) = self.permitted_subclasses {
-					class_visitor.visit_permitted_subclasses(permitted_subclasses)?;
-				}
-
-				for record_component in self.record_components {
-					class_visitor = record_component.accept(class_visitor)?;
-				}
-
-				for attribute in self.attributes {
-					if let Some(attribute) = UnknownAttributeVisitor::from_attribute(attribute)? {
-						class_visitor.visit_unknown_attribute(attribute)?;
+				if interests.module_main_class {
+					if let Some(module_main_class) = self.module_main_class {
+						class_visitor.visit_module_main_class(module_main_class)?;
 					}
 				}
 
-				for field in self.fields {
-					class_visitor = field.accept(class_visitor)?;
+				if interests.nest_host {
+					if let Some(nest_host_class) = self.nest_host_class {
+						class_visitor.visit_nest_host_class(nest_host_class)?;
+					}
 				}
-				for method in self.methods {
-					class_visitor = method.accept(class_visitor)?;
+				if interests.nest_members {
+					if let Some(nest_members) = self.nest_members {
+						class_visitor.visit_nest_members(nest_members)?;
+					}
+				}
+
+				if interests.permitted_subclasses {
+					if let Some(permitted_subclasses) = self.permitted_subclasses {
+						class_visitor.visit_permitted_subclasses(permitted_subclasses)?;
+					}
+				}
+				if interests.record {
+					for record_component in self.record_components {
+						class_visitor = record_component.accept(class_visitor)?;
+					}
+				}
+
+				if interests.unknown_attributes {
+					for attribute in self.attributes {
+						if let Some(attribute) = UnknownAttributeVisitor::from_attribute(attribute)? {
+							class_visitor.visit_unknown_attribute(attribute)?;
+						}
+					}
+				}
+
+				if interests.fields {
+					for field in self.fields {
+						class_visitor = field.accept(class_visitor)?;
+					}
+				}
+				if interests.methods {
+					for method in self.methods {
+						class_visitor = method.accept(class_visitor)?;
+					}
 				}
 
 				MultiClassVisitor::finish_class(visitor, class_visitor)

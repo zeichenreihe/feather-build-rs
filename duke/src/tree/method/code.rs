@@ -44,12 +44,14 @@ impl Code {
 		M: MethodVisitor,
 	{
 		if let Some(mut code_visitor) = visitor.visit_code()? {
-			let interests = code_visitor.interests(); // TODO: make more use of them
+			let interests = code_visitor.interests();
 
 			if let (Some(max_stack), Some(max_locals)) = (self.max_stack, self.max_locals) {
 				code_visitor.visit_max_stack_and_max_locals(max_stack, max_locals)?;
 			}
 
+			// TODO: interests.stack_map_table
+			//  also the question: should CodeInterests have a field for "instructions"?
 			for instruction in self.instructions {
 				code_visitor.visit_instruction(instruction.label, instruction.frame, instruction.instruction)?;
 			}
@@ -58,21 +60,25 @@ impl Code {
 				code_visitor.visit_last_label(last_label)?;
 			}
 
-			if let Some(line_number_table) = self.line_numbers {
-				code_visitor.visit_line_numbers(line_number_table)?;
+			if interests.line_number_table {
+				if let Some(line_number_table) = self.line_numbers {
+					code_visitor.visit_line_numbers(line_number_table)?;
+				}
 			}
-			if let Some(local_variables) = self.local_variables {
-				code_visitor.visit_local_variables(local_variables)?;
+			if interests.local_variable_table || interests.local_variable_type_table {
+				if let Some(local_variables) = self.local_variables {
+					code_visitor.visit_local_variables(local_variables)?;
+				}
 			}
 
-			if !self.runtime_visible_type_annotations.is_empty() && interests.runtime_visible_type_annotations {
+			if interests.runtime_visible_type_annotations && !self.runtime_visible_type_annotations.is_empty() {
 				let (visitor, mut type_annotations_visitor) = code_visitor.visit_type_annotations(true)?;
 				for annotation in self.runtime_visible_type_annotations {
 					type_annotations_visitor = annotation.accept(type_annotations_visitor)?;
 				}
 				code_visitor = CodeVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;
 			}
-			if !self.runtime_invisible_type_annotations.is_empty() && interests.runtime_invisible_type_annotations {
+			if interests.runtime_invisible_type_annotations && !self.runtime_invisible_type_annotations.is_empty() {
 				let (visitor, mut type_annotations_visitor) = code_visitor.visit_type_annotations(false)?;
 				for annotation in self.runtime_invisible_type_annotations {
 					type_annotations_visitor = annotation.accept(type_annotations_visitor)?;
@@ -80,9 +86,11 @@ impl Code {
 				code_visitor = CodeVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;
 			}
 
-			for attribute in self.attributes {
-				if let Some(attribute) = UnknownAttributeVisitor::from_attribute(attribute)? {
-					code_visitor.visit_unknown_attribute(attribute)?;
+			if interests.unknown_attributes {
+				for attribute in self.attributes {
+					if let Some(attribute) = UnknownAttributeVisitor::from_attribute(attribute)? {
+						code_visitor.visit_unknown_attribute(attribute)?;
+					}
 				}
 			}
 
