@@ -1,3 +1,4 @@
+use crate::tree::names::Names;
 
 pub mod mappings;
 pub mod mappings_diff;
