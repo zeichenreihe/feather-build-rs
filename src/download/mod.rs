@@ -12,7 +12,7 @@ use crate::download::versions_manifest::VersionsManifest;
 use crate::Environment;
 use crate::download::maven_metadata::MavenMetadata;
 use quill::tree::mappings::Mappings;
-use crate::jar::FileJar;
+use dukebox::zip::file::FileJar;
 use crate::Version;
 
 pub(crate) mod versions_manifest;

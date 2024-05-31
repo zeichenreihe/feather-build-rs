@@ -9,7 +9,8 @@ use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
 use duke::tree::class::{ClassFile, ClassName};
 use duke::tree::field::{Field, FieldDescriptor};
 use duke::tree::method::Method;
-use crate::{BasicFileAttributes, Jar, JarEntry, JarFromReader, MemJar};
+use crate::{BasicFileAttributes, Jar, JarEntry, MemJar};
+use crate::zip::JarFromReader;
 
 #[derive(Clone, Debug, PartialEq)]
 enum Side {

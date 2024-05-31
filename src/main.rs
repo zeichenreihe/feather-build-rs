@@ -9,7 +9,8 @@ use zip::ZipWriter;
 use duke::tree::method::ParameterName;
 use crate::download::Downloader;
 use crate::download::versions_manifest::MinecraftVersion;
-use crate::jar::{EnumJarFromReader, MemJar};
+use dukebox::zip::mem::MemJar;
+use dukebox::zip::both::EnumJarFromReader;
 use quill::tree::mappings::Mappings;
 use quill::tree::names::Names;
 use crate::version_graph::VersionGraph;
@@ -246,7 +247,7 @@ async fn main_jar(downloader: &mut Downloader, version: &Version) -> Result<Enum
             let client = downloader.get_jar(&version_details.downloads.client.url).await?;
             let server = downloader.get_jar(&version_details.downloads.server.url).await?;
 
-            jar::merge::merge(client, server).with_context(|| anyhow!("failed to merge jars for version {version}"))?.into()
+            dukebox::merge::merge(client, server).with_context(|| anyhow!("failed to merge jars for version {version}"))?.into()
         },
         Environment::Client => downloader.get_jar(&version_details.downloads.client.url).await?.into(),
         Environment::Server => downloader.get_jar(&version_details.downloads.server.url).await?.into(),

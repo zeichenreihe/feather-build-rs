@@ -16,7 +16,7 @@ use quill::remapper::{BRemapper, JarSuperProv};
 use quill::tree::mappings::{Mappings, MethodKey, MethodMapping, MethodNowodeMapping};
 use quill::tree::names::Names;
 use quill::tree::{NodeInfo, ToKey};
-use crate::jar::Jar;
+use dukebox::Jar;
 
 /// Stores all known entries
 #[derive(Default)]
@@ -380,7 +380,7 @@ impl<J: Jar> GetSpecializedMethods for J {
 	fn get_specialized_methods(&self) -> Result<SpecializedMethods> {
 		let visitor = MultiClassVisitorImpl::default();
 
-		let visitor = self.read_into(visitor)?;
+		let visitor = self.read_classes_into(visitor)?;
 
 		visitor.get_specialized_methods()
 	}
