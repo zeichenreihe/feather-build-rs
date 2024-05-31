@@ -10,7 +10,7 @@ use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
 use duke::tree::class::{ClassFile, ClassName};
 use duke::tree::field::{Field, FieldDescriptor};
 use duke::tree::method::Method;
-use crate::jar::{Jar, JarFromReader, MemJar};
+use crate::jar::{BasicFileAttributes, Jar, JarEntry, JarFromReader, MemJar};
 
 #[derive(Clone, Debug, PartialEq)]
 enum Side {
@@ -32,24 +32,6 @@ struct Entry {
 enum EntryKind {
 	Class,
 	Other,
-}
-
-#[derive(Clone, Debug)]
-struct BasicFileAttributes {
-	mtime: DateTime,
-	atime: (),
-	ctime: (),
-}
-
-impl BasicFileAttributes {
-	fn new(file: &ZipFile) -> BasicFileAttributes {
-		// TODO: implement reading the more exact file modification times from the extra data of the zip file
-		BasicFileAttributes {
-			mtime: file.last_modified(),
-			atime: (),
-			ctime: (),
-		}
-	}
 }
 
 fn merge_preserve_order<'a, T: Clone + PartialEq>(a: &'a [T], b: &'a [T]) -> std::vec::IntoIter<&'a T> {
@@ -334,28 +316,24 @@ fn sided_class_visitor(data: &[u8], side: Side) -> Result<Vec<u8>> {
 }
 
 
-fn read_to_map(jar: &(impl Jar + JarFromReader)) -> Result<IndexMap<String, Entry>> {
-	let reader = jar.open()?;
-	let mut zip = ZipArchive::new(reader)?;
+fn read_to_map(jar: &impl JarFromReader) -> Result<IndexMap<String, Entry>> {
 
 	let mut map = IndexMap::new();
 
-	for index in 0..zip.len() {
-		let mut file = zip.by_index(index)?;
-
-		if file.is_dir() {
+	for entry in jar.entries()? {
+		if entry.is_dir() {
 			continue;
 		}
 
-		match file.name().to_owned().as_str() {
+		match entry.name().to_owned().as_str() {
 			name if name.ends_with(".class") => {
-				let mut vec = Vec::new();
-				file.read_to_end(&mut vec)?;
+
+				let vec = entry.get_vec();
 
 				let e = Entry {
 					kind: EntryKind::Class,
 					path: name.to_owned(),
-					attr: BasicFileAttributes::new(&file),
+					attr: entry.attrs(),
 					data: vec,
 				};
 				map.insert(e.path.clone(), e);
@@ -366,7 +344,7 @@ fn read_to_map(jar: &(impl Jar + JarFromReader)) -> Result<IndexMap<String, Entr
 				let e = Entry {
 					kind: EntryKind::Other,
 					path: name.to_owned(),
-					attr: BasicFileAttributes::new(&file),
+					attr: entry.attrs(),
 					data: v,
 				};
 				map.insert(e.path.clone(), e);
@@ -375,13 +353,12 @@ fn read_to_map(jar: &(impl Jar + JarFromReader)) -> Result<IndexMap<String, Entr
 				name.ends_with(".SF") || name.ends_with(".RSA")) => {
 			},
 			name => {
-				let mut vec = Vec::new();
-				file.read_to_end(&mut vec)?;
+				let vec = entry.get_vec();
 
 				let e = Entry {
 					kind: EntryKind::Other,
 					path: name.to_owned(),
-					attr: BasicFileAttributes::new(&file),
+					attr: entry.attrs(),
 					data: vec,
 				};
 				map.insert(e.path.clone(), e);

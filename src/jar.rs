@@ -8,16 +8,26 @@ use std::ops::ControlFlow;
 use std::path::PathBuf;
 use anyhow::{anyhow, Context, Result};
 use indexmap::{IndexMap, IndexSet};
-use zip::ZipArchive;
-use duke::tree::class::{ClassAccess, ClassName};
+use zip::{DateTime, ZipArchive};
+use duke::tree::class::{ClassAccess, ClassFile, ClassName};
 use duke::tree::version::Version;
 use duke::visitor::MultiClassVisitor;
 use quill::remapper::JarSuperProv;
 
 pub(crate) trait Jar {
-	fn read_into<V: MultiClassVisitor>(&self, visitor: V) -> Result<V>;
+	type Entry<'a>: JarEntry where Self: 'a;
+	type Iter<'a>: Iterator<Item=Self::Entry<'a>> where Self: 'a;
 
-	fn for_each_class(&self, f: impl FnMut(Cursor<Vec<u8>>) -> Result<()>) -> Result<()>;
+	fn entries<'a: 'b, 'b>(&'a self) -> Result<Self::Iter<'b>>;
+
+	fn read_classes_into<V: MultiClassVisitor>(&self, mut visitor: V) -> Result<V> {
+		for entry in self.entries()? {
+			if !entry.is_dir() && entry.is_class() {
+				visitor = entry.visit_as_class(visitor)?;
+			}
+		}
+		Ok(visitor)
+	}
 
 	fn get_super_classes_provider(&self) -> Result<JarSuperProv> {
 		struct MyJarSuperProv(JarSuperProv);
@@ -44,34 +54,35 @@ pub(crate) trait Jar {
 			}
 		}
 
-		Ok(self.read_into(MyJarSuperProv(JarSuperProv { super_classes: IndexMap::new() }))?.0)
+		Ok(self.read_classes_into(MyJarSuperProv(JarSuperProv { super_classes: IndexMap::new() }))?.0)
 	}
 }
 
-trait JarFromReader {
+pub(crate) trait JarEntry {
+	fn is_dir(&self) -> bool;
+	fn name(&self) -> &str;
+
+	fn is_class(&self) -> bool {
+		!self.is_dir() && self.name().ends_with(".class")
+	}
+	fn visit_as_class<V: MultiClassVisitor>(self, visitor: V) -> Result<V>;
+
+	fn get_vec(&self) -> Vec<u8>;
+
+	fn attrs(&self) -> BasicFileAttributes;
+}
+
+#[derive(Clone, Debug)]
+struct BasicFileAttributes {
+	mtime: DateTime,
+	atime: (),
+	ctime: (),
+}
+
+pub(crate) trait JarFromReader {
 	type Reader<'a>: Read + Seek + 'a where Self: 'a;
 
 	fn open(&self) -> Result<Self::Reader<'_>>;
-}
-
-impl<T: JarFromReader> Jar for T {
-	fn read_into<V: MultiClassVisitor>(&self, mut visitor: V) -> Result<V> {
-		let reader = self.open()?;
-		let mut zip = ZipArchive::new(reader)?;
-
-		for index in 0..zip.len() {
-			let mut file = zip.by_index(index)?;
-			if file.name().ends_with(".class") {
-				let mut vec = Vec::new();
-				file.read_to_end(&mut vec)?;
-				let mut reader = Cursor::new(vec);
-
-				visitor = duke::read_class_multi(&mut reader, visitor)?;
-			}
-		}
-
-		Ok(visitor)
-	}
 
 	fn for_each_class(&self, mut f: impl FnMut(Cursor<Vec<u8>>) -> Result<()>) -> Result<()> {
 		let reader = self.open()?;
@@ -90,6 +101,82 @@ impl<T: JarFromReader> Jar for T {
 		}
 
 		Ok(())
+	}
+}
+
+impl<T: JarFromReader> Jar for T {
+	type Entry<'a> = ZipFileEntry where Self: 'a;
+	type Iter<'a> = std::vec::IntoIter<ZipFileEntry> where Self: 'a;
+
+	fn entries<'a: 'b, 'b>(&'a self) -> Result<Self::Iter<'b>> {
+		let reader = self.open()?;
+		let mut zip = ZipArchive::new(reader)?;
+
+		let mut out = Vec::with_capacity(zip.len());
+		for index in 0..zip.len() {
+			let mut file = zip.by_index(index)?;
+			out.push(ZipFileEntry {
+				is_dir: file.is_dir(),
+				name: file.name().to_owned(),
+				vec: { let mut vec = Vec::new(); file.read_to_end(&mut vec)?; vec },
+				attrs: BasicFileAttributes { // TODO: implement reading the more exact file modification times from the extra data of the zip file
+					mtime: file.last_modified(),
+					atime: (),
+					ctime: (),
+				},
+			});
+		}
+
+		Ok(out.into_iter())
+	}
+
+	fn read_classes_into<V: MultiClassVisitor>(&self, mut visitor: V) -> Result<V> {
+		let reader = self.open()?;
+		let mut zip = ZipArchive::new(reader)?;
+
+		for index in 0..zip.len() {
+			let mut file = zip.by_index(index)?;
+			if file.name().ends_with(".class") {
+				let mut vec = Vec::new();
+				file.read_to_end(&mut vec)?;
+				let mut reader = Cursor::new(vec);
+
+				visitor = duke::read_class_multi(&mut reader, visitor)?;
+			}
+		}
+
+		Ok(visitor)
+	}
+}
+
+pub(crate) struct ZipFileEntry {
+	is_dir: bool,
+	name: String,
+	vec: Vec<u8>,
+	attrs: BasicFileAttributes,
+}
+
+impl JarEntry for ZipFileEntry {
+	fn is_dir(&self) -> bool {
+		self.is_dir
+	}
+
+	fn name(&self) -> &str {
+		&self.name
+	}
+
+	fn visit_as_class<V: MultiClassVisitor>(mut self, visitor: V) -> Result<V> {
+		let mut reader = Cursor::new(&self.vec);
+
+		duke::read_class_multi(&mut reader, visitor)
+	}
+
+	fn get_vec(&self) -> Vec<u8> {
+		self.vec.clone()
+	}
+
+	fn attrs(&self) -> BasicFileAttributes {
+		self.attrs.clone()
 	}
 }
 
@@ -176,5 +263,71 @@ impl From<FileJar> for EnumJarFromReader {
 impl From<MemJar> for EnumJarFromReader {
 	fn from(value: MemJar) -> Self {
 		EnumJarFromReader::Mem(value)
+	}
+}
+
+struct ParsedJar {
+	entries: Vec<ParsedJarEntry>,
+}
+
+impl Jar for ParsedJar {
+	type Entry<'a> = &'a ParsedJarEntry;
+	type Iter<'a> = std::slice::Iter<'a, ParsedJarEntry> where Self: 'a;
+
+	fn entries<'a: 'b, 'b>(&'a self) -> Result<Self::Iter<'b>> {
+		Ok(self.entries.iter())
+	}
+}
+
+enum ParsedJarEntry {
+	Class {
+		name: String,
+		class: ClassFile,
+	},
+	ClassAsVec {
+		name: String,
+		data: Vec<u8>,
+	},
+	Other {
+		name: String,
+		data: Vec<u8>,
+	},
+	Dir {
+		name: String,
+	},
+}
+
+impl JarEntry for &ParsedJarEntry {
+	fn is_dir(&self) -> bool {
+		matches!(self, ParsedJarEntry::Dir { .. })
+	}
+
+	fn name(&self) -> &str {
+		match self {
+			ParsedJarEntry::Class { name, .. } => name,
+			ParsedJarEntry::ClassAsVec { name, .. } => name,
+			ParsedJarEntry::Other { name, .. } => name,
+			ParsedJarEntry::Dir { name, .. } => name,
+		}
+	}
+
+	fn visit_as_class<V: MultiClassVisitor>(self, visitor: V) -> Result<V> {
+		match self {
+			ParsedJarEntry::Class { class, .. } => {
+				class.clone().accept(visitor)
+			},
+			ParsedJarEntry::ClassAsVec { data, .. } => {
+				duke::read_class_multi(&mut Cursor::new(data), visitor)
+			},
+			_ => Ok(visitor),
+		}
+	}
+
+	fn get_vec(&self) -> Vec<u8> {
+		todo!()
+	}
+
+	fn attrs(&self) -> BasicFileAttributes {
+		todo!()
 	}
 }
