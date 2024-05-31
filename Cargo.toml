@@ -1,6 +1,7 @@
 [workspace]
 members = [
 	"duke",
+	"dukebox",
 	"quill",
 	"raw_class_file"
 ]
@@ -32,6 +33,7 @@ zip = "0.6.6"
 pretty_assertions = "1.4.0"
 
 duke = { path = "duke" }
+dukebox = { path = "dukebox" }
 quill = { path = "quill" }
 
 [dev-dependencies]

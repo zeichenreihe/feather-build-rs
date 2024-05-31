@@ -1,4 +1,4 @@
-pub(crate) mod merge;
+pub mod merge;
 
 use std::convert::Infallible;
 use std::fmt::{Debug, Formatter};
@@ -14,7 +14,7 @@ use duke::tree::version::Version;
 use duke::visitor::MultiClassVisitor;
 use quill::remapper::JarSuperProv;
 
-pub(crate) trait Jar {
+pub trait Jar {
 	type Entry<'a>: JarEntry where Self: 'a;
 	type Iter<'a>: Iterator<Item=Self::Entry<'a>> where Self: 'a;
 
@@ -58,7 +58,7 @@ pub(crate) trait Jar {
 	}
 }
 
-pub(crate) trait JarEntry {
+pub trait JarEntry {
 	fn is_dir(&self) -> bool;
 	fn name(&self) -> &str;
 
@@ -149,7 +149,7 @@ impl<T: JarFromReader> Jar for T {
 	}
 }
 
-pub(crate) struct ZipFileEntry {
+pub struct ZipFileEntry {
 	is_dir: bool,
 	name: String,
 	vec: Vec<u8>,
@@ -181,12 +181,12 @@ impl JarEntry for ZipFileEntry {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct FileJar {
+pub struct FileJar {
 	path: PathBuf,
 }
 
 impl FileJar {
-	pub(crate) fn new(path: PathBuf) -> FileJar {
+	pub fn new(path: PathBuf) -> FileJar {
 		FileJar { path }
 	}
 }
@@ -201,7 +201,7 @@ impl JarFromReader for FileJar {
 }
 
 #[derive(Clone)]
-pub(crate) struct MemJar {
+pub struct MemJar {
 	name: Option<String>,
 	data: Vec<u8>
 }
@@ -213,7 +213,7 @@ impl Debug for MemJar {
 }
 
 impl MemJar {
-	pub(crate) fn new(name: String, data: Vec<u8>) -> MemJar {
+	pub fn new(name: String, data: Vec<u8>) -> MemJar {
 		MemJar { name: Some(name), data }
 	}
 
@@ -231,7 +231,7 @@ impl JarFromReader for MemJar {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum EnumJarFromReader {
+pub enum EnumJarFromReader {
 	File(FileJar),
 	Mem(MemJar),
 }

@@ -1,16 +1,15 @@
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::io::{Cursor, Read, Seek, Write};
+use std::io::{Cursor, Write};
 use anyhow::{bail, Result};
 use indexmap::IndexMap;
-use zip::{DateTime, ZipArchive, ZipWriter};
-use zip::read::ZipFile;
+use zip::ZipWriter;
 use zip::write::FileOptions;
 use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
 use duke::tree::class::{ClassFile, ClassName};
 use duke::tree::field::{Field, FieldDescriptor};
 use duke::tree::method::Method;
-use crate::jar::{BasicFileAttributes, Jar, JarEntry, JarFromReader, MemJar};
+use crate::{BasicFileAttributes, Jar, JarEntry, JarFromReader, MemJar};
 
 #[derive(Clone, Debug, PartialEq)]
 enum Side {
@@ -369,7 +368,7 @@ fn read_to_map(jar: &impl JarFromReader) -> Result<IndexMap<String, Entry>> {
 	Ok(map)
 }
 
-pub(crate) fn merge(client: impl Jar + JarFromReader, server: impl Jar + JarFromReader) -> Result<MemJar> {
+pub fn merge(client: impl Jar + JarFromReader, server: impl Jar + JarFromReader) -> Result<MemJar> {
 	let entries_client = read_to_map(&client)?;
 	let entries_server = read_to_map(&server)?;
 
