@@ -1,8 +1,10 @@
 use anyhow::Result;
 use std::io::{Cursor, Read, Seek};
+use zip::read::ZipFile;
 use zip::ZipArchive;
 use duke::visitor::MultiClassVisitor;
 use crate::{BasicFileAttributes, Jar, JarEntry};
+use crate::parsed::{ClassRepr, ParsedJarEntry};
 
 pub mod mem;
 pub mod file;
@@ -43,20 +45,19 @@ impl<T: JarFromReader> Jar for T {
 
 		let mut out = Vec::with_capacity(zip.len());
 		for index in 0..zip.len() {
-			let mut file = zip.by_index(index)?;
-			out.push(ZipFileEntry {
-				is_dir: file.is_dir(),
-				name: file.name().to_owned(),
-				vec: { let mut vec = Vec::new(); file.read_to_end(&mut vec)?; vec },
-				attrs: BasicFileAttributes { // TODO: implement reading the more exact file modification times from the extra data of the zip file
-					mtime: file.last_modified(),
-					atime: (),
-					ctime: (),
-				},
-			});
+			let file = zip.by_index(index)?;
+			out.push(ZipFileEntry::new(file)?);
 		}
 
 		Ok(out.into_iter())
+	}
+
+	fn by_name(&self, name: &str) -> Result<Self::Entry<'_>> {
+		let reader = self.open()?;
+		let mut zip = ZipArchive::new(reader)?;
+
+		let file = zip.by_name(name)?;
+		ZipFileEntry::new(file)
 	}
 }
 
@@ -65,6 +66,21 @@ pub struct ZipFileEntry {
 	name: String,
 	vec: Vec<u8>,
 	attrs: BasicFileAttributes,
+}
+
+impl ZipFileEntry {
+	fn new(mut file: ZipFile) -> Result<ZipFileEntry> {
+		Ok(ZipFileEntry {
+			is_dir: file.is_dir(),
+			name: file.name().to_owned(),
+			vec: { let mut vec = Vec::new(); file.read_to_end(&mut vec)?; vec },
+			attrs: BasicFileAttributes { // TODO: implement reading the more exact file modification times from the extra data of the zip file
+				mtime: file.last_modified(),
+				atime: (),
+				ctime: (),
+			},
+		})
+	}
 }
 
 impl JarEntry for ZipFileEntry {
@@ -82,11 +98,24 @@ impl JarEntry for ZipFileEntry {
 		duke::read_class_multi(&mut reader, visitor)
 	}
 
-	fn get_vec(&self) -> Vec<u8> {
-		self.vec.clone()
-	}
-
 	fn attrs(&self) -> BasicFileAttributes {
 		self.attrs.clone()
+	}
+
+	fn to_parsed_jar_entry(self) -> Result<ParsedJarEntry> {
+		let attr = self.attrs.clone();
+
+		let entry = if self.is_dir() {
+			ParsedJarEntry::Dir { attr }
+		} else if self.is_class() {
+			ParsedJarEntry::Class {
+				class: ClassRepr::Vec { data: self.vec },
+				attr,
+			}
+		} else {
+			ParsedJarEntry::Other { attr, data: self.vec }
+		};
+
+		Ok(entry)
 	}
 }

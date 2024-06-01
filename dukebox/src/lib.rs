@@ -8,7 +8,7 @@ use duke::tree::class::{ClassAccess, ClassName};
 use duke::tree::version::Version;
 use duke::visitor::MultiClassVisitor;
 use quill::remapper::JarSuperProv;
-use crate::zip::mem::MemJar;
+use crate::parsed::ParsedJarEntry;
 
 pub mod merge;
 mod parsed;
@@ -20,6 +20,8 @@ pub trait Jar {
 	type Iter<'a>: Iterator<Item=Self::Entry<'a>> where Self: 'a;
 
 	fn entries<'a: 'b, 'b>(&'a self) -> Result<Self::Iter<'b>>;
+
+	fn by_name(&self, name: &str) -> Result<Self::Entry<'_>>;
 
 	fn read_classes_into<V: MultiClassVisitor>(&self, mut visitor: V) -> Result<V> {
 		for entry in self.entries()? {
@@ -68,9 +70,9 @@ pub trait JarEntry {
 	}
 	fn visit_as_class<V: MultiClassVisitor>(self, visitor: V) -> Result<V>;
 
-	fn get_vec(&self) -> Vec<u8>;
-
 	fn attrs(&self) -> BasicFileAttributes;
+
+	fn to_parsed_jar_entry(self) -> Result<ParsedJarEntry>;
 }
 
 #[derive(Clone, Debug)]

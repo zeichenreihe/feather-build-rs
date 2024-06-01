@@ -1,37 +1,18 @@
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::io::{Cursor, Write};
 use anyhow::{bail, Result};
-use indexmap::IndexMap;
-use zip::ZipWriter;
-use zip::write::FileOptions;
+use indexmap::{IndexMap, IndexSet};
 use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
 use duke::tree::class::{ClassFile, ClassName};
 use duke::tree::field::{Field, FieldDescriptor};
 use duke::tree::method::Method;
-use crate::{BasicFileAttributes, Jar, JarEntry, MemJar};
-use crate::zip::JarFromReader;
+use crate::Jar;
+use crate::parsed::{ClassRepr, ParsedJar, ParsedJarEntry};
 
 #[derive(Clone, Debug, PartialEq)]
 enum Side {
-	Both,
 	Client,
 	Server,
-}
-
-#[derive(Clone, Debug)]
-struct Entry {
-	kind: EntryKind,
-	/// path, without stripped `/` at the start
-	path: String,
-	attr: BasicFileAttributes,
-	data: Vec<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-enum EntryKind {
-	Class,
-	Other,
 }
 
 fn merge_preserve_order<'a, T: Clone + PartialEq>(a: &'a [T], b: &'a [T]) -> std::vec::IntoIter<&'a T> {
@@ -123,7 +104,6 @@ fn sided_annotation(side: Side) -> Annotation {
 				value: ElementValue::Enum {
 					type_name: FieldDescriptor::from("Lnet/fabricmc/api/EnvType;"),
 					const_name: match side {
-						Side::Both => unreachable!(),
 						Side::Client => "CLIENT".to_owned(),
 						Side::Server => "SERVER".to_owned(),
 					},
@@ -133,9 +113,9 @@ fn sided_annotation(side: Side) -> Annotation {
 	}
 }
 
-fn class_merger_merge(client: &[u8], server: &[u8]) -> Result<Vec<u8>> {
-	let client = duke::read_class(&mut Cursor::new(client))?;
-	let server = duke::read_class(&mut Cursor::new(server))?;
+fn class_merger_merge(client: ClassRepr, server: ClassRepr) -> Result<ClassRepr> {
+	let client = client.read()?;
+	let server = server.read()?;
 
 	let interfaces: Vec<_> = merge_preserve_order(&client.interfaces, &server.interfaces).collect();
 
@@ -151,7 +131,7 @@ fn class_merger_merge(client: &[u8], server: &[u8]) -> Result<Vec<u8>> {
 		}
 	}
 
-	let out = ClassFile {
+	Ok(ClassFile {
 		version: merge_from_client(&client.version, &server.version)?,
 		access: merge_from_client(&client.access, &server.access)?,
 		name: merge_eq(&client.name, &server.name)?,
@@ -243,7 +223,6 @@ fn class_merger_merge(client: &[u8], server: &[u8]) -> Result<Vec<u8>> {
 							value: ElementValue::Enum {
 								type_name: FieldDescriptor::from("Lnet/fabricmc/api/EnvType;"),
 								const_name: match side {
-									Side::Both => unreachable!(),
 									Side::Client => "CLIENT".to_owned(),
 									Side::Server => "SERVER".to_owned(),
 								},
@@ -298,158 +277,120 @@ fn class_merger_merge(client: &[u8], server: &[u8]) -> Result<Vec<u8>> {
 		record_components: vec![], // TODO: deal with this here
 
 		attributes: client.attributes,
-	};
-
-	let mut buf = Vec::new();
-	duke::write_class(&mut buf, &out)?;
-	Ok(buf)
+	}.into())
 }
 
-fn sided_class_visitor(data: &[u8], side: Side) -> Result<Vec<u8>> {
-	let mut class = duke::read_class(&mut Cursor::new(data))?;
-
-	class.runtime_visible_annotations.push(sided_annotation(side));
-
-	let mut buf = Vec::new();
-	duke::write_class(&mut buf, &class)?;
-	Ok(buf)
+fn visit_sided_annotation(side: Side) -> impl FnOnce(&mut ClassFile) {
+	|x| x.runtime_visible_annotations.push(sided_annotation(side))
 }
 
+pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
+	let entries_client = ParsedJar::from_jar(&client)?.entries;
+	let entries_server = ParsedJar::from_jar(&server)?.entries;
 
-fn read_to_map(jar: &impl JarFromReader) -> Result<IndexMap<String, Entry>> {
+	let keys: IndexSet<_> = entries_client.keys().chain(entries_server.keys()).collect();
 
-	let mut map = IndexMap::new();
-
-	for entry in jar.entries()? {
-		if entry.is_dir() {
-			continue;
-		}
-
-		match entry.name().to_owned().as_str() {
-			name if name.ends_with(".class") => {
-
-				let vec = entry.get_vec();
-
-				let e = Entry {
-					kind: EntryKind::Class,
-					path: name.to_owned(),
-					attr: entry.attrs(),
-					data: vec,
-				};
-				map.insert(e.path.clone(), e);
-			},
-			name @ "/META-INF/MANIFEST.MF" => {
-				let v = b"Manifest-Version: 1.0\nMain-Class: net.minecraft.client.Main\n".to_vec();
-
-				let e = Entry {
-					kind: EntryKind::Other,
-					path: name.to_owned(),
-					attr: entry.attrs(),
-					data: v,
-				};
-				map.insert(e.path.clone(), e);
-			},
-			name if name.starts_with("/META-INF/") && (
-				name.ends_with(".SF") || name.ends_with(".RSA")) => {
-			},
-			name => {
-				let vec = entry.get_vec();
-
-				let e = Entry {
-					kind: EntryKind::Other,
-					path: name.to_owned(),
-					attr: entry.attrs(),
-					data: vec,
-				};
-				map.insert(e.path.clone(), e);
-			},
-		}
-	}
-
-	Ok(map)
-}
-
-pub fn merge(client: impl Jar + JarFromReader, server: impl Jar + JarFromReader) -> Result<MemJar> {
-	let entries_client = read_to_map(&client)?;
-	let entries_server = read_to_map(&server)?;
-
-	let mut resulting_entries = Vec::new();
-	for key in entries_client.keys().chain(entries_server.keys()) {
+	let mut resulting_entries = ParsedJar { entries: IndexMap::new(), };
+	for key in keys {
 		let is_class = key.ends_with(".class");
 
 		let entry_client = entries_client.get(key);
 		let entry_server = entries_server.get(key);
 
-		let side = match (entry_client, entry_server) {
-			(Some(_), Some(_)) => Side::Both,
-			(Some(_), None) => Side::Client,
-			(None, Some(_)) => Side::Server,
-			(None, None) => unreachable!(),
-		};
-
-		let is_minecraft = entries_client.contains_key(key)
+		let is_minecraft = entry_client.is_some()
 			|| key.starts_with("/net/minecraft/")
 			|| !key.strip_prefix('/').is_some_and(|x| x.contains('/'));
 
-		if !(is_class && !is_minecraft && side == Side::Server) {
-			let result = match (entry_client, entry_server) {
-				(Some(client), Some(server)) if client.data == server.data => client.clone(),
-				(Some(client), Some(server)) => {
-					if is_class {
-						assert_eq!(&client.kind, &server.kind);
-						assert_eq!(&client.path, &server.path);
+		fn do_other(key: &str, entry: &ParsedJarEntry) -> Option<ParsedJarEntry> {
+			if let ParsedJarEntry::Other { attr, .. } = entry {
 
-						Entry {
-							kind: client.kind.clone(),
-							path: client.path.clone(),
-							attr: client.attr.clone(), // TODO: ?= server.attr
-							data: class_merger_merge(&client.data, &server.data)?,
-						}
-					} else {
-						// TODO: warning here
-						client.clone()
-					}
-				},
-				(Some(client), None) => client.clone(),
-				(None, Some(server)) => server.clone(),
-				(None, None) => unreachable!(),
-			};
-
-			let r = if is_class && is_minecraft && side != Side::Both {
-				Entry {
-					kind: EntryKind::Class,
-					path: result.path,
-					attr: result.attr,
-					data: sided_class_visitor(&result.data, side)?,
+				match key {
+					"/META-INF/MANIFEST.MF" => Some(ParsedJarEntry::Other {
+						attr: attr.clone(),
+						data: b"Manifest-Version: 1.0\nMain-Class: net.minecraft.client.Main\n".to_vec(),
+					}),
+					name if name.starts_with("/META-INF/") && (name.ends_with(".SF") || name.ends_with(".RSA")) => None,
+					_ => Some(entry.clone()),
 				}
+
 			} else {
-				result
-			};
-
-			resulting_entries.push(r);
-		}
-	}
-
-	let writer = Cursor::new(Vec::new());
-	let mut zip_out = ZipWriter::new(writer);
-
-	for e in resulting_entries {
-
-		let mut x = e.path.as_str();
-		while let Some((left, _)) = x.rsplit_once('/') {
-			if !left.is_empty() {
-				zip_out.add_directory(left, FileOptions::default())?;
+				Some(entry.clone())
 			}
-			x = left;
 		}
 
-		zip_out.start_file(e.path, FileOptions::default().last_modified_time(e.attr.mtime))?;
-		// TODO: set the files ctime, atime, mtime to the ones from the file read
-		zip_out.write_all(&e.data)?;
+		let entry_client = entry_client.and_then(|x| do_other(key, x));
+		let entry_server = entry_server.and_then(|x| do_other(key, x));
 
+		let is_server = entry_client.is_none() && entry_server.is_some();
+
+		if is_class && !is_minecraft && is_server {
+			continue;
+		}
+
+		let result = match (entry_client, entry_server) {
+			(Some(client), Some(server)) => {
+
+				fn get_data_or_none(x: &ParsedJarEntry) -> Option<&Vec<u8>> {
+					match x {
+						ParsedJarEntry::Class { class, .. } => {
+							match class {
+								ClassRepr::Parsed { .. } => None,
+								ClassRepr::Vec { data } => Some(data),
+							}
+						},
+						ParsedJarEntry::Other { data, .. } => Some(data),
+						ParsedJarEntry::Dir { .. } => None
+					}
+				}
+
+				if get_data_or_none(&client) == get_data_or_none(&server) {
+					client
+				} else if let (
+					ParsedJarEntry::Class { attr: client_attr, class: client },
+					ParsedJarEntry::Class { attr: server_attr, class: server }
+				) = (client.clone(), server) {
+					ParsedJarEntry::Class {
+						attr: client_attr, // TODO: ?= server_attr
+						class: class_merger_merge(client, server)?,
+					}
+				} else {
+					// TODO: warning here
+					client
+				}
+			},
+			(Some(client), None) => {
+				if let ParsedJarEntry::Class { class, attr } = client {
+					ParsedJarEntry::Class {
+						attr,
+						class: if is_minecraft {
+							class.edit(visit_sided_annotation(Side::Client))?
+						} else {
+							class
+						},
+					}
+				} else {
+					client
+				}
+			},
+			(None, Some(server)) => {
+				if let ParsedJarEntry::Class { class, attr } = server {
+					ParsedJarEntry::Class {
+						attr,
+						class: if is_minecraft {
+							class.edit(visit_sided_annotation(Side::Server))?
+						} else {
+							class
+						},
+					}
+				} else {
+					server
+				}
+			},
+			(None, None) => continue,
+		};
+
+		resulting_entries.put(key.clone(), result)?;
 	}
 
-	let vec = zip_out.finish()?.into_inner();
-
-	Ok(MemJar::new_unnamed(vec))
+	Ok(resulting_entries)
 }
