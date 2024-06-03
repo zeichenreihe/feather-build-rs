@@ -109,7 +109,7 @@ pub struct BasicFileAttributes {
 }
 
 impl BasicFileAttributes {
-	fn new(last_modified: Option<DateTime>, extra_data_fields: impl Iterator<Item=&ExtraField>) {
+	fn new<'a>(last_modified: Option<DateTime>, extra_data_fields: impl Iterator<Item=&'a ExtraField>) -> BasicFileAttributes {
 		let extended_timestamp = extra_data_fields
 			.filter_map(|extra_field| match extra_field {
 				ExtraField::ExtendedTimestamp(x) => Some(x),

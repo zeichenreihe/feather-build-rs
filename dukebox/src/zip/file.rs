@@ -20,7 +20,7 @@ impl Jar for FileJar {
 
 	fn open(&self) -> Result<Self::Opened<'_>> {
 		let file = File::open(&self.path)
-			.with_context(|| anyhow!("could not open file {self:?}"))?
+			.with_context(|| anyhow!("could not open file {self:?}"))?;
 		ZipArchive::new(file)
 			.with_context(|| anyhow!("failed to read zip archive from {self:?}"))
 	}
