@@ -338,31 +338,24 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 		}
 
 		let result = match (entry_client, entry_server) {
-			(Some(client), Some(server)) => {
+			(Some(client_), Some(server_)) => {
 
-				fn get_data_or_none(x: &ParsedJarEntry) -> Option<&Vec<u8>> {
-					match x {
-						ParsedJarEntry::Class { class, .. } => {
-							match class {
-								ClassRepr::Parsed { .. } => None,
-								ClassRepr::Vec { data } => Some(data),
-							}
-						},
-						ParsedJarEntry::Other { data, .. } => Some(data),
-						ParsedJarEntry::Dir { .. } => None
-					}
-				}
-
-				match (client, server) {
+				match (client_, server_) {
 					(
-						ParsedJarEntry::Class { attr: client_attr, class: client },
-						ParsedJarEntry::Class { attr: server_attr, class: server }
+						ParsedJarEntry::Class { attr: client_attr, class: client_ },
+						ParsedJarEntry::Class { attr: server_attr, class: server_ }
 					) => {
-						// if data eq -> ret client
-						// else
-						ParsedJarEntry::Class {
-							attr: client_attr, // TODO: ?= server_attr
-							class: class_merger_merge(client, server)?,
+
+						let c_vec = client.by_name(&key)?.unwrap().to_vec()?;
+						let s_vec = server.by_name(&key)?.unwrap().to_vec()?;
+
+						if c_vec == s_vec {
+							ParsedJarEntry::Class { attr: client_attr, class: client_ }
+						} else {
+							ParsedJarEntry::Class {
+								attr: client_attr, // TODO: ?= server_attr
+								class: class_merger_merge(client_, server_)?,
+							}
 						}
 					},
 					(

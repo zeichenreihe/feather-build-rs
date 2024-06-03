@@ -1,5 +1,5 @@
 use std::io::{Cursor, Seek, Write};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use zip::write::FileOptions;
 use zip::ZipWriter;
@@ -151,6 +151,14 @@ impl JarEntry for (&String, &ParsedJarEntry) {
 			ParsedJarEntry::Class { attr, .. } => attr.clone(),
 			ParsedJarEntry::Other { attr, .. } => attr.clone(),
 			ParsedJarEntry::Dir { attr, .. } => attr.clone(),
+		}
+	}
+
+	fn to_vec(self) -> Result<Vec<u8>> {
+		match self.1 {
+			ParsedJarEntry::Class { class, .. } => class.clone().write(),
+			ParsedJarEntry::Other { data, .. } => Ok(data.clone()),
+			ParsedJarEntry::Dir { .. } => bail!("cannot get vec for dir"),
 		}
 	}
 
