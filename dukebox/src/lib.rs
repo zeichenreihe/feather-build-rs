@@ -3,7 +3,8 @@ use std::fmt::Debug;
 use std::ops::ControlFlow;
 use anyhow::{Result};
 use indexmap::{IndexMap, IndexSet};
-use ::zip::DateTime;
+use ::zip::{DateTime, ExtraField};
+use ::zip::write::{ExtendedFileOptions, FileOptions};
 use duke::tree::class::{ClassAccess, ClassName};
 use duke::tree::version::Version;
 use duke::visitor::MultiClassVisitor;
@@ -13,26 +14,50 @@ use crate::parsed::ParsedJarEntry;
 pub mod merge;
 mod parsed;
 pub mod zip;
-
+mod lazy_duke;
 
 pub trait Jar {
+	type Opened<'a>: OpenedJar where Self: 'a;
+
+	fn open(&self) -> Result<Self::Opened<'_>>;
+
+	fn get_super_classes_provider(&self) -> Result<JarSuperProv> {
+		self.open()?.get_super_classes_provider()
+	}
+}
+
+pub trait OpenedJar {
 	type Entry<'a>: JarEntry where Self: 'a;
-	type Iter<'a>: Iterator<Item=Self::Entry<'a>> where Self: 'a;
 
-	fn entries<'a: 'b, 'b>(&'a self) -> Result<Self::Iter<'b>>;
+	type EntryKey;
+	type EntryKeyIter: Iterator<Item=Self::EntryKey>;
 
-	fn by_name(&self, name: &str) -> Result<Self::Entry<'_>>;
+	fn entry_keys(&self) -> Self::EntryKeyIter;
 
-	fn read_classes_into<V: MultiClassVisitor>(&self, mut visitor: V) -> Result<V> {
-		for entry in self.entries()? {
-			if !entry.is_dir() && entry.is_class() {
+	fn by_entry_key(&mut self, key: Self::EntryKey) -> Result<Self::Entry<'_>>;
+
+
+	type Name<'a>: AsRef<str> where Self: 'a;
+	type NameIter<'a>: Iterator<Item=Self::Name<'a>> where Self: 'a;
+
+	fn names(&self) -> Self::NameIter<'_>;
+	fn by_name(&mut self, name: &str) -> Result<Option<Self::Entry<'_>>>;
+
+
+	fn read_classes_into<V: MultiClassVisitor>(&mut self, mut visitor: V) -> Result<V> {
+		let keys = self.entry_keys();
+		for key in keys {
+			let entry = self.by_entry_key(key)?;
+
+			if entry.is_class() {
 				visitor = entry.visit_as_class(visitor)?;
 			}
 		}
+
 		Ok(visitor)
 	}
 
-	fn get_super_classes_provider(&self) -> Result<JarSuperProv> {
+	fn get_super_classes_provider(&mut self) -> Result<JarSuperProv> {
 		struct MyJarSuperProv(JarSuperProv);
 		impl MultiClassVisitor for MyJarSuperProv {
 			type ClassVisitor = Infallible;
@@ -77,7 +102,31 @@ pub trait JarEntry {
 
 #[derive(Clone, Debug)]
 pub struct BasicFileAttributes {
-	mtime: DateTime,
-	atime: (),
-	ctime: (),
+	last_modified: Option<DateTime>,
+	mtime: Option<u32>,
+	atime: Option<u32>,
+	ctime: Option<u32>,
+}
+
+impl BasicFileAttributes {
+	fn new(last_modified: Option<DateTime>, extra_data_fields: impl Iterator<Item=&ExtraField>) {
+		let extended_timestamp = extra_data_fields
+			.filter_map(|extra_field| match extra_field {
+				ExtraField::ExtendedTimestamp(x) => Some(x),
+				_ => None,
+			})
+			.next();
+
+		let mtime = extended_timestamp.and_then(|x| x.mod_time()).copied();
+		let atime = extended_timestamp.and_then(|x| x.ac_time()).copied();
+		let ctime = extended_timestamp.and_then(|x| x.cr_time()).copied();
+
+		BasicFileAttributes { last_modified, mtime, atime, ctime }
+	}
+
+	fn to_file_options<'k>(self) -> FileOptions<'k, ExtendedFileOptions> {
+		// TODO: set the ctime, atime, mtime to the ones from self
+
+		FileOptions::default().last_modified_time(self.last_modified.unwrap())
+	}
 }

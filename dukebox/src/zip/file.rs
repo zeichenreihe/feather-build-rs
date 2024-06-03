@@ -1,11 +1,12 @@
 use std::fs::File;
 use std::path::PathBuf;
 use anyhow::{anyhow, Context, Result};
-use crate::zip::JarFromReader;
+use zip::ZipArchive;
+use crate::Jar;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FileJar {
-	path: PathBuf,
+	pub(crate) path: PathBuf,
 }
 
 impl FileJar {
@@ -14,11 +15,13 @@ impl FileJar {
 	}
 }
 
-impl JarFromReader for FileJar {
-	type Reader<'a> = File;
+impl Jar for FileJar {
+	type Opened<'a> = ZipArchive<File> where Self: 'a;
 
-	fn open(&self) -> Result<Self::Reader<'_>> {
-		File::open(&self.path)
-			.with_context(|| anyhow!("failed to open jar at {:?}", self.path))
+	fn open(&self) -> Result<Self::Opened<'_>> {
+		let file = File::open(&self.path)
+			.with_context(|| anyhow!("could not open file {self:?}"))?
+		ZipArchive::new(file)
+			.with_context(|| anyhow!("failed to read zip archive from {self:?}"))
 	}
 }

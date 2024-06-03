@@ -1,12 +1,13 @@
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
 use std::fmt::{Debug, Formatter};
 use std::io::Cursor;
-use crate::zip::JarFromReader;
+use zip::ZipArchive;
+use crate::Jar;
 
 #[derive(Clone)]
 pub struct MemJar {
 	name: Option<String>,
-	data: Vec<u8>
+	pub(crate) data: Vec<u8>,
 }
 
 impl Debug for MemJar {
@@ -25,10 +26,11 @@ impl MemJar {
 	}
 }
 
-impl JarFromReader for MemJar {
-	type Reader<'a> = Cursor<&'a Vec<u8>>;
+impl Jar for MemJar {
+	type Opened<'a> = ZipArchive<Cursor<&'a Vec<u8>>> where Self: 'a;
 
-	fn open(&self) -> Result<Self::Reader<'_>> {
-		Ok(Cursor::new(&self.data))
+	fn open(&self) -> Result<Self::Opened<'_>> {
+		ZipArchive::new(Cursor::new(&self.data))
+			.with_context(|| anyhow!("failed to read zip archive from {self:?}"))
 	}
 }

@@ -1,121 +1,87 @@
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
 use std::io::{Cursor, Read, Seek};
+use std::ops::Range;
 use zip::read::ZipFile;
+use zip::result::ZipError;
 use zip::ZipArchive;
 use duke::visitor::MultiClassVisitor;
-use crate::{BasicFileAttributes, Jar, JarEntry};
-use crate::parsed::{ClassRepr, ParsedJarEntry};
+use crate::{BasicFileAttributes, JarEntry, OpenedJar};
+use crate::parsed::ParsedJarEntry;
 
 pub mod mem;
 pub mod file;
 pub mod both;
 
-pub(crate) trait JarFromReader {
-	type Reader<'a>: Read + Seek + 'a where Self: 'a;
+impl<R: Read + Seek> OpenedJar for ZipArchive<R> {
+	type Entry<'a> = ZipFile<'a> where Self: 'a;
 
-	fn open(&self) -> Result<Self::Reader<'_>>;
 
-	fn for_each_class(&self, mut f: impl FnMut(Cursor<Vec<u8>>) -> Result<()>) -> Result<()> {
-		let reader = self.open()?;
-		let mut zip = ZipArchive::new(reader)?;
+	type EntryKey = usize;
+	type EntryKeyIter = Range<usize>;
 
-		for index in 0..zip.len() {
-			let mut file = zip.by_index(index)?;
-			if file.name().ends_with(".class") {
+	fn entry_keys(&self) -> Self::EntryKeyIter {
+		0..self.len()
+	}
 
-				let mut vec = Vec::new();
-				file.read_to_end(&mut vec)?;
-				let reader = Cursor::new(vec);
+	fn by_entry_key(&mut self, key: Self::EntryKey) -> Result<Self::Entry<'_>> {
+		self.by_index(key).context("")
+	}
 
-				f(reader)?;
+
+	type Name<'a> = &'a str where Self: 'a;
+	type NameIter<'a> = std::vec::IntoIter<&'a str> where Self: 'a;
+
+	fn names(&self) -> Self::NameIter<'_> {
+		self.file_names().collect::<Vec<_>>().into_iter()
+	}
+
+	fn by_name(&mut self, name: &str) -> Result<Option<Self::Entry<'_>>> {
+		match self.by_name(name) {
+			Ok(file) => Ok(Some(file)),
+			Err(e) => match e {
+				ZipError::FileNotFound => Ok(None),
+				e => Err(anyhow!("could not get file {name} from zip: {e}")),
 			}
 		}
-
-		Ok(())
 	}
 }
 
-impl<T: JarFromReader> Jar for T {
-	type Entry<'a> = ZipFileEntry where Self: 'a;
-	type Iter<'a> = std::vec::IntoIter<ZipFileEntry> where Self: 'a;
-
-	fn entries<'a: 'b, 'b>(&'a self) -> Result<Self::Iter<'b>> {
-		let reader = self.open()?;
-		let mut zip = ZipArchive::new(reader)?;
-
-		let mut out = Vec::with_capacity(zip.len());
-		for index in 0..zip.len() {
-			let file = zip.by_index(index)?;
-			out.push(ZipFileEntry::new(file)?);
-		}
-
-		Ok(out.into_iter())
-	}
-
-	fn by_name(&self, name: &str) -> Result<Self::Entry<'_>> {
-		let reader = self.open()?;
-		let mut zip = ZipArchive::new(reader)?;
-
-		let file = zip.by_name(name)?;
-		ZipFileEntry::new(file)
-	}
-}
-
-pub struct ZipFileEntry {
-	is_dir: bool,
-	name: String,
-	vec: Vec<u8>,
-	attrs: BasicFileAttributes,
-}
-
-impl ZipFileEntry {
-	fn new(mut file: ZipFile) -> Result<ZipFileEntry> {
-		Ok(ZipFileEntry {
-			is_dir: file.is_dir(),
-			name: file.name().to_owned(),
-			vec: { let mut vec = Vec::new(); file.read_to_end(&mut vec)?; vec },
-			attrs: BasicFileAttributes { // TODO: implement reading the more exact file modification times from the extra data of the zip file
-				mtime: file.last_modified(),
-				atime: (),
-				ctime: (),
-			},
-		})
-	}
-}
-
-impl JarEntry for ZipFileEntry {
+impl JarEntry for ZipFile<'_> {
 	fn is_dir(&self) -> bool {
-		self.is_dir
+		ZipFile::is_dir(self)
 	}
 
 	fn name(&self) -> &str {
-		&self.name
+		ZipFile::name(self)
 	}
 
-	fn visit_as_class<V: MultiClassVisitor>(self, visitor: V) -> Result<V> {
-		let mut reader = Cursor::new(&self.vec);
+	fn visit_as_class<V: MultiClassVisitor>(mut self, visitor: V) -> Result<V> {
+		let mut vec = Vec::new();
+		self.read_to_end(&mut vec)?;
+
+		let mut reader = Cursor::new(vec);
 
 		duke::read_class_multi(&mut reader, visitor)
 	}
 
 	fn attrs(&self) -> BasicFileAttributes {
-		self.attrs.clone()
+		BasicFileAttributes::new(self.last_modified(), self.extra_data_fields())
 	}
 
-	fn to_parsed_jar_entry(self) -> Result<ParsedJarEntry> {
-		let attr = self.attrs.clone();
+	fn to_parsed_jar_entry(mut self) -> Result<ParsedJarEntry> {
+		let attr = self.attrs();
 
-		let entry = if self.is_dir() {
+		Ok(if self.is_dir() {
 			ParsedJarEntry::Dir { attr }
-		} else if self.is_class() {
-			ParsedJarEntry::Class {
-				class: ClassRepr::Vec { data: self.vec },
-				attr,
-			}
 		} else {
-			ParsedJarEntry::Other { attr, data: self.vec }
-		};
+			let mut data = Vec::new();
+			self.read_to_end(&mut data)?;
 
-		Ok(entry)
+			if self.is_class() {
+				ParsedJarEntry::Class { attr, class: data.into() }
+			} else {
+				ParsedJarEntry::Other { attr, data }
+			}
+		})
 	}
 }

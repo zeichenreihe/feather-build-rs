@@ -1,30 +1,32 @@
-use anyhow::Result;
-use std::io::{Read, Seek};
-use crate::zip::JarFromReader;
+use std::fs::File;
+use anyhow::{anyhow, Context, Result};
+use std::io::{Cursor, Read, Seek};
+use zip::ZipArchive;
+use crate::Jar;
 use crate::zip::file::FileJar;
 use crate::zip::mem::MemJar;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum EnumJarFromReader {
 	File(FileJar),
 	Mem(MemJar),
 }
 
-pub(crate) trait ReadSeek: Read + Seek {}
+pub trait ReadSeek: Read + Seek {}
 impl<T: Read + Seek> ReadSeek for T {}
 
-impl JarFromReader for EnumJarFromReader {
-	type Reader<'a> = Box<dyn ReadSeek + 'a>;
+impl Jar for EnumJarFromReader {
+	type Opened<'a> = ZipArchive<Box<dyn ReadSeek + 'a>> where Self: 'a;
 
-	fn open(&self) -> Result<Self::Reader<'_>> {
-		Ok(match self {
-			EnumJarFromReader::File(file) => {
-				Box::new(file.open()?)
-			},
-			EnumJarFromReader::Mem(mem) => {
-				Box::new(mem.open()?)
-			},
-		})
+	fn open(&self) -> Result<Self::Opened<'_>> {
+		let reader: Box<dyn ReadSeek> = match self {
+			EnumJarFromReader::File(file) => Box::new(File::open(&file.path)
+				.with_context(|| anyhow!("could not open file {file:?}"))?),
+			EnumJarFromReader::Mem(mem) => Box::new(Cursor::new(&mem.data)),
+		};
+
+		ZipArchive::new(reader)
+			.with_context(|| anyhow!("failed to read zip archive from {self:?}"))
 	}
 }
 

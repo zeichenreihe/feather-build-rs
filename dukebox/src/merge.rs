@@ -6,8 +6,9 @@ use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
 use duke::tree::class::{ClassFile, ClassName};
 use duke::tree::field::{Field, FieldDescriptor};
 use duke::tree::method::Method;
-use crate::Jar;
-use crate::parsed::{ClassRepr, ParsedJar, ParsedJarEntry};
+use crate::{Jar, JarEntry, OpenedJar};
+use crate::lazy_duke::ClassRepr;
+use crate::parsed::{ParsedJar, ParsedJarEntry};
 
 #[derive(Clone, Debug, PartialEq)]
 enum Side {
@@ -285,43 +286,52 @@ fn visit_sided_annotation(side: Side) -> impl FnOnce(&mut ClassFile) {
 }
 
 pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
-	let entries_client = ParsedJar::from_jar(&client)?.entries;
-	let entries_server = ParsedJar::from_jar(&server)?.entries;
+	let mut client = client.open()?;
+	let mut server = server.open()?;
 
-	let keys: IndexSet<_> = entries_client.keys().chain(entries_server.keys()).collect();
+	let keys_client = client.names().map(|x| x.as_ref().to_owned());
+	let keys_server = server.names().map(|x| x.as_ref().to_owned());
+
+	let keys: IndexSet<_> = keys_client.chain(keys_server).collect();
 
 	let mut resulting_entries = ParsedJar { entries: IndexMap::new(), };
 	for key in keys {
-		let is_class = key.ends_with(".class");
 
-		let entry_client = entries_client.get(key);
-		let entry_server = entries_server.get(key);
+		let entry_client = client.by_name(&key)?;
+		let entry_server = server.by_name(&key)?;
 
 		let is_minecraft = entry_client.is_some()
 			|| key.starts_with("/net/minecraft/")
 			|| !key.strip_prefix('/').is_some_and(|x| x.contains('/'));
 
-		fn do_other(key: &str, entry: &ParsedJarEntry) -> Option<ParsedJarEntry> {
-			if let ParsedJarEntry::Other { attr, .. } = entry {
+		fn do_other(key: &str, entry: ParsedJarEntry) -> Option<ParsedJarEntry> {
+			if let ParsedJarEntry::Other { attr, data } = entry {
 
 				match key {
 					"/META-INF/MANIFEST.MF" => Some(ParsedJarEntry::Other {
-						attr: attr.clone(),
+						attr,
 						data: b"Manifest-Version: 1.0\nMain-Class: net.minecraft.client.Main\n".to_vec(),
 					}),
 					name if name.starts_with("/META-INF/") && (name.ends_with(".SF") || name.ends_with(".RSA")) => None,
-					_ => Some(entry.clone()),
+					_ => Some(ParsedJarEntry::Other { attr, data }),
 				}
 
 			} else {
-				Some(entry.clone())
+				Some(entry)
 			}
 		}
 
-		let entry_client = entry_client.and_then(|x| do_other(key, x));
-		let entry_server = entry_server.and_then(|x| do_other(key, x));
+
+		let entry_client = entry_client.map(|x| x.to_parsed_jar_entry()).transpose()?;
+		let entry_server = entry_server.map(|x| x.to_parsed_jar_entry()).transpose()?;
+
+		let entry_client = entry_client.and_then(|x| do_other(&key, x));
+		let entry_server = entry_server.and_then(|x| do_other(&key, x));
+
 
 		let is_server = entry_client.is_none() && entry_server.is_some();
+
+		let is_class = key.ends_with(".class");
 
 		if is_class && !is_minecraft && is_server {
 			continue;
@@ -343,23 +353,43 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 					}
 				}
 
-				if get_data_or_none(&client) == get_data_or_none(&server) {
-					client
-				} else if let (
-					ParsedJarEntry::Class { attr: client_attr, class: client },
-					ParsedJarEntry::Class { attr: server_attr, class: server }
-				) = (client.clone(), server) {
-					ParsedJarEntry::Class {
-						attr: client_attr, // TODO: ?= server_attr
-						class: class_merger_merge(client, server)?,
-					}
-				} else {
-					// TODO: warning here
-					client
+				match (client, server) {
+					(
+						ParsedJarEntry::Class { attr: client_attr, class: client },
+						ParsedJarEntry::Class { attr: server_attr, class: server }
+					) => {
+						// if data eq -> ret client
+						// else
+						ParsedJarEntry::Class {
+							attr: client_attr, // TODO: ?= server_attr
+							class: class_merger_merge(client, server)?,
+						}
+					},
+					(
+						ParsedJarEntry::Other { attr: client_attr, data: client },
+						ParsedJarEntry::Other { attr: server_attr, data: server }
+					) => {
+						if client == server {
+							ParsedJarEntry::Other { attr: client_attr, data: client }
+						} else {
+							// TODO: warning here
+							ParsedJarEntry::Other { attr: client_attr, data: client }
+						}
+					},
+					(
+						ParsedJarEntry::Dir { attr: client_attr },
+						ParsedJarEntry::Dir { attr: server_attr  },
+					) => {
+						// TODO: check _attr in all of these!
+						ParsedJarEntry::Dir { attr: client_attr }
+					},
+					(c, s) => {
+						bail!("types don't match {c:?} and {s:?}")
+					},
 				}
 			},
 			(Some(client), None) => {
-				if let ParsedJarEntry::Class { class, attr } = client {
+				if let ParsedJarEntry::Class { attr, class } = client {
 					ParsedJarEntry::Class {
 						attr,
 						class: if is_minecraft {
@@ -373,7 +403,7 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 				}
 			},
 			(None, Some(server)) => {
-				if let ParsedJarEntry::Class { class, attr } = server {
+				if let ParsedJarEntry::Class { attr, class } = server {
 					ParsedJarEntry::Class {
 						attr,
 						class: if is_minecraft {
