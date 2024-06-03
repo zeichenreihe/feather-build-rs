@@ -296,14 +296,6 @@ impl SimpleClassVisitor for ClassVisitorImpl {
 	}
 }
 
-fn key_to_ref(class_name: ClassName, method_key: MethodKey) -> MethodRef {
-	MethodRef { class: class_name, name: method_key.name, desc: method_key.desc }
-}
-
-fn ref_to_key_both(method_ref: MethodRef) -> (ClassName, MethodKey) {
-	(method_ref.class, MethodKey { name: method_ref.name, desc: method_ref.desc })
-}
-
 pub(crate) fn add_specialized_methods_to_mappings(
 	main_jar: &impl Jar, // official
 	calamus: &Mappings<2>, // official -> intermediary
@@ -334,11 +326,7 @@ pub(crate) fn add_specialized_methods_to_mappings(
 	let mut mappings = mappings.clone();
 
 	for (bridge, specialized) in specialized_methods.bridge_to_specialized {
-		let named_specialized = {
-			let (class_key, method_key) = ref_to_key_both(bridge.clone());
-			let result = remapper_named.map_method(&class_key, &method_key)?;
-			key_to_ref(class_key, result).name
-		};
+		let named_specialized = remapper_named.map_method_ref(&bridge)?.name;
 
 		let info = MethodMapping {
 			names: Names::from([specialized.name, named_specialized]),
