@@ -19,7 +19,6 @@ mod version_graph;
 mod download;
 mod specialized_methods;
 
-mod jar;
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 /// The version id used in the mappings diffs and mappings files.
@@ -109,7 +108,7 @@ async fn build(downloader: &mut Downloader, version_graph: &VersionGraph, versio
 fn tiny_v2_write_zip_file<const N: usize>(mappings: &Mappings<N>) -> Result<Vec<u8>> {
     let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
 
-    zip.start_file("mappings/mappings.tiny", FileOptions::default())?;
+    zip.start_file("mappings/mappings.tiny", FileOptions::<()>::default())?;
 
     quill::tiny_v2::write(mappings, &mut zip)?;
 
