@@ -14,8 +14,8 @@
 use anyhow::{bail, Result};
 use indexmap::{IndexMap, IndexSet};
 use duke::tree::class::ClassName;
-use duke::tree::field::{FieldDescriptor, FieldName};
-use duke::tree::method::{MethodDescriptor, MethodName};
+use duke::tree::field::{FieldDescriptor, FieldName, FieldRef};
+use duke::tree::method::{MethodDescriptor, MethodName, MethodRef};
 use crate::tree::mappings::{FieldKey, Mappings, MethodKey};
 use crate::tree::names::Namespace;
 
@@ -103,10 +103,44 @@ pub trait BRemapper: ARemapper {
 		Ok(self.map_field_fail(class, field)?.unwrap_or_else(|| field.clone()))
 	}
 
+	fn map_field_ref(&self, field_ref: &FieldRef) -> Result<FieldRef> {
+		let class_name = &field_ref.class;
+		let field_key = FieldKey {
+			name: field_ref.name.clone(),
+			desc: field_ref.desc.clone(),
+		};
+
+		let field_key = self.map_field(class_name, &field_key)?;
+		let class_name = self.map_class(class_name)?;
+
+		Ok(FieldRef {
+			class: class_name,
+			name: field_key.name,
+			desc: field_key.desc,
+		})
+	}
+
 	fn map_method_fail(&self, owner_name: &ClassName, method_key: &MethodKey) -> Result<Option<MethodKey>>;
 
 	fn map_method(&self, class: &ClassName, method: &MethodKey) -> Result<MethodKey> {
 		Ok(self.map_method_fail(class, method)?.unwrap_or_else(|| method.clone()))
+	}
+
+	fn map_method_ref(&self, method_ref: &MethodRef) -> Result<MethodRef> {
+		let class_name = &method_ref.class;
+		let method_key = MethodKey {
+			name: method_ref.name.clone(),
+			desc: method_ref.desc.clone(),
+		};
+
+		let method_key = self.map_method(class_name, &method_key)?;
+		let class_name = self.map_class(class_name)?;
+
+		Ok(MethodRef {
+			class: class_name,
+			name: method_key.name,
+			desc: method_key.desc,
+		})
 	}
 }
 

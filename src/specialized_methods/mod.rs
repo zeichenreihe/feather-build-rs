@@ -90,29 +90,18 @@ pub(crate) struct SpecializedMethods {
 
 impl SpecializedMethods {
 	fn remap(self, remapper: &impl BRemapper) -> Result<SpecializedMethods> {
-		fn remap_method_ref(remapper: &impl BRemapper, method_ref: MethodRef) -> Result<MethodRef> {
-			let (class_name, method_key) = ref_to_key_both(method_ref);
-
-			let method_key_1 = remapper.map_method_fail(&class_name, &method_key)?.unwrap_or_else(|| {
-				//eprintln!("cannot remap method {class_name:?} {method_key:?}");
-				method_key.clone()
-			});
-			let class_name = remapper.map_class_fail(&class_name)?.unwrap_or_else(|| {
-				//eprintln!("cannot remap class {class_name:?}");
-				class_name.clone()
-			});
-
-			Ok(key_to_ref(class_name, method_key_1))
-
-			// TODO: we include wrongly remapped methods here...
-		}
-
 		Ok(SpecializedMethods {
 			bridge_to_specialized: self.bridge_to_specialized.into_iter()
-				.map(|(bridge, specialized)| Ok((remap_method_ref(remapper, bridge)?, remap_method_ref(remapper, specialized)?)))
+				.map(|(bridge, specialized)| Ok((
+					remapper.map_method_ref(&bridge)?,
+					remapper.map_method_ref(&specialized)?)
+				))
 				.collect::<Result<_>>()?,
 			specialized_to_bridge: self.specialized_to_bridge.into_iter()
-				.map(|(specialized, bridge)| Ok((remap_method_ref(remapper, specialized)?, remap_method_ref(remapper, bridge)?)))
+				.map(|(specialized, bridge)| Ok((
+					remapper.map_method_ref(&specialized)?,
+					remapper.map_method_ref(&bridge)?)
+				))
 				.collect::<Result<_>>()?,
 		})
 	}
