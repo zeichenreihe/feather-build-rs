@@ -10,7 +10,7 @@ anyhow = { version = "1.0.71", features = ["backtrace"] }
 
 indexmap = "2.0.2"
 
-zip = "2.1.2"
+zip = "2.1.3"
 
 duke = { path = "../duke" }
 quill = { path = "../quill" }

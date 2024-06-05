@@ -118,9 +118,9 @@ impl BasicFileAttributes {
 			})
 			.next();
 
-		let mtime = extended_timestamp.and_then(|x| x.mod_time()).copied();
-		let atime = extended_timestamp.and_then(|x| x.ac_time()).copied();
-		let ctime = extended_timestamp.and_then(|x| x.cr_time()).copied();
+		let mtime = extended_timestamp.and_then(|x| x.mod_time());
+		let atime = extended_timestamp.and_then(|x| x.ac_time());
+		let ctime = extended_timestamp.and_then(|x| x.cr_time());
 
 		BasicFileAttributes { last_modified, mtime, atime, ctime }
 	}
