@@ -7,7 +7,7 @@ use crate::zip::file::FileJar;
 use crate::zip::mem::MemJar;
 
 #[derive(Debug)]
-pub enum EnumJarFromReader {
+pub enum EnumJar {
 	File(FileJar),
 	Mem(MemJar),
 }
@@ -15,14 +15,14 @@ pub enum EnumJarFromReader {
 pub trait ReadSeek: Read + Seek {}
 impl<T: Read + Seek> ReadSeek for T {}
 
-impl Jar for EnumJarFromReader {
+impl Jar for EnumJar {
 	type Opened<'a> = ZipArchive<Box<dyn ReadSeek + 'a>> where Self: 'a;
 
 	fn open(&self) -> Result<Self::Opened<'_>> {
 		let reader: Box<dyn ReadSeek> = match self {
-			EnumJarFromReader::File(file) => Box::new(File::open(&file.path)
+			EnumJar::File(file) => Box::new(File::open(&file.path)
 				.with_context(|| anyhow!("could not open file {file:?}"))?),
-			EnumJarFromReader::Mem(mem) => Box::new(Cursor::new(&mem.data)),
+			EnumJar::Mem(mem) => Box::new(Cursor::new(&mem.data)),
 		};
 
 		ZipArchive::new(reader)
@@ -30,14 +30,14 @@ impl Jar for EnumJarFromReader {
 	}
 }
 
-impl From<FileJar> for EnumJarFromReader {
+impl From<FileJar> for EnumJar {
 	fn from(value: FileJar) -> Self {
-		EnumJarFromReader::File(value)
+		EnumJar::File(value)
 	}
 }
 
-impl From<MemJar> for EnumJarFromReader {
+impl From<MemJar> for EnumJar {
 	fn from(value: MemJar) -> Self {
-		EnumJarFromReader::Mem(value)
+		EnumJar::Mem(value)
 	}
 }
