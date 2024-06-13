@@ -7,10 +7,10 @@ use anyhow::{anyhow, bail, Context, Result};
 use zip::write::FileOptions;
 use zip::ZipWriter;
 use duke::tree::method::ParameterName;
+use dukebox::Jar;
 use crate::download::Downloader;
 use crate::download::versions_manifest::MinecraftVersion;
 use dukebox::zip::mem::MemJar;
-use dukebox::zip::both::EnumJar;
 use quill::tree::mappings::Mappings;
 use quill::tree::names::Names;
 use crate::version_graph::VersionGraph;
@@ -76,6 +76,38 @@ fn inspect<const N: usize>(mappings: &Mappings<N>, path: &str) -> Result<()> {
 }
 
 async fn build(downloader: &mut Downloader, version_graph: &VersionGraph, version: &Version) -> Result<BuildResult> {
+    // Get the jar from mojang. If it's a merged environment, then merge the two jars (client and server).
+
+    let environment = version.get_environment();
+    let version_details = downloader.version_details(version, &environment).await?;
+
+    match environment {
+        Environment::Merged => {
+            let client = downloader.get_jar(&version_details.downloads.client.url).await?;
+            let server = downloader.get_jar(&version_details.downloads.server.url).await?;
+
+            let start = Instant::now();
+
+            let main_jar = dukebox::merge::merge(client, server).with_context(|| anyhow!("failed to merge jars for version {version}"))?;
+
+            println!("jar merging took {:?}", start.elapsed());
+
+            build_inner(downloader, version_graph, version, &main_jar).await
+        },
+        Environment::Client => {
+            let main_jar = downloader.get_jar(&version_details.downloads.client.url).await?;
+
+            build_inner(downloader, version_graph, version, &main_jar).await
+        },
+        Environment::Server => {
+            let main_jar = downloader.get_jar(&version_details.downloads.server.url).await?;
+
+            build_inner(downloader, version_graph, version, &main_jar).await
+        },
+    }
+}
+
+async fn build_inner(downloader: &mut Downloader, version_graph: &VersionGraph, version: &Version, main_jar: &impl Jar) -> Result<BuildResult> {
 
     let feather_version = next_feather_version(downloader, version, false).await?;
 
@@ -83,11 +115,10 @@ async fn build(downloader: &mut Downloader, version_graph: &VersionGraph, versio
         .extend_inner_class_names("named")?
         .remove_dummy("named")?;
 
-    let main_jar = main_jar(downloader, version).await?;
     let calamus_v2 = downloader.calamus_v2(version).await?;
     let libraries = downloader.mc_libs(version).await?;
 
-    let build_feather_tiny = specialized_methods::add_specialized_methods_to_mappings(&main_jar, &calamus_v2, &libraries, &mappings)
+    let build_feather_tiny = specialized_methods::add_specialized_methods_to_mappings(main_jar, &calamus_v2, &libraries, &mappings)
         .context("failed to add specialized methods to mappings")?;
 
     let merge_v2 = merge_v2(&build_feather_tiny, &calamus_v2)?;
@@ -230,27 +261,6 @@ impl ApplyFix for Mappings<3> {
 
         Ok(self)
     }
-}
-
-/// Gets the jar from mojang. If it's a merged environment ([Environment::Merged]), then
-/// the two jars (client and server) will be merged.
-///
-/// This jar is in the `official` mappings, i.e. obfuscated.
-async fn main_jar(downloader: &mut Downloader, version: &Version) -> Result<EnumJar> {
-    let environment = version.get_environment();
-
-    let version_details = downloader.version_details(version, &environment).await?;
-
-    Ok(match environment {
-        Environment::Merged => {
-            let client = downloader.get_jar(&version_details.downloads.client.url).await?;
-            let server = downloader.get_jar(&version_details.downloads.server.url).await?;
-
-            dukebox::merge::merge(client, server).with_context(|| anyhow!("failed to merge jars for version {version}"))?.to_mem()?.into()
-        },
-        Environment::Client => downloader.get_jar(&version_details.downloads.client.url).await?.into(),
-        Environment::Server => downloader.get_jar(&version_details.downloads.server.url).await?.into(),
-    })
 }
 
 #[derive(Debug)]
