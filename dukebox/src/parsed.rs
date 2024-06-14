@@ -51,11 +51,6 @@ impl<'this> OpenedJar for &'this ParsedJar {
 }
 
 impl ParsedJar {
-	pub(crate) fn put(&mut self, name: String, entry: ParsedJarEntry) -> Result<()> {
-		self.entries.insert(name, entry);
-		Ok(())
-	}
-
 	pub(crate) fn from_jar(jar: &impl Jar) -> Result<ParsedJar> {
 		let mut jar = jar.open()?;
 

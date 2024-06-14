@@ -294,25 +294,25 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 
 	let keys: IndexSet<_> = keys_client.chain(keys_server).collect();
 
-	let mut resulting_entries = ParsedJar { entries: IndexMap::new(), };
+	let mut resulting_entries = IndexMap::new();
 	for key in keys {
 
 		let entry_client = client.by_name(&key)?;
 		let entry_server = server.by_name(&key)?;
 
 		let is_minecraft = entry_client.is_some()
-			|| key.starts_with("/net/minecraft/")
-			|| !key.strip_prefix('/').is_some_and(|x| x.contains('/'));
+			|| key.starts_with("net/minecraft/")
+			|| !key.contains('/');
 
 		fn do_other(key: &str, entry: ParsedJarEntry) -> Option<ParsedJarEntry> {
 			if let ParsedJarEntry::Other { attr, data } = entry {
 
 				match key {
-					"/META-INF/MANIFEST.MF" => Some(ParsedJarEntry::Other {
+					"META-INF/MANIFEST.MF" => Some(ParsedJarEntry::Other {
 						attr,
 						data: b"Manifest-Version: 1.0\nMain-Class: net.minecraft.client.Main\n".to_vec(),
 					}),
-					name if name.starts_with("/META-INF/") && (name.ends_with(".SF") || name.ends_with(".RSA")) => None,
+					name if name.starts_with("META-INF/") && (name.ends_with(".SF") || name.ends_with(".RSA")) => None,
 					_ => Some(ParsedJarEntry::Other { attr, data }),
 				}
 
@@ -365,6 +365,7 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 						if client == server {
 							ParsedJarEntry::Other { attr: client_attr, data: client }
 						} else {
+							eprintln!("warn: merging {key:?} from both client and server not implemented, taking client version");
 							// TODO: warning here
 							ParsedJarEntry::Other { attr: client_attr, data: client }
 						}
@@ -412,8 +413,8 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 			(None, None) => continue,
 		};
 
-		resulting_entries.put(key.clone(), result)?;
+		resulting_entries.insert(key.clone(), result);
 	}
 
-	Ok(resulting_entries)
+	Ok(ParsedJar { entries: resulting_entries })
 }
