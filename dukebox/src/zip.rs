@@ -15,7 +15,6 @@ pub mod both;
 impl<R: Read + Seek> OpenedJar for ZipArchive<R> {
 	type Entry<'a> = ZipFile<'a> where Self: 'a;
 
-
 	type EntryKey = usize;
 	type EntryKeyIter = Range<usize>;
 
@@ -29,10 +28,10 @@ impl<R: Read + Seek> OpenedJar for ZipArchive<R> {
 
 
 	type Name<'a> = &'a str where Self: 'a;
-	type NameIter<'a> = std::vec::IntoIter<&'a str> where Self: 'a;
+	type NameIter<'a> = std::vec::IntoIter<(&'a str, usize)> where Self: 'a;
 
 	fn names(&self) -> Self::NameIter<'_> {
-		self.file_names().collect::<Vec<_>>().into_iter()
+		(0..self.len()).map(|x| (self.name_for_index(x).unwrap(), x)).collect::<Vec<_>>().into_iter()
 	}
 
 	fn by_name(&mut self, name: &str) -> Result<Option<Self::Entry<'_>>> {

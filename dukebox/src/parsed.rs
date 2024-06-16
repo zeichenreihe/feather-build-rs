@@ -1,4 +1,5 @@
 use std::io::{Cursor, Seek, Write};
+use std::ops::Range;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use zip::write::FileOptions;
@@ -24,25 +25,23 @@ impl Jar for ParsedJar {
 impl<'this> OpenedJar for &'this ParsedJar {
 	type Entry<'a> = (&'a String, &'a ParsedJarEntry) where Self: 'a;
 
-
-	type EntryKey = &'this String;
-	type EntryKeyIter = indexmap::map::Keys<'this, String, ParsedJarEntry>;
+	type EntryKey = usize;
+	type EntryKeyIter = Range<usize>;
 
 	fn entry_keys(&self) -> Self::EntryKeyIter {
-		self.entries.keys()
+		0..self.entries.len()
 	}
-
 	fn by_entry_key(&mut self, key: Self::EntryKey) -> Result<Self::Entry<'_>> {
-		self.entries.get_key_value(key)
-			.with_context(|| anyhow!("no entry for key {key:?}"))
+		self.entries.get_index(key)
+			.with_context(|| anyhow!("no entry for index {key:?}"))
 	}
 
 
 	type Name<'a> = &'a String where Self: 'a;
-	type NameIter<'a> = indexmap::map::Keys<'a, String, ParsedJarEntry> where Self: 'a;
+	type NameIter<'a> = std::vec::IntoIter<(Self::Name<'a>, usize)> where Self: 'a;
 
 	fn names(&self) -> Self::NameIter<'_> {
-		self.entries.keys()
+		(0..self.entries.len()).map(|x| (self.entries.get_index(x).unwrap().0, x)).collect::<Vec<_>>().into_iter()
 	}
 
 	fn by_name(&mut self, name: &str) -> Result<Option<Self::Entry<'_>>> {

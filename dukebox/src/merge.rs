@@ -1,12 +1,13 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use anyhow::{bail, Result};
-use indexmap::{IndexMap, IndexSet};
+use indexmap::IndexMap;
+use indexmap::map::Entry;
 use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
 use duke::tree::class::{ClassFile, ClassName};
 use duke::tree::field::{Field, FieldDescriptor};
 use duke::tree::method::Method;
-use crate::{Jar, JarEntry, OpenedJar};
+use crate::{BasicFileAttributes, Jar, JarEntry, OpenedJar};
 use crate::lazy_duke::ClassRepr;
 use crate::parsed::{ParsedJar, ParsedJarEntry};
 
@@ -286,50 +287,83 @@ fn visit_sided_annotation(side: Side) -> impl FnOnce(&mut ClassFile) {
 }
 
 pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
+
+	let start = std::time::Instant::now();
+
 	let mut client = client.open()?;
 	let mut server = server.open()?;
 
-	let keys_client = client.names().map(|x| x.as_ref().to_owned());
-	let keys_server = server.names().map(|x| x.as_ref().to_owned());
+	//TODO: suggest to `zip` crate to expose the `files` map of the `ZipArchive`, because I want to have both the names and the
+	// zip file indicies to improve performance (as then I don't need to get with a string from a map!)
 
-	let keys: IndexSet<_> = keys_client.chain(keys_server).collect();
+	let keys_client = client.names().map(|x| (x.0.as_ref().to_owned(), Ok(x.1)));
+	let keys_server = server.names().map(|x| (x.0.as_ref().to_owned(), Err(x.1)));
+
+	struct MyCollector<C, S>(IndexMap<String, (Option<C>, Option<S>)>);
+	impl<C, S> FromIterator<(String, Result<C, S>)> for MyCollector<C, S> {
+		fn from_iter<T: IntoIterator<Item=(String, Result<C, S>)>>(iter: T) -> Self {
+			let iter = iter.into_iter();
+
+			let (low, _) = iter.size_hint();
+			let mut m = IndexMap::with_capacity(low / 2);
+
+			for (key, client_or_server) in iter {
+				match m.entry(key) {
+					Entry::Occupied(mut e) => {
+						let (a, b) = e.get_mut();
+
+						match client_or_server {
+							Ok(c) => *a = Some(c),
+							Err(s) => *b = Some(s),
+						}
+					},
+					Entry::Vacant(e) => {
+						let x = match client_or_server {
+							Ok(c) => (Some(c), None),
+							Err(s) => (None, Some(s)),
+						};
+						e.insert(x);
+					},
+				}
+			}
+
+			MyCollector(m)
+		}
+	}
+
+	let keys: MyCollector<_, _> = keys_client.chain(keys_server).collect();
 
 	let mut resulting_entries = IndexMap::new();
-	for key in keys {
+	for (key, (client_map_idx, server_map_idx)) in keys.0 {
+		match key.as_str() {
+			"META-INF/MANIFEST.MF" => {
 
-		let entry_client = client.by_name(&key)?;
-		let entry_server = server.by_name(&key)?;
+				resulting_entries.insert(key.clone(), ParsedJarEntry::Other {
+					attr: {
+						if let Some(c_idx) = client_map_idx {
+							client.by_entry_key(c_idx)?.attrs()
+						} else {
+							server.by_entry_key(server_map_idx.unwrap())?.attrs()
+						}
+					},
+					data: b"Manifest-Version: 1.0\nMain-Class: net.minecraft.client.Main\n".to_vec(),
+				});
 
-		let is_minecraft = entry_client.is_some()
+				continue;
+			},
+			name if name.starts_with("META-INF/") && (name.ends_with(".SF") || name.ends_with(".RSA")) => {
+				// remove these from the jar
+
+				continue;
+			},
+			_ => {}, // the code below deals with these cases
+		}
+
+		let is_minecraft = client_map_idx.is_some()
 			|| key.starts_with("net/minecraft/")
 			|| !key.contains('/');
 
-		fn do_other(key: &str, entry: ParsedJarEntry) -> Option<ParsedJarEntry> {
-			if let ParsedJarEntry::Other { attr, data } = entry {
-
-				match key {
-					"META-INF/MANIFEST.MF" => Some(ParsedJarEntry::Other {
-						attr,
-						data: b"Manifest-Version: 1.0\nMain-Class: net.minecraft.client.Main\n".to_vec(),
-					}),
-					name if name.starts_with("META-INF/") && (name.ends_with(".SF") || name.ends_with(".RSA")) => None,
-					_ => Some(ParsedJarEntry::Other { attr, data }),
-				}
-
-			} else {
-				Some(entry)
-			}
-		}
-
-
-		let entry_client = entry_client.map(|x| x.to_parsed_jar_entry()).transpose()?;
-		let entry_server = entry_server.map(|x| x.to_parsed_jar_entry()).transpose()?;
-
-		let entry_client = entry_client.and_then(|x| do_other(&key, x));
-		let entry_server = entry_server.and_then(|x| do_other(&key, x));
-
-
-		let is_server = entry_client.is_none() && entry_server.is_some();
+		let is_server = client_map_idx.is_none() && server_map_idx.is_some();
 
 		let is_class = key.ends_with(".class");
 
@@ -337,8 +371,10 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 			continue;
 		}
 
-		let result = match (entry_client, entry_server) {
-			(Some(client_), Some(server_)) => {
+		let result = match (client_map_idx, server_map_idx) {
+			(Some(client_k), Some(server_k)) => {
+				let client_ = client.by_entry_key(client_k)?.to_parsed_jar_entry()?;
+				let server_ = server.by_entry_key(server_k)?.to_parsed_jar_entry()?;
 
 				match (client_, server_) {
 					(
@@ -346,8 +382,8 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 						ParsedJarEntry::Class { attr: server_attr, class: server_ }
 					) => {
 
-						let c_vec = client.by_name(&key)?.unwrap().to_vec()?;
-						let s_vec = server.by_name(&key)?.unwrap().to_vec()?;
+						let c_vec = client.by_entry_key(client_k)?.to_vec()?;
+						let s_vec = server.by_entry_key(server_k)?.to_vec()?;
 
 						if c_vec == s_vec {
 							ParsedJarEntry::Class { attr: client_attr, class: client_ }
@@ -366,7 +402,6 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 							ParsedJarEntry::Other { attr: client_attr, data: client }
 						} else {
 							eprintln!("warn: merging {key:?} from both client and server not implemented, taking client version");
-							// TODO: warning here
 							ParsedJarEntry::Other { attr: client_attr, data: client }
 						}
 					},
@@ -382,7 +417,9 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 					},
 				}
 			},
-			(Some(client), None) => {
+			(Some(client_), None) => {
+				let client = client.by_entry_key(client_)?.to_parsed_jar_entry()?;
+
 				if let ParsedJarEntry::Class { attr, class } = client {
 					ParsedJarEntry::Class {
 						attr,
@@ -396,7 +433,9 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 					client
 				}
 			},
-			(None, Some(server)) => {
+			(None, Some(server_)) => {
+				let server = server.by_entry_key(server_)?.to_parsed_jar_entry()?;
+
 				if let ParsedJarEntry::Class { attr, class } = server {
 					ParsedJarEntry::Class {
 						attr,
@@ -415,6 +454,43 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 
 		resulting_entries.insert(key.clone(), result);
 	}
+
+
+	println!("jar merging took {:?}", start.elapsed());
+	// TODO: beautify code a bit, use this to check if it's eq to before!, after it works (fast) remove this / move to proj/junk folder!
+
+	let x = resulting_entries.iter()
+		.map(|(k, x): (&String, &ParsedJarEntry)| -> Result<_> {
+			fn y(a: &BasicFileAttributes) -> u128 {
+				a.last_modified.map_or(0, |x| { let (a, b) = <(u16, u16)>::from(x); (a as u128) << 16 | b as u128 } )
+				+ 31 * a.ctime.unwrap_or(0) as u128
+				+ 31 * a.atime.unwrap_or(0) as u128
+				+ 31 * a.mtime.unwrap_or(0) as u128
+			}
+			Ok({
+				31 * k.chars().fold(0u128, |acc, x| 31 * acc + (x as u32 as u128)) + k.len() as u128
+			} + match x {
+				ParsedJarEntry::Dir { attr } => {
+					y(attr)
+				},
+				ParsedJarEntry::Class { attr, class } => {
+					y(attr) + 31 * {
+						let data = class.clone().write()?;
+
+						31 * data.iter().fold(0u128, |acc, x| 7 * acc + *x as u128) + data.len() as u128
+					}
+				},
+				ParsedJarEntry::Other { attr, data } => {
+					y(attr) + 31 * {
+						31 * data.iter().fold(0u128, |acc, x| 7 * acc + *x as u128) + data.len() as u128
+					}
+				},
+			})
+		})
+		.try_fold(0u128, |acc, x| -> Result<_> { Ok(31 * acc + x?) })?;
+	dbg!(x);
+	assert_eq!(x, 164692325188824892327659321751286644269);
+	panic!();
 
 	Ok(ParsedJar { entries: resulting_entries })
 }

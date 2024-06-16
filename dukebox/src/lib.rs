@@ -29,16 +29,15 @@ pub trait Jar {
 pub trait OpenedJar {
 	type Entry<'a>: JarEntry where Self: 'a;
 
-	type EntryKey;
+	type EntryKey: Copy;
 	type EntryKeyIter: Iterator<Item=Self::EntryKey>;
 
 	fn entry_keys(&self) -> Self::EntryKeyIter;
 
 	fn by_entry_key(&mut self, key: Self::EntryKey) -> Result<Self::Entry<'_>>;
 
-
 	type Name<'a>: AsRef<str> where Self: 'a;
-	type NameIter<'a>: Iterator<Item=Self::Name<'a>> where Self: 'a;
+	type NameIter<'a>: Iterator<Item=(Self::Name<'a>, Self::EntryKey)> where Self: 'a;
 
 	fn names(&self) -> Self::NameIter<'_>;
 	fn by_name(&mut self, name: &str) -> Result<Option<Self::Entry<'_>>>;
