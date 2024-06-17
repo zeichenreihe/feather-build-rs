@@ -295,35 +295,18 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 	let mut opened_a = client.open()?;
 	let mut opened_b = server.open()?;
 
-	enum MergeSide<C, S> {
-		Client(C),
-		Server(S),
-	}
-
 	enum MergeCombination<C, S> {
 		Client(C),
 		Server(S),
 		Both(C, S),
 	}
 
-	impl<C, S> MergeCombination<C, S> where C: Copy, S: Copy {
-		fn client_to_both(&self, s: S) -> Result<Self> {
-			match self {
-				MergeCombination::Client(c) => Ok(MergeCombination::Both(*c, s)),
-				MergeCombination::Server(_) => bail!(""),
-				MergeCombination::Both(_, _) => bail!(""),
-			}
-		}
-		fn server_to_both(&self, c: C) -> Result<Self> {
-			match self {
-				MergeCombination::Client(_) => bail!(""),
-				MergeCombination::Server(s) => Ok(MergeCombination::Both(c, *s)),
-				MergeCombination::Both(_, _) => bail!(""),
-			}
-		}
-	}
-
 	let keys = {
+		enum MergeSide<C, S> {
+			Client(C),
+			Server(S),
+		}
+
 		let keys_a = opened_a.names().map(|x| (x.0, MergeSide::Client(x.1)));
 		let keys_b = opened_b.names().map(|x| (x.0, MergeSide::Server(x.1)));
 		let chain = keys_a.chain(keys_b);
@@ -335,8 +318,16 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 			match keys.entry(key.to_owned()) {
 				Entry::Occupied(mut e) => {
 					*e.get_mut() = match client_or_server {
-						MergeSide::Client(c) => e.get().server_to_both(c)?,
-						MergeSide::Server(s) => e.get().client_to_both(s)?,
+						MergeSide::Client(c) => match e.get() {
+							MergeCombination::Client(_) => unreachable!(),
+							MergeCombination::Server(s) => MergeCombination::Both(c, *s),
+							MergeCombination::Both(_, _) => unreachable!(),
+						},
+						MergeSide::Server(s) => match e.get() {
+							MergeCombination::Client(c) => MergeCombination::Both(*c, s),
+							MergeCombination::Server(_) => unreachable!(),
+							MergeCombination::Both(_, _) => unreachable!(),
+						},
 					};
 				},
 				Entry::Vacant(e) => {
