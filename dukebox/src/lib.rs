@@ -96,7 +96,6 @@ pub trait JarEntry {
 
 	fn attrs(&self) -> BasicFileAttributes;
 
-	fn to_vec(self) -> Result<Vec<u8>>;
 	fn to_parsed_jar_entry(self) -> Result<ParsedJarEntry>;
 }
 

@@ -10,6 +10,10 @@ anyhow = { version = "1.0.71", features = ["backtrace"] }
 
 indexmap = "2.0.2"
 
+# generic associated types (GAT) iterators (so someting like `Iterator::Item<'a>`!) for dealing with opened jars while
+# iterating; once this is in std (might take quite some time), switch to that
+gat-lending-iterator = "0.1.5"
+
 zip = "2.1.3"
 
 duke = { path = "../duke" }

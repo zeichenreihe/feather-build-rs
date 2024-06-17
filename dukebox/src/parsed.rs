@@ -148,14 +148,6 @@ impl JarEntry for (&String, &ParsedJarEntry) {
 		}
 	}
 
-	fn to_vec(self) -> Result<Vec<u8>> {
-		match self.1 {
-			ParsedJarEntry::Class { class, .. } => class.clone().write(),
-			ParsedJarEntry::Other { data, .. } => Ok(data.clone()),
-			ParsedJarEntry::Dir { .. } => bail!("cannot get vec for dir"),
-		}
-	}
-
 	fn to_parsed_jar_entry(self) -> Result<ParsedJarEntry> {
 		Ok(self.1.clone())
 	}

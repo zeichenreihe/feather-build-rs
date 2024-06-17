@@ -67,12 +67,6 @@ impl JarEntry for ZipFile<'_> {
 		BasicFileAttributes::new(self.last_modified(), self.extra_data_fields())
 	}
 
-	fn to_vec(mut self) -> Result<Vec<u8>> {
-		let mut vec = Vec::new();
-		self.read_to_end(&mut vec)?;
-		Ok(vec)
-	}
-
 	fn to_parsed_jar_entry(mut self) -> Result<ParsedJarEntry> {
 		let attr = self.attrs();
 

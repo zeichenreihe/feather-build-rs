@@ -33,6 +33,17 @@ impl ClassRepr {
 		}
 	}
 
+	pub(crate) fn write_from_ref(&self) -> Result<Vec<u8>> {
+		match self {
+			ClassRepr::Parsed { class } => {
+				let mut buf = Vec::new();
+				duke::write_class(&mut buf, class)?;
+				Ok(buf)
+			},
+			ClassRepr::Vec { data } => Ok(data.clone()),
+		}
+	}
+
 	pub(crate) fn write(self) -> Result<Vec<u8>> {
 		match self {
 			ClassRepr::Parsed { class } => {
