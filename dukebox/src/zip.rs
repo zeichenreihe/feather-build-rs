@@ -26,8 +26,6 @@ impl<R: Read + Seek> OpenedJar for ZipArchive<R> {
 		self.by_index(key).context("")
 	}
 
-
-	type Name<'a> = &'a str where Self: 'a;
 	type NameIter<'a> = std::vec::IntoIter<(&'a str, usize)> where Self: 'a;
 
 	fn names(&self) -> Self::NameIter<'_> {

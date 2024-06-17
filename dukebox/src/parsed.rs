@@ -36,12 +36,10 @@ impl<'this> OpenedJar for &'this ParsedJar {
 			.with_context(|| anyhow!("no entry for index {key:?}"))
 	}
 
-
-	type Name<'a> = &'a String where Self: 'a;
-	type NameIter<'a> = std::vec::IntoIter<(Self::Name<'a>, usize)> where Self: 'a;
+	type NameIter<'a> = std::vec::IntoIter<(&'a str, usize)> where Self: 'a;
 
 	fn names(&self) -> Self::NameIter<'_> {
-		(0..self.entries.len()).map(|x| (self.entries.get_index(x).unwrap().0, x)).collect::<Vec<_>>().into_iter()
+		(0..self.entries.len()).map(|x| (self.entries.get_index(x).unwrap().0.as_str(), x)).collect::<Vec<_>>().into_iter()
 	}
 
 	fn by_name(&mut self, name: &str) -> Result<Option<Self::Entry<'_>>> {
