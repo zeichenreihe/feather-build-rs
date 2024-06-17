@@ -7,7 +7,7 @@ use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
 use duke::tree::class::{ClassFile, ClassName};
 use duke::tree::field::{Field, FieldDescriptor};
 use duke::tree::method::Method;
-use crate::{BasicFileAttributes, Jar, JarEntry, OpenedJar};
+use crate::{Jar, JarEntry, OpenedJar};
 use crate::lazy_duke::ClassRepr;
 use crate::parsed::{ParsedJar, ParsedJarEntry};
 
@@ -288,9 +288,6 @@ fn visit_sided_annotation(class: ClassRepr, side: Side) -> Result<ClassRepr> {
 
 
 pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
-
-	let start = std::time::Instant::now();
-
 	let mut opened_a = client.open()?;
 	let mut opened_b = server.open()?;
 
@@ -427,42 +424,6 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 
 		resulting_entries.insert(key, result);
 	}
-
-	println!("jar merging took {:?}", start.elapsed());
-	// TODO: beautify code a bit, use this to check if it's eq to before!, after it works (fast) remove this / move to proj/junk folder!
-
-	let x = resulting_entries.iter()
-		.map(|(k, x): (&String, &ParsedJarEntry)| -> Result<_> {
-			fn y(a: &BasicFileAttributes) -> u128 {
-				a.last_modified.map_or(0, |x| { let (a, b) = <(u16, u16)>::from(x); (a as u128) << 16 | b as u128 } )
-				+ 31 * a.ctime.unwrap_or(0) as u128
-				+ 31 * a.atime.unwrap_or(0) as u128
-				+ 31 * a.mtime.unwrap_or(0) as u128
-			}
-			Ok({
-				31 * k.chars().fold(0u128, |acc, x| 31 * acc + (x as u32 as u128)) + k.len() as u128
-			} + match x {
-				ParsedJarEntry::Dir { attr } => {
-					y(attr)
-				},
-				ParsedJarEntry::Class { attr, class } => {
-					y(attr) + 31 * {
-						let data = class.write_from_ref()?;
-
-						31 * data.iter().fold(0u128, |acc, x| 7 * acc + *x as u128) + data.len() as u128
-					}
-				},
-				ParsedJarEntry::Other { attr, data } => {
-					y(attr) + 31 * {
-						31 * data.iter().fold(0u128, |acc, x| 7 * acc + *x as u128) + data.len() as u128
-					}
-				},
-			})
-		})
-		.try_fold(0u128, |acc, x| -> Result<_> { Ok(31 * acc + x?) })?;
-	dbg!(x);
-	assert_eq!(x, 164692325188824892327659321751286644269);
-	panic!();
 
 	Ok(ParsedJar { entries: resulting_entries })
 }
