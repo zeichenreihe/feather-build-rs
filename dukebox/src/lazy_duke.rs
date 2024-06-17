@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::Cursor;
 use anyhow::Result;
 use duke::tree::class::ClassFile;
@@ -33,14 +34,14 @@ impl ClassRepr {
 		}
 	}
 
-	pub(crate) fn write_from_ref(&self) -> Result<Vec<u8>> {
+	pub(crate) fn write_from_ref(&self) -> Result<Cow<[u8]>> {
 		match self {
 			ClassRepr::Parsed { class } => {
 				let mut buf = Vec::new();
 				duke::write_class(&mut buf, class)?;
-				Ok(buf)
+				Ok(Cow::Owned(buf))
 			},
-			ClassRepr::Vec { data } => Ok(data.clone()),
+			ClassRepr::Vec { data } => Ok(Cow::Borrowed(data)),
 		}
 	}
 

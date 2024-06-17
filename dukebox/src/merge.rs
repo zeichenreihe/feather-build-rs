@@ -283,8 +283,8 @@ fn class_merger_merge(client: ClassRepr, server: ClassRepr) -> Result<ClassRepr>
 	}.into())
 }
 
-fn visit_sided_annotation(side: Side) -> impl FnOnce(&mut ClassFile) {
-	|x| x.runtime_visible_annotations.push(sided_annotation(side))
+fn visit_sided_annotation(class: ClassRepr, side: Side) -> Result<ClassRepr> {
+	class.edit(|x| x.runtime_visible_annotations.push(sided_annotation(side)))
 }
 
 
@@ -353,118 +353,89 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 
 	let mut resulting_entries = IndexMap::new();
 	for (key, merge_combination) in keys {
-		match key.as_str() {
-			"META-INF/MANIFEST.MF" => {
-
-				resulting_entries.insert(key.clone(), ParsedJarEntry::Other {
-					attr: match merge_combination {
-						MergeCombination::Client(c) => opened_a.by_entry_key(c)?.attrs(),
-						MergeCombination::Server(s) => opened_b.by_entry_key(s)?.attrs(),
-						MergeCombination::Both(c, _) => opened_a.by_entry_key(c)?.attrs(), // TODO: this ignores the server attrs...
-					},
-					data: b"Manifest-Version: 1.0\nMain-Class: net.minecraft.client.Main\n".to_vec(),
-				});
-
-				continue;
+		let result = match key.as_str() {
+			"META-INF/MANIFEST.MF" => ParsedJarEntry::Other {
+				attr: match merge_combination {
+					MergeCombination::Client(c) => opened_a.by_entry_key(c)?.attrs(),
+					MergeCombination::Server(s) => opened_b.by_entry_key(s)?.attrs(),
+					MergeCombination::Both(c, _) => opened_a.by_entry_key(c)?.attrs(), // TODO: this ignores the server attrs...
+				},
+				data: b"Manifest-Version: 1.0\nMain-Class: net.minecraft.client.Main\n".to_vec(),
 			},
 			name if name.starts_with("META-INF/") && (name.ends_with(".SF") || name.ends_with(".RSA")) => {
 				// remove these from the jar
-
 				continue;
 			},
-			_ => {}, // the code below deals with these cases
-		}
-
-		let is_minecraft = matches!(merge_combination, MergeCombination::Client(_) | MergeCombination::Both(_, _))
-			|| key.starts_with("net/minecraft/")
-			|| !key.contains('/');
-
-		let is_server = matches!(merge_combination, MergeCombination::Server(_));
-
-		let is_class = key.ends_with(".class");
-
-		if is_class && !is_minecraft && is_server {
-			continue;
-		}
-
-		let result = match merge_combination {
-			MergeCombination::Client(c) => {
-				let client = opened_a.by_entry_key(c)?.to_parsed_jar_entry()?;
-				if let ParsedJarEntry::Class { attr, class } = client {
-					ParsedJarEntry::Class {
-						attr,
-						class: if is_minecraft {
-							class.edit(visit_sided_annotation(Side::Client))?
-						} else {
-							class
-						},
+			name => match merge_combination {
+				MergeCombination::Client(c) => {
+					let client = opened_a.by_entry_key(c)?.to_parsed_jar_entry()?;
+					if let ParsedJarEntry::Class { attr, class } = client {
+						ParsedJarEntry::Class { attr, class: visit_sided_annotation(class, Side::Client)? }
+					} else {
+						client
 					}
-				} else {
-					client
-				}
-			},
-			MergeCombination::Server(s) => {
-				let server = opened_b.by_entry_key(s)?.to_parsed_jar_entry()?;
-				if let ParsedJarEntry::Class { attr, class } = server {
-					ParsedJarEntry::Class {
-						attr,
-						class: if is_minecraft {
-							class.edit(visit_sided_annotation(Side::Server))?
-						} else {
-							class
-						},
+				},
+				MergeCombination::Server(s) => {
+					// skip the libraries the server bundles
+					if name.ends_with(".class") && !name.starts_with("net/minecraft/") && name.contains('/') {
+						continue;
 					}
-				} else {
-					server
-				}
-			},
-			MergeCombination::Both(c, s) => {
-				let client = opened_a.by_entry_key(c)?.to_parsed_jar_entry()?;
-				let server = opened_b.by_entry_key(s)?.to_parsed_jar_entry()?;
-				match (client, server) {
-					(
-						ParsedJarEntry::Class { attr: client_attr, class: client_ },
-						ParsedJarEntry::Class { attr: server_attr, class: server_ }
-					) => {
 
-						let c_vec = client_.write_from_ref()?;
-						let s_vec = server_.write_from_ref()?;
+					let server = opened_b.by_entry_key(s)?.to_parsed_jar_entry()?;
+					if let ParsedJarEntry::Class { attr, class } = server {
+						ParsedJarEntry::Class { attr, class: visit_sided_annotation(class, Side::Server)? }
+					} else {
+						server
+					}
+				},
+				MergeCombination::Both(c, s) => {
+					let client = opened_a.by_entry_key(c)?.to_parsed_jar_entry()?;
+					let server = opened_b.by_entry_key(s)?.to_parsed_jar_entry()?;
+					match (client, server) {
+						(
+							ParsedJarEntry::Class { attr: client_attr, class: client_ },
+							ParsedJarEntry::Class { attr: server_attr, class: server_ }
+						) => {
 
-						if c_vec == s_vec {
-							ParsedJarEntry::Class { attr: client_attr, class: client_ }
-						} else {
-							ParsedJarEntry::Class {
-								attr: client_attr, // TODO: ?= server_attr
-								class: class_merger_merge(client_, server_)?,
+							let c_vec = client_.write_from_ref()?;
+							let s_vec = server_.write_from_ref()?;
+
+							if c_vec == s_vec {
+								ParsedJarEntry::Class { attr: client_attr, class: client_ }
+							} else {
+								ParsedJarEntry::Class {
+									attr: client_attr, // TODO: ?= server_attr
+									class: class_merger_merge(client_, server_)?,
+								}
 							}
-						}
-					},
-					(
-						ParsedJarEntry::Other { attr: client_attr, data: client },
-						ParsedJarEntry::Other { attr: server_attr, data: server }
-					) => {
-						if client == server {
-							ParsedJarEntry::Other { attr: client_attr, data: client }
-						} else {
-							eprintln!("warn: merging {key:?} from both client and server not implemented, taking client version");
-							ParsedJarEntry::Other { attr: client_attr, data: client }
-						}
-					},
-					(
-						ParsedJarEntry::Dir { attr: client_attr },
-						ParsedJarEntry::Dir { attr: server_attr  },
-					) => {
-						// TODO: check _attr in all of these!
-						ParsedJarEntry::Dir { attr: client_attr }
-					},
-					(c, s) => {
-						bail!("types don't match {c:?} and {s:?}")
-					},
-				}
+						},
+						(
+							ParsedJarEntry::Other { attr: client_attr, data: client },
+							ParsedJarEntry::Other { attr: server_attr, data: server }
+						) => {
+							if client == server {
+								ParsedJarEntry::Other { attr: client_attr, data: client }
+							} else {
+								eprintln!("warn: merging {name:?} from both client and server not implemented, taking client version");
+								ParsedJarEntry::Other { attr: client_attr, data: client }
+							}
+						},
+						(
+							ParsedJarEntry::Dir { attr: client_attr },
+							ParsedJarEntry::Dir { attr: server_attr  },
+						) => {
+							// TODO: check _attr in all of these!
+							ParsedJarEntry::Dir { attr: client_attr }
+						},
+						(c, s) => {
+							bail!("types don't match {c:?} and {s:?}")
+						},
+					}
+				},
 			},
 		};
 
-		resulting_entries.insert(key.clone(), result);
+		resulting_entries.insert(key, result);
 	}
 
 	println!("jar merging took {:?}", start.elapsed());
