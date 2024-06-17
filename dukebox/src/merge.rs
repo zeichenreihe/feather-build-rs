@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use anyhow::{bail, Result};
-use gat_lending_iterator::LendingIterator;
 use indexmap::IndexMap;
 use indexmap::map::Entry;
 use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
