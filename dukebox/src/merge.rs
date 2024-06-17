@@ -287,126 +287,80 @@ fn visit_sided_annotation(side: Side) -> impl FnOnce(&mut ClassFile) {
 	|x| x.runtime_visible_annotations.push(sided_annotation(side))
 }
 
-struct MergedJarIter<OpenedA, EntryKeyA, OpenedB, EntryKeyB> {
-	a: OpenedA,
-	b: OpenedB,
-	keys: indexmap::map::IntoIter<String, (Option<EntryKeyA>, Option<EntryKeyB>)>,
-}
-
-fn create_merged_jar_iter<'a, 'b, JarA, JarB, OpenedA, OpenedB>(a: &'a JarA, b: &'b JarB)
-	-> Result<MergedJarIter<
-		OpenedA, OpenedA::EntryKey,
-		OpenedB, OpenedB::EntryKey,
-	>>
-	where
-		JarA: Jar<Opened<'a>=OpenedA>,
-		JarB: Jar<Opened<'b>=OpenedB>,
-		OpenedA: OpenedJar,
-		OpenedB: OpenedJar,
-{
-	let a = a.open()?;
-	let b = b.open()?;
-
-	let keys_a = a.names().map(|x| (x.0.as_ref().to_owned(), Ok(x.1)));
-	let keys_b = b.names().map(|x| (x.0.as_ref().to_owned(), Err(x.1)));
-
-	let chain = keys_a.chain(keys_b);
-
-	let keys: IndexMap<String, (Option<_>, Option<_>)> = {
-		let (low, _) = chain.size_hint();
-		let mut m = IndexMap::with_capacity(low / 2);
-
-		for (key, client_or_server) in chain {
-			match m.entry(key) {
-				Entry::Occupied(mut e) => {
-					let (a, b) = e.get_mut();
-
-					match client_or_server {
-						Ok(c) => *a = Some(c),
-						Err(s) => *b = Some(s),
-					}
-				},
-				Entry::Vacant(e) => {
-					let x = match client_or_server {
-						Ok(c) => (Some(c), None),
-						Err(s) => (None, Some(s)),
-					};
-					e.insert(x);
-				},
-			}
-		}
-
-		m
-	};
-
-	let keys = keys.into_iter();
-
-	Ok(MergedJarIter { a, b, keys })
-}
-
-impl<OpenedA, EntryKeyA, OpenedB, EntryKeyB> LendingIterator for MergedJarIter<OpenedA, EntryKeyA, OpenedB, EntryKeyB> {
-	type Item<'a> = MergedJarIterItem<'a, OpenedA, EntryKeyA, OpenedB, EntryKeyB> where Self: 'a;
-
-	fn next(&mut self) -> Option<Self::Item<'_>> {
-		let (key, (a, b)) = self.keys.next()?;
-		Some(MergedJarIterItem {
-			key,
-			a: LazyEntry {
-				entry_key: a,
-				opened: &mut self.a,
-			},
-			b: LazyEntry {
-				entry_key: b,
-				opened: &mut self.b,
-			},
-		})
-
-	}
-}
-
-struct MergedJarIterItem<'a, OpenedA, EntryKeyA, OpenedB, EntryKeyB> {
-	key: String,
-	a: LazyEntry<'a, OpenedA, EntryKeyA>,
-	b: LazyEntry<'a, OpenedB, EntryKeyB>,
-}
-
-struct LazyEntry<'a, Opened, EntryKey> {
-	entry_key: Option<EntryKey>,
-	opened: &'a mut Opened,
-}
-
-impl<'a, Opened, EntryKey> LazyEntry<'a, Opened, EntryKey>
-	where
-		Opened: OpenedJar<EntryKey=EntryKey>,
-		EntryKey: Copy,
-{
-	fn get<'b: 'a>(&'b mut self) -> Result<Option<Opened::Entry<'a>>> {
-		self.entry_key.map(|k| self.opened.by_entry_key(k)).transpose()
-	}
-}
 
 pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 
 	let start = std::time::Instant::now();
 
-	let mut x = create_merged_jar_iter(&client, &server)?;
+	let mut opened_a = client.open()?;
+	let mut opened_b = server.open()?;
+
+	enum MergeSide<C, S> {
+		Client(C),
+		Server(S),
+	}
+
+	enum MergeCombination<C, S> {
+		Client(C),
+		Server(S),
+		Both(C, S),
+	}
+
+	impl<C, S> MergeCombination<C, S> where C: Copy, S: Copy {
+		fn client_to_both(&self, s: S) -> Result<Self> {
+			match self {
+				MergeCombination::Client(c) => Ok(MergeCombination::Both(*c, s)),
+				MergeCombination::Server(_) => bail!(""),
+				MergeCombination::Both(_, _) => bail!(""),
+			}
+		}
+		fn server_to_both(&self, c: C) -> Result<Self> {
+			match self {
+				MergeCombination::Client(_) => bail!(""),
+				MergeCombination::Server(s) => Ok(MergeCombination::Both(c, *s)),
+				MergeCombination::Both(_, _) => bail!(""),
+			}
+		}
+	}
+
+	let keys = {
+		let keys_a = opened_a.names().map(|x| (x.0, MergeSide::Client(x.1)));
+		let keys_b = opened_b.names().map(|x| (x.0, MergeSide::Server(x.1)));
+		let chain = keys_a.chain(keys_b);
+
+		let (low, _) = chain.size_hint();
+		let mut keys: IndexMap<String, MergeCombination<_, _>> = IndexMap::with_capacity(low / 2);
+
+		for (key, client_or_server) in chain {
+			match keys.entry(key.to_owned()) {
+				Entry::Occupied(mut e) => {
+					*e.get_mut() = match client_or_server {
+						MergeSide::Client(c) => e.get().server_to_both(c)?,
+						MergeSide::Server(s) => e.get().client_to_both(s)?,
+					};
+				},
+				Entry::Vacant(e) => {
+					e.insert(match client_or_server {
+						MergeSide::Client(c) => MergeCombination::Client(c),
+						MergeSide::Server(s) => MergeCombination::Server(s),
+					});
+				},
+			}
+		}
+
+		keys.into_iter()
+	};
 
 	let mut resulting_entries = IndexMap::new();
-	while let Some(item) = x.next() {
-		let key = item.key;
-		let mut a = item.a;
-		let mut b = item.b;
-
+	for (key, merge_combination) in keys {
 		match key.as_str() {
 			"META-INF/MANIFEST.MF" => {
 
 				resulting_entries.insert(key.clone(), ParsedJarEntry::Other {
-					attr: {
-						if let Some(c_idx) = a.get()? {
-							c_idx.attrs()
-						} else {
-							b.get()?.unwrap().attrs()
-						}
+					attr: match merge_combination {
+						MergeCombination::Client(c) => opened_a.by_entry_key(c)?.attrs(),
+						MergeCombination::Server(s) => opened_b.by_entry_key(s)?.attrs(),
+						MergeCombination::Both(c, _) => opened_a.by_entry_key(c)?.attrs(), // TODO: this ignores the server attrs...
 					},
 					data: b"Manifest-Version: 1.0\nMain-Class: net.minecraft.client.Main\n".to_vec(),
 				});
@@ -421,11 +375,11 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 			_ => {}, // the code below deals with these cases
 		}
 
-		let is_minecraft = a.entry_key.is_some()
+		let is_minecraft = matches!(merge_combination, MergeCombination::Client(_) | MergeCombination::Both(_, _))
 			|| key.starts_with("net/minecraft/")
 			|| !key.contains('/');
 
-		let is_server = a.entry_key.is_none() && b.entry_key.is_some();
+		let is_server = matches!(merge_combination, MergeCombination::Server(_));
 
 		let is_class = key.ends_with(".class");
 
@@ -433,12 +387,41 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 			continue;
 		}
 
-		let client_map_idx = a.get()?.map(|x| x.to_parsed_jar_entry()).transpose()?;
-		let server_map_idx = b.get()?.map(|x| x.to_parsed_jar_entry()).transpose()?;
-
-		let result = match (client_map_idx, server_map_idx) {
-			(Some(client_), Some(server_)) => {
-				match (client_, server_) {
+		let result = match merge_combination {
+			MergeCombination::Client(c) => {
+				let client = opened_a.by_entry_key(c)?.to_parsed_jar_entry()?;
+				if let ParsedJarEntry::Class { attr, class } = client {
+					ParsedJarEntry::Class {
+						attr,
+						class: if is_minecraft {
+							class.edit(visit_sided_annotation(Side::Client))?
+						} else {
+							class
+						},
+					}
+				} else {
+					client
+				}
+			},
+			MergeCombination::Server(s) => {
+				let server = opened_b.by_entry_key(s)?.to_parsed_jar_entry()?;
+				if let ParsedJarEntry::Class { attr, class } = server {
+					ParsedJarEntry::Class {
+						attr,
+						class: if is_minecraft {
+							class.edit(visit_sided_annotation(Side::Server))?
+						} else {
+							class
+						},
+					}
+				} else {
+					server
+				}
+			},
+			MergeCombination::Both(c, s) => {
+				let client = opened_a.by_entry_key(c)?.to_parsed_jar_entry()?;
+				let server = opened_b.by_entry_key(s)?.to_parsed_jar_entry()?;
+				match (client, server) {
 					(
 						ParsedJarEntry::Class { attr: client_attr, class: client_ },
 						ParsedJarEntry::Class { attr: server_attr, class: server_ }
@@ -479,35 +462,6 @@ pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 					},
 				}
 			},
-			(Some(client), None) => {
-				if let ParsedJarEntry::Class { attr, class } = client {
-					ParsedJarEntry::Class {
-						attr,
-						class: if is_minecraft {
-							class.edit(visit_sided_annotation(Side::Client))?
-						} else {
-							class
-						},
-					}
-				} else {
-					client
-				}
-			},
-			(None, Some(server)) => {
-				if let ParsedJarEntry::Class { attr, class } = server {
-					ParsedJarEntry::Class {
-						attr,
-						class: if is_minecraft {
-							class.edit(visit_sided_annotation(Side::Server))?
-						} else {
-							class
-						},
-					}
-				} else {
-					server
-				}
-			},
-			(None, None) => continue,
 		};
 
 		resulting_entries.insert(key.clone(), result);
