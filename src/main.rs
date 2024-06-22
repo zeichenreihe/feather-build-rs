@@ -9,7 +9,7 @@ use zip::ZipWriter;
 use duke::tree::method::ParameterName;
 use dukebox::Jar;
 use crate::download::Downloader;
-use crate::download::versions_manifest::MinecraftVersion;
+use crate::download::versions_manifest::{MinecraftVersion, VersionsManifest};
 use dukebox::zip::mem::MemJar;
 use quill::tree::mappings::Mappings;
 use quill::tree::names::Names;
@@ -75,11 +75,11 @@ fn inspect<const N: usize>(mappings: &Mappings<N>, path: &str) -> Result<()> {
     Ok(())
 }
 
-async fn build(downloader: &mut Downloader, version_graph: &VersionGraph, version: &Version) -> Result<BuildResult> {
+async fn build(downloader: &Downloader, version_graph: &VersionGraph, versions_manifest: &VersionsManifest, version: &Version) -> Result<BuildResult> {
     // Get the jar from mojang. If it's a merged environment, then merge the two jars (client and server).
 
     let environment = version.get_environment();
-    let version_details = downloader.version_details(version, &environment).await?;
+    let version_details = downloader.version_details(versions_manifest, version, &environment).await?;
 
     match environment {
         Environment::Merged => {
@@ -92,22 +92,22 @@ async fn build(downloader: &mut Downloader, version_graph: &VersionGraph, versio
 
             println!("jar merging took {:?}", start.elapsed());
 
-            build_inner(downloader, version_graph, version, &main_jar).await
+            build_inner(downloader, version_graph, versions_manifest, version, &main_jar).await
         },
         Environment::Client => {
             let main_jar = downloader.get_jar(&version_details.downloads.client.url).await?;
 
-            build_inner(downloader, version_graph, version, &main_jar).await
+            build_inner(downloader, version_graph, versions_manifest, version, &main_jar).await
         },
         Environment::Server => {
             let main_jar = downloader.get_jar(&version_details.downloads.server.url).await?;
 
-            build_inner(downloader, version_graph, version, &main_jar).await
+            build_inner(downloader, version_graph, versions_manifest, version, &main_jar).await
         },
     }
 }
 
-async fn build_inner(downloader: &mut Downloader, version_graph: &VersionGraph, version: &Version, main_jar: &impl Jar) -> Result<BuildResult> {
+async fn build_inner(downloader: &Downloader, version_graph: &VersionGraph, versions_manifest: &VersionsManifest, version: &Version, main_jar: &impl Jar) -> Result<BuildResult> {
 
     let feather_version = next_feather_version(downloader, version, false).await?;
 
@@ -116,7 +116,7 @@ async fn build_inner(downloader: &mut Downloader, version_graph: &VersionGraph, 
         .remove_dummy("named")?;
 
     let calamus_v2 = downloader.calamus_v2(version).await?;
-    let libraries = downloader.mc_libs(version).await?;
+    let libraries = downloader.mc_libs(versions_manifest, version).await?;
 
     let build_feather_tiny = specialized_methods::add_specialized_methods_to_mappings(main_jar, &calamus_v2, &libraries, &mappings)
         .context("failed to add specialized methods to mappings")?;
@@ -271,7 +271,7 @@ struct BuildResult {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut downloader = Downloader::new();
+    let downloader = Downloader::new();
 
     let dir = Path::new("mappings/mappings");
 
@@ -285,7 +285,8 @@ async fn main() -> Result<()> {
 
     let start = Instant::now();
 
-    let result = build(&mut downloader, &v, version).await?;
+    let versions_manifest= downloader.get_versions_manifest().await?;
+    let result = build(&downloader, &v, &versions_manifest, version).await?;
 
     println!("building took {:?}", start.elapsed());
 
@@ -295,7 +296,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn next_feather_version(downloader: &mut Downloader, version: &Version, local: bool) -> Result<String> {
+async fn next_feather_version(downloader: &Downloader, version: &Version, local: bool) -> Result<String> {
     if local {
         Ok(format!("{version}+build.local"))
     } else {

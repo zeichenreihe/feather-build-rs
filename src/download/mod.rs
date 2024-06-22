@@ -1,10 +1,9 @@
 use std::fs;
 use std::fs::File;
-use std::io::Cursor;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Context, Result};
 use bytes::Buf;
-use reqwest::{Client, Response};
+use reqwest::Client;
 use zip::ZipArchive;
 use crate::download::version_details::VersionDetails;
 use crate::download::version_manifest::VersionManifest;
@@ -22,150 +21,142 @@ pub(crate) mod maven_metadata;
 
 #[derive(Debug)]
 pub(crate) struct Downloader {
-	versions_manifest: Option<VersionsManifest>,
 	client: Client,
+}
+
+struct DownloadResult<'a> {
+	url: &'a str,
+	path: PathBuf,
+}
+
+impl DownloadResult<'_> {
+	async fn download<'a>(client: &Client, url: &'a str) -> Result<DownloadResult<'a>> {
+		let downloads = Path::new("./download");
+
+		let Some(url_stripped) = url.strip_prefix("https://") else {
+			bail!("url doesn't start with `https://`: {url:?}");
+		};
+
+		let cache_path = downloads.join(url_stripped);
+
+		if !cache_path.try_exists()? {
+			if let Some(parent) = cache_path.parent() {
+				fs::create_dir_all(parent)?;
+			}
+
+			println!("downloading {url}");
+
+			let response = client.get(url).send().await?;
+			if !response.status().is_success() {
+				bail!("got a \"{}\" for {url:?}", response.status());
+			}
+
+			let src = response.bytes().await?;
+			let mut dest = File::create(&cache_path)?;
+			std::io::copy(&mut src.reader(), &mut dest)?;
+		}
+
+		Ok(DownloadResult { url, path: cache_path })
+	}
+
+	fn parse_as_json<T: serde::de::DeserializeOwned>(self) -> Result<T> {
+		let vec = fs::read(self.path).with_context(|| anyhow!("failed to open cache file for json from {:?}", self.url))?;
+		serde_json::from_slice(&vec).with_context(|| anyhow!("failed to parse json from {:?}", self.url))
+	}
+
+	fn parse_as_xml<T: serde::de::DeserializeOwned>(self) -> Result<T> {
+		let body = File::open(self.path).with_context(|| anyhow!("failed to open cache file for xml from {:?}", self.url))?;
+		serde_xml_rs::from_reader(body).with_context(|| anyhow!("failed to parse xml from {:?}", self.url))
+	}
+
+	fn open_as_file(self) -> Result<File> {
+		File::open(self.path).with_context(|| anyhow!("failed to open cache file from {:?}", self.url))
+	}
+
+	fn into_file_jar(self) -> Result<FileJar> {
+		Ok(FileJar::new(self.path))
+	}
 }
 
 impl Downloader {
 	pub(crate) fn new() -> Downloader {
-		Downloader {
-			versions_manifest: None,
-			client: Client::new(),
-		}
+		Downloader { client: Client::new() }
 	}
 
-	async fn get(&self, url: &str) -> Result<Response> {
-		let response = self.client.get(url).send().await?;
-
-		if response.status().is_success() {
-			Ok(response)
-		} else {
-			bail!("got a \"{}\" for {url:?}", response.status());
-		}
+	pub(crate) async fn get_jar(&self, url: &str) -> Result<FileJar> {
+		DownloadResult::download(&self.client, url).await?
+			.into_file_jar()
 	}
 
-	pub(crate) async fn get_jar(&mut self, url: &str) -> Result<FileJar> {
-		let downloads = Path::new("./download");
-
-		let path = Path::new(url).strip_prefix(Path::new("https://"))
-			.with_context(|| anyhow!("url doesn't start with `https://`: {url:?}"))?;
-
-		let path = downloads.join(path);
-
-		if !path.exists() {
-			if let Some(parent) = path.parent() {
-				fs::create_dir_all(parent)?;
-			}
-
-			let response = self.get(url).await?;
-
-			let mut src = response.bytes().await?.reader();
-			let mut dest = File::create(&path)?;
-			std::io::copy(&mut src, &mut dest)?;
-		}
-
-		Ok(FileJar::new(path))
+	pub(crate) async fn get_versions_manifest(&self) -> Result<VersionsManifest> {
+		DownloadResult::download(&self.client, "https://skyrising.github.io/mc-versions/version_manifest.json").await?
+			.parse_as_json().context("versions manifest")
 	}
 
-	async fn versions_manifest(&mut self) -> Result<&VersionsManifest> {
-		if let Some(ref version_manifest) = self.versions_manifest {
-			Ok(version_manifest)
-		} else {
-			let url = "https://skyrising.github.io/mc-versions/version_manifest.json";
-
-			let body = self.get(url).await?.text().await?;
-
-			let versions_manifest: VersionsManifest = serde_json::from_str(&body)?;
-
-			Ok(self.versions_manifest.insert(versions_manifest))
-		}
-	}
-
-	async fn wanted_version_manifest(&mut self, version: &Version) -> Result<VersionManifest> {
+	async fn wanted_version_manifest(&self, versions_manifest: &VersionsManifest, version: &Version) -> Result<VersionManifest> {
 		let minecraft_version = version.get_minecraft_version();
 
-		let manifest = self.versions_manifest().await?;
+		let manifest_version = versions_manifest.versions.iter()
+			.find(|it| it.id == minecraft_version)
+			.with_context(|| anyhow!("no version data for minecraft version {version:?}"))?;
 
-		let manifest_version = manifest
-			.versions
-			.iter()
-			.find(|it| it.id == minecraft_version);
-
-		if let Some(manifest_version) = manifest_version {
-			let url = manifest_version.url.clone();
-
-			let body = self.get(&url).await?.text().await?;
-
-			let version_manifest: VersionManifest = serde_json::from_str(&body)
-				.with_context(|| anyhow!("failed to parse version manifest for version {:?} from {:?}", version, url))?;
-
-			Ok(version_manifest)
-		} else {
-			bail!("no version data for Minecraft version {:?}", version);
-		}
+		DownloadResult::download(&self.client, &manifest_version.url).await?
+			.parse_as_json().with_context(|| anyhow!("version manifest for version {version:?}"))
 	}
-	pub(crate) async fn version_details(&mut self, version: &Version, environment: &Environment) -> Result<VersionDetails> {
+
+	pub(crate) async fn version_details(&self, versions_manifest: &VersionsManifest, version: &Version, environment: &Environment) -> Result<VersionDetails> {
 		let minecraft_version = version.get_minecraft_version();
 
-		let manifest = self.versions_manifest().await?;
+		let manifest_version = versions_manifest.versions.iter()
+			.find(|it| it.id == minecraft_version)
+			.with_context(|| anyhow!("no version details for minecraft version {version:?}"))?;
 
-		let manifest_version = manifest.versions.iter()
-			.find(|it| it.id == minecraft_version);
+		let version_details: VersionDetails = DownloadResult::download(&self.client, &manifest_version.details).await?
+			.parse_as_json().with_context(|| anyhow!("version details for version {version:?}"))?;
 
-		if let Some(manifest_version) = manifest_version {
-			let url = &manifest_version.details.clone();
-
-			let body = self.get(url).await?.text().await?;
-
-			let version_details: VersionDetails = serde_json::from_str(&body)
-				.with_context(|| anyhow!("failed to parse version details for version {:?} from {:?}", version, url))?;
-
-			if version_details.shared_mappings {
-				if &Environment::Merged != environment {
-					bail!("minecraft version {:?} is only available as merged but was requested for {:?}", version, environment);
-				}
-			} else {
-				match environment {
-					Environment::Merged => {
-						bail!("minecraft version {:?} cannot be merged - please select either the client or server environment!", version);
-					},
-					Environment::Client if !version_details.client => {
-						bail!("minecraft version {:?} does not have a client jar!", version);
-					},
-					Environment::Server if !version_details.server => {
-						bail!("minecraft version {:?} does not have a server jar", version);
-					},
-					_ => {},
-				}
+		if version_details.shared_mappings {
+			if &Environment::Merged != environment {
+				bail!("minecraft version {:?} is only available as merged but was requested for {:?}", version, environment);
 			}
-
-			Ok(version_details)
 		} else {
-			bail!("no version details for minecraft version {:?}", version);
+			match environment {
+				Environment::Merged => {
+					bail!("minecraft version {:?} cannot be merged - please select either the client or server environment!", version);
+				},
+				Environment::Client if !version_details.client => {
+					bail!("minecraft version {:?} does not have a client jar!", version);
+				},
+				Environment::Server if !version_details.server => {
+					bail!("minecraft version {:?} does not have a server jar", version);
+				},
+				_ => {},
+			}
 		}
+
+		Ok(version_details)
 	}
+
 	/// Downloads the feather intermediary, calamus, for a given version.
 	///
 	/// The namespaces are `official` to `intermediary` (aka `calamus`) here.
-	pub(crate) async fn calamus_v2(&mut self, version: &Version) -> Result<Mappings<2>> {
+	pub(crate) async fn calamus_v2(&self, version: &Version) -> Result<Mappings<2>> {
 		let url = format!("https://maven.ornithemc.net/releases/net/ornithemc/calamus-intermediary/{version}/calamus-intermediary-{version}-v2.jar");
 
-		let body = self.get(&url).await?.bytes().await?;
+		let body = DownloadResult::download(&self.client, &url).await?.open_as_file()?;
 
-		let mut zip = ZipArchive::new(Cursor::new(body))?;
+		let mut zip = ZipArchive::new(body)?;
 
-		let mappings = zip.by_name("mappings/mappings.tiny")
-			.with_context(|| anyhow!("cannot find mappings in zip file from {:?}", url))?;
+		let file = zip.by_name("mappings/mappings.tiny").with_context(|| anyhow!("cannot find mappings in zip file from {url:?}"))?;
 
-		let mappings = quill::tiny_v2::read(mappings)
-			.with_context(|| anyhow!("failed to read mappings from mappings/mappings.tiny of {:?}", url))?;
+		let mappings = quill::tiny_v2::read(file).with_context(|| anyhow!("failed to read mappings from mappings/mappings.tiny of {url:?}"))?;
 
 		mappings.info.namespaces.check_that(["official", "intermediary"])?;
 
 		Ok(mappings)
 	}
-	pub(crate) async fn mc_libs(&mut self, version: &Version) -> Result<Vec<FileJar>> {
-		let version_file = self.wanted_version_manifest(version).await?;
+
+	pub(crate) async fn mc_libs(&self, versions_manifest: &VersionsManifest, version: &Version) -> Result<Vec<FileJar>> {
+		let version_file = self.wanted_version_manifest(versions_manifest, version).await?;
 
 		let mut libs = Vec::new();
 
@@ -180,10 +171,8 @@ impl Downloader {
 		Ok(libs)
 	}
 
-	pub(crate) async fn get_maven_metadata_xml(&mut self, url: &str) -> Result<MavenMetadata> {
-		let body = self.get(url).await?.text().await?;
-
-		serde_xml_rs::from_str(&body)
-			.with_context(|| anyhow!("failed to parse maven metadata xml file from {url:?}"))
+	pub(crate) async fn get_maven_metadata_xml(&self, url: &str) -> Result<MavenMetadata> {
+		DownloadResult::download(&self.client, url).await?
+			.parse_as_xml().context("maven metadata")
 	}
 }
