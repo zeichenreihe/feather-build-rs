@@ -121,7 +121,14 @@ async fn build_inner(downloader: &Downloader, version_graph: &VersionGraph, vers
     let build_feather_tiny = specialized_methods::add_specialized_methods_to_mappings(main_jar, &calamus_v2, &libraries, &mappings)
         .context("failed to add specialized methods to mappings")?;
 
-    let merge_v2 = merge_v2(&build_feather_tiny, &calamus_v2)?;
+    // merge w.r.t. "intermediary", and then reorder from "intermediary -> official, named" to "official -> intermediary, named"
+    let merge_v2 = Mappings::merge(
+        &calamus_v2.reorder(["intermediary", "official"])?,
+        &build_feather_tiny.clone()
+            .rename_namespaces(["calamus", "named"], ["intermediary", "named"])?
+    )?
+        .apply_our_fix()?
+        .reorder(["official", "intermediary", "named"])?;
 
     inspect(&merge_v2, "/tmp/out.tiny")?;
 
@@ -144,19 +151,6 @@ fn tiny_v2_write_zip_file<const N: usize>(mappings: &Mappings<N>) -> Result<Vec<
     quill::tiny_v2::write(mappings, &mut zip)?;
 
     Ok(zip.finish()?.into_inner())
-}
-
-/// Merges the calamus intermediary with the created mappings.
-///
-/// The namespaces are `official` to `intermediary` and `named` here.
-fn merge_v2(feather: &Mappings<2>, calamus: &Mappings<2>) -> Result<Mappings<3>> {
-    let mappings_a = feather.clone().rename_namespaces(["calamus", "named"], ["intermediary", "named"])?;
-    let mappings_b = calamus.clone().reorder(["intermediary", "official"])?;
-
-    let merged = Mappings::merge(&mappings_b, &mappings_a)?
-        .apply_our_fix()?;
-
-    merged.reorder(["official", "intermediary", "named"])
 }
 
 trait ApplyFix: Sized { fn apply_our_fix(self) -> Result<Self>; }
