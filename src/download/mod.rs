@@ -30,35 +30,6 @@ struct DownloadResult<'a> {
 }
 
 impl DownloadResult<'_> {
-	async fn download<'a>(client: &Client, url: &'a str) -> Result<DownloadResult<'a>> {
-		let downloads = Path::new("./download");
-
-		let Some(url_stripped) = url.strip_prefix("https://") else {
-			bail!("url doesn't start with `https://`: {url:?}");
-		};
-
-		let cache_path = downloads.join(url_stripped);
-
-		if !cache_path.try_exists()? {
-			if let Some(parent) = cache_path.parent() {
-				fs::create_dir_all(parent)?;
-			}
-
-			println!("downloading {url}");
-
-			let response = client.get(url).send().await?;
-			if !response.status().is_success() {
-				bail!("got a \"{}\" for {url:?}", response.status());
-			}
-
-			let src = response.bytes().await?;
-			let mut dest = File::create(&cache_path)?;
-			std::io::copy(&mut src.reader(), &mut dest)?;
-		}
-
-		Ok(DownloadResult { url, path: cache_path })
-	}
-
 	fn parse_as_json<T: serde::de::DeserializeOwned>(self) -> Result<T> {
 		let vec = fs::read(self.path).with_context(|| anyhow!("failed to open cache file for json from {:?}", self.url))?;
 		serde_json::from_slice(&vec).with_context(|| anyhow!("failed to parse json from {:?}", self.url))
@@ -83,13 +54,44 @@ impl Downloader {
 		Downloader { client: Client::new() }
 	}
 
+	async fn download<'a>(&'a self, url: &'a str) -> Result<DownloadResult> {
+		let downloads = Path::new("./download");
+
+		let Some(url_stripped) = url.strip_prefix("https://") else {
+			bail!("url doesn't start with `https://`: {url:?}");
+		};
+
+		//TODO: reevaluate possible security vulnerabilities here
+		// - one thing could be something like https://evil.example.org/../../../../../../../../usr/bin/bla.jar and replaces a jar on our system
+		let cache_path = downloads.join(url_stripped);
+
+		if !cache_path.try_exists()? {
+			if let Some(parent) = cache_path.parent() {
+				fs::create_dir_all(parent)?;
+			}
+
+			println!("downloading {url}");
+
+			let response = self.client.get(url).send().await?;
+			if !response.status().is_success() {
+				bail!("got a \"{}\" for {url:?}", response.status());
+			}
+
+			let src = response.bytes().await?;
+			let mut dest = File::create(&cache_path)?;
+			std::io::copy(&mut src.reader(), &mut dest)?;
+		}
+
+		Ok(DownloadResult { url, path: cache_path })
+	}
+
 	pub(crate) async fn get_jar(&self, url: &str) -> Result<FileJar> {
-		DownloadResult::download(&self.client, url).await?
+		self.download(url).await?
 			.into_file_jar()
 	}
 
 	pub(crate) async fn get_versions_manifest(&self) -> Result<VersionsManifest> {
-		DownloadResult::download(&self.client, "https://skyrising.github.io/mc-versions/version_manifest.json").await?
+		self.download("https://skyrising.github.io/mc-versions/version_manifest.json").await?
 			.parse_as_json().context("versions manifest")
 	}
 
@@ -100,7 +102,7 @@ impl Downloader {
 			.find(|it| it.id == minecraft_version)
 			.with_context(|| anyhow!("no version data for minecraft version {version:?}"))?;
 
-		DownloadResult::download(&self.client, &manifest_version.url).await?
+		self.download(&manifest_version.url).await?
 			.parse_as_json().with_context(|| anyhow!("version manifest for version {version:?}"))
 	}
 
@@ -111,7 +113,7 @@ impl Downloader {
 			.find(|it| it.id == minecraft_version)
 			.with_context(|| anyhow!("no version details for minecraft version {version:?}"))?;
 
-		let version_details: VersionDetails = DownloadResult::download(&self.client, &manifest_version.details).await?
+		let version_details: VersionDetails = self.download(&manifest_version.details).await?
 			.parse_as_json().with_context(|| anyhow!("version details for version {version:?}"))?;
 
 		if version_details.shared_mappings {
@@ -142,7 +144,7 @@ impl Downloader {
 	pub(crate) async fn calamus_v2(&self, version: &Version) -> Result<Mappings<2>> {
 		let url = format!("https://maven.ornithemc.net/releases/net/ornithemc/calamus-intermediary/{version}/calamus-intermediary-{version}-v2.jar");
 
-		let body = DownloadResult::download(&self.client, &url).await?.open_as_file()?;
+		let body = self.download(&url).await?.open_as_file()?;
 
 		let mut zip = ZipArchive::new(body)?;
 
@@ -172,7 +174,7 @@ impl Downloader {
 	}
 
 	pub(crate) async fn get_maven_metadata_xml(&self, url: &str) -> Result<MavenMetadata> {
-		DownloadResult::download(&self.client, url).await?
+		self.download(url).await?
 			.parse_as_xml().context("maven metadata")
 	}
 }
