@@ -176,80 +176,66 @@ impl ApplyFix for Mappings<3> {
                 }
             }
 
-            // TODO: if there's a None in names, fail
             Ok(())
         }
 
+
+        fn check_eq_num_of_dollar<const N: usize>(names: &Names<N, ClassName>, a: Namespace<N>, b: Namespace<N>) -> Result<()> {
+            fn count_dollars(x: &Option<ClassName>) -> usize {
+                x.as_ref().map_or(0, |x| x.as_str().chars().filter(|x| *x == '$').count())
+            }
+
+            let a = count_dollars(&names[a]);
+            let b = count_dollars(&names[b]);
+            if a != b {
+                bail!("number of `$` doesn't match in the namespaces {a:?} and {b:?}: {:?}", names);
+            }
+            Ok(())
+        }
+
+        fn replace_empty<const N: usize, T: Clone>(names: &mut Names<N, T>, to_replace: Namespace<N>, take_from: Namespace<N>) {
+            if names[to_replace].is_none() {
+                names[to_replace] = names[take_from].clone();
+            }
+        }
+
+        fn copy_init_and_starting_with_not_m<const N: usize>(names: &mut Names<N, MethodName>, from: Namespace<N>, to: Namespace<N>) {
+            if names[to].is_none() && names[from].as_ref().is_some_and(|x| x == "<init>" || !x.as_str().starts_with("m_")) {
+                names[to] = names[from].clone();
+            }
+        }
+
         for c in self.classes.values_mut() {
-            if c.info.names[named].is_none() {
-                c.info.names[named] = c.info.names[intermediary].clone();
-            }
+            replace_empty(&mut c.info.names, named, intermediary);
 
-            /*
-
-            // TODO: consider deref / .as_str() method..
-            let names: [Option<ClassName>; N] = names.into();
-            let names: [Option<String>; N] = names.map(|x| x.map(|x| x.into()));
-
-            if names.len() >= 3 && names[1].as_ref().is_some_and(|x| x.contains('$')) {
-                let a = names[1].as_ref().unwrap().chars().filter(|x| *x == '$').count();
-                let b = names[2].as_ref().map(|y| y.chars().filter(|x| *x == '$').count()).unwrap_or(0);
-
-                if a != b {
-                    let wrong_inner_class_name = names[2].as_deref().unwrap_or("");
-                    dbg!(wrong_inner_class_name);
-                }
-            }
-
-            let names: [Option<ClassName>; N] = names.map(|x| x.map(|x| x.into()));
-            let names = names.into();
-            */
-
+            check_eq_num_of_dollar(&c.info.names, named, intermediary)?;
 
             check_names(&c.info.names)?;
 
             for f in c.fields.values_mut() {
-                if c.info.names[named].is_none() {
-                    c.info.names[named] = c.info.names[intermediary].clone();
-                }
-
-                if f.info.names[named].is_none() {
-                    f.info.names[named] = f.info.names[intermediary].clone();
-                }
+                replace_empty(&mut f.info.names, named, intermediary);
 
                 check_names(&f.info.names)?;
             }
 
             for m in c.methods.values_mut() {
-                if m.info.names[named].is_none() {
-                    m.info.names[named] = m.info.names[intermediary].clone();
-                }
+                replace_empty(&mut m.info.names, named, intermediary);
 
-                if m.info.names[official].is_none() && m.info.names[intermediary].as_ref().is_some_and(|x| x == "<init>") {
-                    m.info.names[official] = m.info.names[intermediary].clone();
-                }
+                copy_init_and_starting_with_not_m(&mut m.info.names, intermediary, official);
 
-                if m.info.names[official].is_none() && m.info.names[intermediary].as_ref().is_some_and(|x| !x.as_str().starts_with("m_")) {
-                    m.info.names[official] = m.info.names[intermediary].clone();
-                }
-
-                if m.info.names[official].is_none() {
-                    m.info.names[official] = m.info.names[intermediary].clone();
-                    //TODO: this fixes the issues where you have
-                    // c  net/minecraft/server/MinecraftServer  net/minecraft/server/MinecraftServer  net/minecaft/server/MinecraftServer
-                    //   m  ()Z  m_5733001  m_5733001  isSnooperEnabled
-                    // c  um  net/minecraft/unmapped/C_3978417  net/minecraft/snooper/SnooperPopulator
-                    //   m  ()Z  Z  m_5733001  isSnooperEnabled
-                    // which ofc is incorrect
-                    // further: make this something for the sus module
-
-                    //println!("no names: {:?}", m.info);
-                    //continue;
-                }
+                replace_empty(&mut m.info.names, official, intermediary);
+                //TODO: this fixes the issues where you have
+                // c  net/minecraft/server/MinecraftServer  net/minecraft/server/MinecraftServer  net/minecaft/server/MinecraftServer
+                //   m  ()Z  m_5733001  m_5733001  isSnooperEnabled
+                // c  um  net/minecraft/unmapped/C_3978417  net/minecraft/snooper/SnooperPopulator
+                //   m  ()Z  Z  m_5733001  isSnooperEnabled
+                // which ofc is incorrect
+                // further: make this something for the sus module
 
                 check_names(&m.info.names)?;
 
                 for p in m.parameters.values_mut() {
+                    //replace_empty(&mut p.info.names, named, intermediary);
                     if p.info.names[official].is_none() {
                         p.info.names[official] = Some(ParameterName::from(""));
                     }
