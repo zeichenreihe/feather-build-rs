@@ -251,7 +251,11 @@ struct BuildResult {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let downloader = Downloader::new();
+    let user_arguments = UserArguments {
+        no_cache: false, // TODO: currently this is not implemented
+    };
+
+    let downloader = Downloader::new(!user_arguments.no_cache);
 
     let dir = Path::new("mappings/mappings");
 
@@ -274,6 +278,10 @@ async fn main() -> Result<()> {
 	dbg!(result.unmerged_feather);
 
     Ok(())
+}
+
+struct UserArguments {
+    no_cache: bool,
 }
 
 async fn next_feather_version(downloader: &Downloader, version: &Version, local: bool) -> Result<String> {

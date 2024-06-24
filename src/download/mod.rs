@@ -2,7 +2,7 @@ use std::fs;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Context, Result};
-use bytes::Buf;
+use bytes::{Buf, Bytes};
 use reqwest::Client;
 use zip::ZipArchive;
 use crate::download::version_details::VersionDetails;
@@ -21,55 +21,115 @@ pub(crate) mod maven_metadata;
 
 #[derive(Debug)]
 pub(crate) struct Downloader {
+	cache: bool,
 	client: Client,
 }
 
 struct DownloadResult<'a> {
 	url: &'a str,
-	path: PathBuf,
+	data: DownloadData,
+}
+
+enum DownloadData {
+	NotCached {
+		bytes: Bytes,
+	},
+	FileNew {
+		path: PathBuf,
+		bytes: Bytes,
+	},
+	FileHit {
+		path: PathBuf,
+	},
 }
 
 impl DownloadResult<'_> {
 	fn parse_as_json<T: serde::de::DeserializeOwned>(self) -> Result<T> {
-		let vec = fs::read(self.path).with_context(|| anyhow!("failed to open cache file for json from {:?}", self.url))?;
-		serde_json::from_slice(&vec).with_context(|| anyhow!("failed to parse json from {:?}", self.url))
+		match self.data {
+			DownloadData::NotCached { bytes } |
+			DownloadData::FileNew { bytes, .. } => {
+				serde_json::from_slice(&bytes).with_context(|| anyhow!("failed to parse json from {:?}", self.url))
+			},
+			DownloadData::FileHit { path } => {
+				let vec = fs::read(&path).with_context(|| anyhow!("failed to open cache file {:?} for json from {:?}", path, self.url))?;
+				serde_json::from_slice(&vec).with_context(|| anyhow!("failed to parse json from {:?}", self.url))
+			},
+		}
 	}
 
 	fn parse_as_xml<T: serde::de::DeserializeOwned>(self) -> Result<T> {
-		let body = File::open(self.path).with_context(|| anyhow!("failed to open cache file for xml from {:?}", self.url))?;
-		serde_xml_rs::from_reader(body).with_context(|| anyhow!("failed to parse xml from {:?}", self.url))
+		match self.data {
+			DownloadData::NotCached { bytes} |
+			DownloadData::FileNew { bytes, .. } => {
+				serde_xml_rs::from_reader(bytes.reader()).with_context(|| anyhow!("failed to parse xml from {:?}", self.url))
+			},
+			DownloadData::FileHit { path } => {
+				let body = File::open(&path).with_context(|| anyhow!("failed to open cache file {:?} for xml from {:?}", path, self.url))?;
+				serde_xml_rs::from_reader(body).with_context(|| anyhow!("failed to parse xml from {:?}", self.url))
+			},
+		}
 	}
 
 	fn open_as_file(self) -> Result<File> {
-		File::open(self.path).with_context(|| anyhow!("failed to open cache file from {:?}", self.url))
+		match self.data {
+			DownloadData::NotCached { bytes } => todo!("not cached is not implemented for opening as file"),
+			DownloadData::FileNew { path, .. } |
+			DownloadData::FileHit { path} => {
+				File::open(&path).with_context(|| anyhow!("failed to open cache file {:?} from {:?}", path, self.url))
+			},
+		}
 	}
 
 	fn into_file_jar(self) -> Result<FileJar> {
-		Ok(FileJar::new(self.path))
+		match self.data {
+			DownloadData::NotCached { bytes } => todo!("not cached is not implemented for into_file_jar"),
+			DownloadData::FileNew { path, .. } |
+			DownloadData::FileHit { path} => {
+				Ok(FileJar::new(path))
+			},
+		}
 	}
 }
 
 impl Downloader {
-	pub(crate) fn new() -> Downloader {
-		Downloader { client: Client::new() }
+	pub(crate) fn new(cache: bool) -> Downloader {
+		Downloader { cache, client: Client::new() }
 	}
 
 	async fn download<'a>(&'a self, url: &'a str) -> Result<DownloadResult> {
-		let downloads = Path::new("./download");
+		if self.cache {
+			let downloads = Path::new("./download");
 
-		let Some(url_stripped) = url.strip_prefix("https://") else {
-			bail!("url doesn't start with `https://`: {url:?}");
-		};
+			let Some(url_stripped) = url.strip_prefix("https://") else {
+				bail!("url doesn't start with `https://`: {url:?}");
+			};
 
-		//TODO: reevaluate possible security vulnerabilities here
-		// - one thing could be something like https://evil.example.org/../../../../../../../../usr/bin/bla.jar and replaces a jar on our system
-		let cache_path = downloads.join(url_stripped);
+			//TODO: reevaluate possible security vulnerabilities here
+			// - one thing could be something like https://evil.example.org/../../../../../../../../usr/bin/bla.jar and replaces a jar on our system
+			let cache_path = downloads.join(url_stripped);
 
-		if !cache_path.try_exists()? {
-			if let Some(parent) = cache_path.parent() {
-				fs::create_dir_all(parent)?;
+			if !cache_path.try_exists()? {
+				if let Some(parent) = cache_path.parent() {
+					fs::create_dir_all(parent)?;
+				}
+
+				println!("downloading {url}");
+
+				let response = self.client.get(url).send().await?;
+				if !response.status().is_success() {
+					bail!("got a \"{}\" for {url:?}", response.status());
+				}
+
+				let bytes = response.bytes().await?;
+				let mut src: &[u8] = &bytes;
+				let mut dest = File::create(&cache_path)?;
+				std::io::copy(&mut src, &mut dest)?;
+
+				Ok(DownloadResult { url, data: DownloadData::FileNew { path: cache_path, bytes } })
+			} else {
+				Ok(DownloadResult { url, data: DownloadData::FileHit { path: cache_path } })
 			}
-
+		} else {
 			println!("downloading {url}");
 
 			let response = self.client.get(url).send().await?;
@@ -77,12 +137,10 @@ impl Downloader {
 				bail!("got a \"{}\" for {url:?}", response.status());
 			}
 
-			let src = response.bytes().await?;
-			let mut dest = File::create(&cache_path)?;
-			std::io::copy(&mut src.reader(), &mut dest)?;
-		}
+			let bytes = response.bytes().await?;
 
-		Ok(DownloadResult { url, path: cache_path })
+			Ok(DownloadResult { url, data: DownloadData::NotCached { bytes } })
+		}
 	}
 
 	pub(crate) async fn get_jar(&self, url: &str) -> Result<FileJar> {
