@@ -251,6 +251,11 @@ struct BuildResult {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    if std::env::args().any(|x| x == "sus") {
+        sus::report_sus().await?;
+        return Ok(());
+    }
+
     let user_arguments = UserArguments {
         no_cache: false, // TODO: currently this is not implemented
     };

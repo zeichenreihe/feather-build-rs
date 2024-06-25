@@ -84,12 +84,12 @@ struct ReferenceIndex {
 
 #[derive(Debug, Clone)]
 pub(crate) struct SpecializedMethods {
-	bridge_to_specialized: IndexMap<MethodRef, MethodRef>,
+	pub(crate) bridge_to_specialized: IndexMap<MethodRef, MethodRef>,
 	specialized_to_bridge: IndexMap<MethodRef, MethodRef>,
 }
 
 impl SpecializedMethods {
-	fn remap(self, remapper: &impl BRemapper) -> Result<SpecializedMethods> {
+	pub(crate) fn remap(self, remapper: &impl BRemapper) -> Result<SpecializedMethods> {
 		Ok(SpecializedMethods {
 			bridge_to_specialized: self.bridge_to_specialized.into_iter()
 				.map(|(bridge, specialized)| Ok((
