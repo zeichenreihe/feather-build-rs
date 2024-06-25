@@ -6,19 +6,21 @@ use std::time::Instant;
 use anyhow::{anyhow, bail, Context, Result};
 use zip::write::FileOptions;
 use zip::ZipWriter;
-use duke::tree::method::ParameterName;
+use duke::tree::class::ClassName;
+use duke::tree::method::{MethodName, ParameterName};
 use dukebox::Jar;
 use crate::download::Downloader;
 use crate::download::versions_manifest::{MinecraftVersion, VersionsManifest};
 use dukebox::zip::mem::MemJar;
 use quill::tree::mappings::Mappings;
-use quill::tree::names::Names;
+use quill::tree::names::{Names, Namespace};
 use crate::version_graph::VersionGraph;
 
 mod version_graph;
 mod download;
 mod specialized_methods;
 
+mod sus;
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 /// The version id used in the mappings diffs and mappings files.
@@ -107,7 +109,8 @@ async fn build(downloader: &Downloader, version_graph: &VersionGraph, versions_m
     }
 }
 
-async fn build_inner(downloader: &Downloader, version_graph: &VersionGraph, versions_manifest: &VersionsManifest, version: &Version, main_jar: &impl Jar) -> Result<BuildResult> {
+async fn build_inner(downloader: &Downloader, version_graph: &VersionGraph, versions_manifest: &VersionsManifest, version: &Version, main_jar: &impl Jar)
+    -> Result<BuildResult> {
 
     let feather_version = next_feather_version(downloader, version, false).await?;
 
@@ -248,6 +251,12 @@ struct BuildResult {
     merged_feather: MemJar,
     unmerged_feather: MemJar,
 }
+
+/*
+TODO: publish
+
+TODO: version: uses `feather_version` for the version of the maven publication
+ */
 
 #[tokio::main]
 async fn main() -> Result<()> {

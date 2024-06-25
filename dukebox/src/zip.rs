@@ -29,6 +29,8 @@ impl<R: Read + Seek> OpenedJar for ZipArchive<R> {
 	type NameIter<'a> = std::vec::IntoIter<(&'a str, usize)> where Self: 'a;
 
 	fn names(&self) -> Self::NameIter<'_> {
+		//TODO: suggest to `zip` crate to expose the `files` map of the `ZipArchive`, because I want to have both the names and the
+		// zip file indicies to improve performance (as then I don't need to get with a string from a map!)
 		(0..self.len()).map(|x| (self.name_for_index(x).unwrap(), x)).collect::<Vec<_>>().into_iter()
 	}
 
