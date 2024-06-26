@@ -2,8 +2,11 @@ use std::fmt::{Debug, Display, Formatter};
 use std::fs::File;
 use std::io::Cursor;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Instant;
 use anyhow::{anyhow, bail, Context, Result};
+use clap::{Parser, Subcommand};
+use tokio::task::JoinSet;
 use zip::write::FileOptions;
 use zip::ZipWriter;
 use duke::tree::class::ClassName;
@@ -260,42 +263,98 @@ TODO: version: uses `feather_version` for the version of the maven publication
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    if std::env::args().any(|x| x == "sus") {
-        sus::report_sus().await?;
-        return Ok(());
+    let cli = Cli::parse();
+
+    dbg!(&cli);
+
+    match cli.command {
+        Command::Build { all, versions } => {
+            let downloader = Downloader::new(!cli.no_cache);
+
+            let dir = Path::new("mappings/mappings");
+
+            let start = Instant::now();
+
+            let v = VersionGraph::resolve(dir)?;
+            let v = Arc::new(v);
+
+            let versions: Vec<&Version> = if all {
+                v.versions().collect()
+            } else {
+                versions.into_iter()
+                    .map(|version| v.get(&version))
+                    .collect::<Result<_>>()?
+            };
+
+            println!("graph took {:?}", start.elapsed());
+
+            let start = Instant::now();
+
+            let versions_manifest = downloader.get_versions_manifest().await?;
+            let versions_manifest = Arc::new(versions_manifest);
+
+            let mut futures: JoinSet<_> = versions.into_iter()
+                .map(|version| {
+                    let downloader = downloader.clone();
+                    let v = v.clone();
+                    let versions_manifest = versions_manifest.clone();
+                    let version = version.clone();
+                    async move {
+                        build(&downloader, &v, &versions_manifest, &version).await
+                    }
+                })
+                .collect();
+
+            while let Some(next) = futures.join_next().await {
+                let result = next??;
+
+                dbg!(result.merged_feather);
+                dbg!(result.unmerged_feather);
+            }
+
+            println!("building took {:?}", start.elapsed());
+
+            Ok(())
+        },
+        Command::Sus { versions } => {
+            let result = sus::report_sus().await?;
+
+            dbg!(result);
+
+            Ok(())
+        },
     }
-
-    let user_arguments = UserArguments {
-        no_cache: false, // TODO: currently this is not implemented
-    };
-
-    let downloader = Downloader::new(!user_arguments.no_cache);
-
-    let dir = Path::new("mappings/mappings");
-
-    let start = Instant::now();
-
-    let v = VersionGraph::resolve(dir)?;
-
-    println!("graph took {:?}", start.elapsed());
-
-    let version = v.get("1.12.2").unwrap();
-
-    let start = Instant::now();
-
-    let versions_manifest= downloader.get_versions_manifest().await?;
-    let result = build(&downloader, &v, &versions_manifest, version).await?;
-
-    println!("building took {:?}", start.elapsed());
-
-	dbg!(result.merged_feather);
-	dbg!(result.unmerged_feather);
-
-    Ok(())
 }
 
-struct UserArguments {
-    no_cache: bool,
+#[derive(Debug, Parser)]
+#[command(version, about)]
+struct Cli {
+    /// Disable the caching to disk for downloaded files
+    #[arg(long = "no-cache")]
+    no_cache: bool, // TODO: currently this is not implemented
+
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Debug, Subcommand)]
+enum Command {
+    /// Make a build
+    Build {
+        /// Build all versions
+        #[arg(long = "all")]
+        all: bool,
+
+        /// The versions to build
+        #[arg(trailing_var_arg = true)]
+        versions: Vec<String>,
+    },
+    /// Report all sus mappings
+    Sus {
+        /// The versions to check
+        #[arg(trailing_var_arg = true, required = true)]
+        versions: Vec<String>,
+    },
 }
 
 async fn next_feather_version(downloader: &Downloader, version: &Version, local: bool) -> Result<String> {

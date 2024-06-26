@@ -19,7 +19,11 @@ pub(crate) mod version_manifest;
 pub(crate) mod version_details;
 pub(crate) mod maven_metadata;
 
-#[derive(Debug)]
+/// A struct for downloading and optionally caching things
+///
+/// Don't put this in an `Arc` because the `Client` used internally uses an `Arc` already.
+/// Instead, just use `Clone`.
+#[derive(Debug, Clone)]
 pub(crate) struct Downloader {
 	cache: bool,
 	client: Client,

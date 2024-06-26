@@ -88,11 +88,9 @@ impl VersionGraph {
 		self.versions.keys()
 	}
 
-	pub(crate) fn get(&self, string: &str) -> Option<&Version> {
+	pub(crate) fn get(&self, string: &str) -> Result<&Version> {
 		let version = Version(string.to_owned());
-		self.versions.get(&version)
-			.cloned()
-			.map(|node| &self.graph[node])
+		self.versions.get(&version).copied().map(|node| &self.graph[node]).with_context(|| anyhow!("unknown version {string:?}"))
 	}
 
 	pub(crate) fn apply_diffs(&self, target_version: &Version) -> Result<Mappings<2>> {
