@@ -10,7 +10,6 @@ use crate::parsed::ParsedJarEntry;
 
 pub mod mem;
 pub mod file;
-pub mod both;
 
 impl<R: Read + Seek> OpenedJar for ZipArchive<R> {
 	type Entry<'a> = ZipFile<'a> where Self: 'a;
