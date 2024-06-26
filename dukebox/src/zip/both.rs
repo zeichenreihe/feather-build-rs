@@ -4,12 +4,12 @@ use std::io::{Cursor, Read, Seek};
 use zip::ZipArchive;
 use crate::Jar;
 use crate::zip::file::FileJar;
-use crate::zip::mem::MemJar;
+use crate::zip::mem::NamedMemJar;
 
 #[derive(Debug)]
 pub enum EnumJar {
 	File(FileJar),
-	Mem(MemJar),
+	Mem(NamedMemJar),
 }
 
 pub trait ReadSeek: Read + Seek {}
@@ -36,8 +36,8 @@ impl From<FileJar> for EnumJar {
 	}
 }
 
-impl From<MemJar> for EnumJar {
-	fn from(value: MemJar) -> Self {
+impl From<NamedMemJar> for EnumJar {
+	fn from(value: NamedMemJar) -> Self {
 		EnumJar::Mem(value)
 	}
 }

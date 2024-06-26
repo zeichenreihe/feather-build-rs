@@ -7,7 +7,7 @@ use zip::ZipWriter;
 use duke::visitor::MultiClassVisitor;
 use crate::{BasicFileAttributes, Jar, JarEntry, OpenedJar};
 use crate::lazy_duke::ClassRepr;
-use crate::zip::mem::MemJar;
+use crate::zip::mem::UnnamedMemJar;
 
 #[derive(Debug, Default)]
 pub struct ParsedJar {
@@ -78,7 +78,7 @@ impl ParsedJar {
 		Ok(())
 	}
 
-	pub fn to_mem(self) -> Result<MemJar> {
+	pub fn to_mem(self) -> Result<UnnamedMemJar> {
 		let mut zip_out = ZipWriter::new(Cursor::new(Vec::new()));
 
 		for (name, entry) in self.entries {
@@ -101,7 +101,7 @@ impl ParsedJar {
 
 		let vec = zip_out.finish()?.into_inner();
 
-		Ok(MemJar::new_unnamed(vec))
+		Ok(UnnamedMemJar::new(vec))
 	}
 }
 
