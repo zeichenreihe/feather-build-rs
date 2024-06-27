@@ -15,7 +15,7 @@ use crate::download::versions_manifest::VersionsManifest;
 use crate::specialized_methods::GetSpecializedMethods;
 use crate::version_graph::VersionGraph;
 
-pub(crate) async fn report_sus() -> Result<()> {
+pub(crate) async fn report_sus() -> Result<SusResult> {
 	let downloader = Downloader::new(true);
 
 	let dir = Path::new("mappings/mappings");
@@ -35,13 +35,11 @@ pub(crate) async fn report_sus() -> Result<()> {
 
 	println!("sus took {:?}", start.elapsed());
 
-	dbg!(result);
-
-	Ok(())
+	Ok(result)
 }
 
 #[derive(Debug)]
-struct SusResult;
+pub(crate) struct SusResult;
 
 async fn sus(downloader: &Downloader, version_graph: &VersionGraph, versions_manifest: &VersionsManifest, version: &Version) -> Result<SusResult> {
 	let environment = version.get_environment();

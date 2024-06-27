@@ -107,9 +107,12 @@ async fn main() -> Result<()> {
                 })
                 .collect();
 
+            let mut outputs = Vec::with_capacity(futures.len());
             while let Some(next) = futures.join_next().await {
-                let result = next??;
+                outputs.push(next??);
+            }
 
+            for result in outputs {
                 dbg!(result.merged_feather);
                 dbg!(result.unmerged_feather);
             }
@@ -123,6 +126,18 @@ async fn main() -> Result<()> {
 
             dbg!(result);
 
+            Ok(())
+        },
+        Command::Feather { version } => {
+            Ok(())
+        },
+        Command::PropagateMappings {} => {
+            Ok(())
+        },
+        Command::PropagateMappingsDown {} => {
+            Ok(())
+        },
+        Command::PropagateMappingsUp {} => {
             Ok(())
         },
     }
@@ -157,4 +172,15 @@ enum Command {
         #[arg(trailing_var_arg = true, required = true)]
         versions: Vec<String>,
     },
+    /// Open Enigma to edit the mappings of a version
+    Feather {
+        /// The version to edit the mappings of
+        version: String,
+    },
+    // TODO: doc
+    PropagateMappings,
+    // TODO: doc
+    PropagateMappingsDown,
+    // TODO: doc
+    PropagateMappingsUp,
 }
