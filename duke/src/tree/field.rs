@@ -182,6 +182,12 @@ pub struct FieldRef {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct FieldNameAndDesc {
+	pub name: FieldName,
+	pub desc: FieldDescriptor,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct FieldName(Cow<'static, str>);
 
 impl Display for FieldName {

@@ -14,9 +14,9 @@
 use anyhow::{bail, Result};
 use indexmap::{IndexMap, IndexSet};
 use duke::tree::class::ClassName;
-use duke::tree::field::{FieldDescriptor, FieldName, FieldRef};
-use duke::tree::method::{MethodDescriptor, MethodName, MethodRef};
-use crate::tree::mappings::{FieldKey, Mappings, MethodKey};
+use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc, FieldRef};
+use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, MethodRef};
+use crate::tree::mappings::Mappings;
 use crate::tree::names::Namespace;
 
 /// A remapper supporting remapping of class names and descriptors.
@@ -97,21 +97,18 @@ impl<const N: usize> Mappings<N> {
 ///
 /// If you only want to remap class names and descriptors, consider using [ARemapper] instead.
 pub trait BRemapper: ARemapper {
-	fn map_field_fail(&self, owner_name: &ClassName, field_key: &FieldKey) -> Result<Option<FieldKey>>;
+	fn map_field_fail(&self, owner_name: &ClassName, field_name: &FieldName, field_desc: &FieldDescriptor) -> Result<Option<FieldNameAndDesc>>;
 
-	fn map_field(&self, class: &ClassName, field: &FieldKey) -> Result<FieldKey> {
-		Ok(self.map_field_fail(class, field)?.unwrap_or_else(|| field.clone()))
+	fn map_field(&self, class: &ClassName, field_name: &FieldName, field_desc: &FieldDescriptor) -> Result<FieldNameAndDesc> {
+		Ok(self.map_field_fail(class, field_name, field_desc)?.unwrap_or_else(|| FieldNameAndDesc {
+			desc: field_desc.clone(),
+			name: field_name.clone(),
+		}))
 	}
 
 	fn map_field_ref(&self, field_ref: &FieldRef) -> Result<FieldRef> {
-		let class_name = &field_ref.class;
-		let field_key = FieldKey {
-			name: field_ref.name.clone(),
-			desc: field_ref.desc.clone(),
-		};
-
-		let field_key = self.map_field(class_name, &field_key)?;
-		let class_name = self.map_class(class_name)?;
+		let field_key = self.map_field(&field_ref.class, &field_ref.name, &field_ref.desc)?;
+		let class_name = self.map_class(&field_ref.class)?;
 
 		Ok(FieldRef {
 			class: class_name,
@@ -120,21 +117,22 @@ pub trait BRemapper: ARemapper {
 		})
 	}
 
-	fn map_method_fail(&self, owner_name: &ClassName, method_key: &MethodKey) -> Result<Option<MethodKey>>;
+	fn map_method_fail(&self, owner_name: &ClassName, method_name: &MethodName, method_desc: &MethodDescriptor) -> Result<Option<MethodNameAndDesc>>;
 
-	fn map_method(&self, class: &ClassName, method: &MethodKey) -> Result<MethodKey> {
-		Ok(self.map_method_fail(class, method)?.unwrap_or_else(|| method.clone()))
+	fn map_method(&self, class: &ClassName, method_name: &MethodName, method_desc: &MethodDescriptor) -> Result<MethodNameAndDesc> {
+		Ok(self.map_method_fail(class, method_name, method_desc)?.unwrap_or_else(|| MethodNameAndDesc {
+			desc: method_desc.clone(),
+			name: method_name.clone(),
+		}))
+	}
+
+	fn map_method_name_and_desc(&self, class: &ClassName, method_name_and_desc: &MethodNameAndDesc) -> Result<MethodNameAndDesc> {
+		self.map_method(class, &method_name_and_desc.name, &method_name_and_desc.desc)
 	}
 
 	fn map_method_ref(&self, method_ref: &MethodRef) -> Result<MethodRef> {
-		let class_name = &method_ref.class;
-		let method_key = MethodKey {
-			name: method_ref.name.clone(),
-			desc: method_ref.desc.clone(),
-		};
-
-		let method_key = self.map_method(class_name, &method_key)?;
-		let class_name = self.map_class(class_name)?;
+		let method_key = self.map_method(&method_ref.class, &method_ref.name, &method_ref.desc)?;
+		let class_name = self.map_class(&method_ref.class)?;
 
 		Ok(MethodRef {
 			class: class_name,
@@ -167,20 +165,20 @@ impl<const N: usize, I> ARemapper for BRemapperImpl<'_, '_, N, I> {
 }
 
 impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 'i, N, I> {
-	fn map_field_fail(&self, owner_name: &ClassName, field_key: &FieldKey) -> Result<Option<FieldKey>> {
+	fn map_field_fail(&self, owner_name: &ClassName, field_name: &FieldName, field_desc: &FieldDescriptor) -> Result<Option<FieldNameAndDesc>> {
 		assert!(!owner_name.as_str().is_empty());
 		assert!(!owner_name.as_str().starts_with('['));
 
 		if let Some(class) = self.classes.get(owner_name) {
-			if let Some(&(name, ref desc)) = class.fields.get(&(&field_key.name, field_key.desc.clone())) {
+			if let Some(&(name, ref desc)) = class.fields.get(&(field_name, field_desc.clone())) {
 				let desc = desc.clone();
 				let src = name.clone();
-				return Ok(Some(FieldKey { desc, name: src }));
+				return Ok(Some(FieldNameAndDesc { desc, name: src }));
 			}
 
 			if let Some(super_classes) = self.inheritance.get_super_classes(owner_name)? {
 				for super_class in super_classes {
-					if let Some(remapped) = self.map_field_fail(super_class, field_key)? {
+					if let Some(remapped) = self.map_field_fail(super_class, field_name, field_desc)? {
 						return Ok(Some(remapped));
 					}
 				}
@@ -190,21 +188,21 @@ impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 
 		Ok(None)
 	}
 
-	fn map_method_fail(&self, owner_name: &ClassName, method_key: &MethodKey) -> Result<Option<MethodKey>> {
+	fn map_method_fail(&self, owner_name: &ClassName, method_name: &MethodName, method_desc: &MethodDescriptor) -> Result<Option<MethodNameAndDesc>> {
 		assert!(!owner_name.as_str().is_empty());
 		assert!(!owner_name.as_str().starts_with('['));
-		assert!(!method_key.name.as_str().is_empty());
+		assert!(!method_name.as_str().is_empty());
 
 		if let Some(class) = self.classes.get(owner_name) {
-			if let Some(&(name, ref desc)) = class.methods.get(&(&method_key.name, method_key.desc.clone())) {
+			if let Some(&(name, ref desc)) = class.methods.get(&(method_name, method_desc.clone())) {
 				let desc = desc.clone();
 				let src = name.clone();
-				return Ok(Some(MethodKey { desc, name: src }));
+				return Ok(Some(MethodNameAndDesc { desc, name: src }));
 			}
 
 			if let Some(super_classes) = self.inheritance.get_super_classes(owner_name)? {
 				for super_class in super_classes {
-					if let Some(remapped) = self.map_method_fail(super_class, method_key)? {
+					if let Some(remapped) = self.map_method_fail(super_class, method_name, method_desc)? {
 						return Ok(Some(remapped));
 					}
 				}

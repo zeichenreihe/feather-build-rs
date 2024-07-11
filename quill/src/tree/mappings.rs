@@ -2,8 +2,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use indexmap::map::Entry;
 use duke::tree::class::ClassName;
-use duke::tree::field::{FieldDescriptor, FieldName};
-use duke::tree::method::{MethodDescriptor, MethodName, ParameterName};
+use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc};
+use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, ParameterName};
 use crate::tree::names::{Names, Namespace, Namespaces};
 use crate::tree::{FromKey, GetNames, NodeInfo, ToKey};
 
@@ -59,8 +59,8 @@ impl<const N: usize> Mappings<N> {
 #[derive(Debug, Clone)]
 pub struct ClassNowodeMapping<const N: usize> {
 	pub info: ClassMapping<N>,
-	pub fields: IndexMap<FieldKey, FieldNowodeMapping<N>>,
-	pub methods: IndexMap<MethodKey, MethodNowodeMapping<N>>,
+	pub fields: IndexMap<FieldNameAndDesc, FieldNowodeMapping<N>>,
+	pub methods: IndexMap<MethodNameAndDesc, MethodNowodeMapping<N>>,
 	pub javadoc: Option<JavadocMapping>,
 }
 
@@ -236,29 +236,23 @@ impl<const N: usize> GetNames<N, ClassName> for ClassMapping<N> {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct FieldKey {
-	pub desc: FieldDescriptor,
-	pub name: FieldName,
-}
-
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct FieldMapping<const N: usize> {
 	pub(crate) desc: FieldDescriptor,
 	pub names: Names<N, FieldName>,
 }
 
-impl<const N: usize> ToKey<FieldKey> for FieldMapping<N> {
-	fn get_key(&self) -> FieldKey {
-		FieldKey {
+impl<const N: usize> ToKey<FieldNameAndDesc> for FieldMapping<N> {
+	fn get_key(&self) -> FieldNameAndDesc {
+		FieldNameAndDesc {
 			desc: self.desc.clone(),
 			name: self.names.first_name().clone(),
 		}
 	}
 }
 
-impl<const N: usize> FromKey<FieldKey> for FieldMapping<N> {
-	fn from_key(key: FieldKey) -> FieldMapping<N> {
+impl<const N: usize> FromKey<FieldNameAndDesc> for FieldMapping<N> {
+	fn from_key(key: FieldNameAndDesc) -> FieldMapping<N> {
 		FieldMapping {
 			desc: key.desc,
 			names: Names::from_first_name(key.name),
@@ -276,29 +270,23 @@ impl<const N: usize> GetNames<N, FieldName> for FieldMapping<N> {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MethodKey {
-	pub desc: MethodDescriptor,
-	pub name: MethodName,
-}
-
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct MethodMapping<const N: usize> {
 	pub desc: MethodDescriptor,
 	pub names: Names<N, MethodName>,
 }
 
-impl<const N: usize> ToKey<MethodKey> for MethodMapping<N> {
-	fn get_key(&self) -> MethodKey {
-		MethodKey {
+impl<const N: usize> ToKey<MethodNameAndDesc> for MethodMapping<N> {
+	fn get_key(&self) -> MethodNameAndDesc {
+		MethodNameAndDesc {
 			desc: self.desc.clone(),
 			name: self.names.first_name().clone(),
 		}
 	}
 }
 
-impl<const N: usize> FromKey<MethodKey> for MethodMapping<N> {
-	fn from_key(key: MethodKey) -> MethodMapping<N> {
+impl<const N: usize> FromKey<MethodNameAndDesc> for MethodMapping<N> {
+	fn from_key(key: MethodNameAndDesc) -> MethodMapping<N> {
 		MethodMapping {
 			desc: key.desc,
 			names: Names::from_first_name(key.name),

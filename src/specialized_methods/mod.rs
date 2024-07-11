@@ -13,7 +13,7 @@ use duke::tree::version::Version;
 use duke::visitor::MultiClassVisitor;
 use duke::visitor::simple::class::SimpleClassVisitor;
 use quill::remapper::{BRemapper, JarSuperProv};
-use quill::tree::mappings::{Mappings, MethodKey, MethodMapping, MethodNowodeMapping};
+use quill::tree::mappings::{Mappings, MethodMapping, MethodNowodeMapping};
 use quill::tree::names::Names;
 use quill::tree::{NodeInfo, ToKey};
 use dukebox::{Jar, OpenedJar};

@@ -4,10 +4,10 @@ use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use duke::tree::class::ClassName;
-use duke::tree::field::{FieldDescriptor, FieldName};
-use duke::tree::method::{MethodDescriptor, MethodName, ParameterName};
+use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc};
+use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, ParameterName};
 use crate::tiny_v2_line::{Line, WithMoreIdentIter};
-use crate::tree::mappings::{FieldKey, MethodKey, ParameterKey};
+use crate::tree::mappings::ParameterKey;
 use crate::tree::mappings_diff::{Action, ClassNowodeDiff, FieldNowodeDiff, MappingsDiff, MethodNowodeDiff, ParameterNowodeDiff};
 use crate::tree::NodeInfo;
 
@@ -47,7 +47,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 					let name: FieldName = line.next()?.into();
 
 					let action = line.action()?;
-					let field_key = FieldKey { desc, name };
+					let field_key = FieldNameAndDesc { desc, name };
 
 					let mut field = FieldNowodeDiff::new(action);
 
@@ -67,7 +67,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 					let name: MethodName = line.next()?.into();
 
 					let action = line.action()?;
-					let method_key = MethodKey { desc, name };
+					let method_key = MethodNameAndDesc { desc, name };
 
 					let mut method = MethodNowodeDiff::new(action);
 

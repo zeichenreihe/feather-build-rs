@@ -6,7 +6,7 @@ use crate::macros::{from_impl_for_string_and_str, partial_eq_impl_for_str};
 use crate::tree::annotation::Annotation;
 use crate::tree::attribute::Attribute;
 use crate::tree::field::Field;
-use crate::tree::method::{Method, MethodDescriptor, MethodName};
+use crate::tree::method::{Method, MethodNameAndDesc};
 use crate::tree::module::{Module, PackageName};
 use crate::tree::record::RecordComponent;
 use crate::tree::type_annotation::{TargetInfoClass, TypeAnnotation};
@@ -226,17 +226,18 @@ impl ClassFile {
 ///
 /// Take a look at the [Java Virtual Machine Specification](https://docs.oracle.com/javase/specs/jvms/se22/html/jvms-4.html#jvms-4.1-200-E.1), for
 /// the meanings of these fields, and what combinations are legal and which not.
-#[derive(Copy, Clone, PartialEq)]
+// TODO: add Default as for all false for other *Access as well (+ document it)
+#[derive(Copy, Clone, Default, PartialEq)]
 pub struct ClassAccess {
-	pub(crate) is_public: bool,
-	pub(crate) is_final: bool,
-	pub(crate) is_super: bool,
-	pub(crate) is_interface: bool,
-	pub(crate) is_abstract: bool,
-	pub(crate) is_synthetic: bool,
-	pub(crate) is_annotation: bool,
-	pub(crate) is_enum: bool,
-	pub(crate) is_module: bool,
+	pub is_public: bool,
+	pub is_final: bool,
+	pub is_super: bool,
+	pub is_interface: bool,
+	pub is_abstract: bool,
+	pub is_synthetic: bool,
+	pub is_annotation: bool,
+	pub is_enum: bool,
+	pub is_module: bool,
 }
 
 impl Debug for ClassAccess {
@@ -399,6 +400,6 @@ impl From<InnerClassFlags> for u16 {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnclosingMethod {
-	pub(crate) class: ClassName,
-	pub(crate) method: Option<(MethodName, MethodDescriptor)>,
+	pub class: ClassName,
+	pub method: Option<MethodNameAndDesc>,
 }

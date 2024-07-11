@@ -8,7 +8,7 @@ use crate::{class_constants, ClassRead, jstring, OptionExpansion};
 use crate::tree::annotation::Object;
 use crate::tree::class::{ClassAccess, ClassSignature, EnclosingMethod, InnerClass};
 use crate::tree::field::{FieldAccess, FieldDescriptor, FieldName, FieldSignature};
-use crate::tree::method::{MethodAccess, MethodDescriptor, MethodName, MethodParameter, MethodSignature, ParameterFlags};
+use crate::tree::method::{MethodAccess, MethodDescriptor, MethodName, MethodNameAndDesc, MethodParameter, MethodSignature, ParameterFlags};
 use crate::tree::method::code::{ArrayType, Exception, Instruction, LocalVariableName, Lv, LvIndex};
 use crate::tree::module::{Module, ModuleExports, ModuleOpens, ModuleProvides, ModuleRequires};
 use crate::tree::record::RecordName;
@@ -137,7 +137,9 @@ pub(crate) fn read<V: MultiClassVisitor>(reader: &mut impl ClassRead, visitor: V
 					attribute::ENCLOSING_METHOD if !interests.enclosing_method => reader.skip(length as i64)?,
 					attribute::ENCLOSING_METHOD => {
 						let class = pool.get_class(reader.read_u16()?)?;
-						let method = pool.get_optional(reader.read_u16()?, PoolRead::get_name_and_type)?;
+						let method = pool.get_optional(reader.read_u16()?, PoolRead::get_name_and_type)?
+							.map(|(name, desc)| MethodNameAndDesc { name, desc });
+						// TODO: consider moving this .map into PoolRead::get_name_and_type
 
 						let enclosing_method = EnclosingMethod { class, method };
 

@@ -225,6 +225,12 @@ pub struct MethodRef {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct MethodNameAndDesc {
+	pub name: MethodName,
+	pub desc: MethodDescriptor,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct MethodName(Cow<'static, str>);
 
 impl Display for MethodName {

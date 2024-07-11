@@ -112,7 +112,7 @@ pub(crate) fn write(class_writer: &mut impl ClassWrite, class: &ClassFile) -> Re
 		attribute_count += 1;
 		write_attribute_fix_length(&mut buffer, pool, attribute::ENCLOSING_METHOD, 4)?;
 		buffer.write_u16(pool.put_class(&enclosing_method.class)?)?;
-		buffer.write_u16(pool.put_optional(enclosing_method.method.as_ref(), |pool, x| pool.put_name_and_type(&x.0, &x.1))?)?;
+		buffer.write_u16(pool.put_optional(enclosing_method.method.as_ref(), |pool, x| pool.put_name_and_type(&x.name, &x.desc))?)?;
 	}
 	if let Some(signature) = &class.signature {
 		attribute_count += 1;

@@ -4,7 +4,7 @@ use indexmap::{IndexMap, IndexSet};
 use pretty_assertions::assert_eq;
 use duke::tree::class::ClassName;
 use quill::remapper::{ARemapper, BRemapper, JarSuperProv};
-use quill::tree::mappings::{FieldKey, Mappings, MethodKey};
+use quill::tree::mappings::Mappings;
 
 #[test]
 fn remap() -> Result<()> {
@@ -45,19 +45,21 @@ fn remap() -> Result<()> {
 	};
 	let field = |class: &'static str, field: &'static str, descriptor: &'static str| -> Result<(String, String, String)> {
 		let class = ClassName::from(class);
-		let field = FieldKey { desc: descriptor.into(), name: field.into() };
+		let field_name = field.into();
+		let field_desc = descriptor.into();
 
 		let class_new = remapper.map_class(&class)?;
-		let field_new = remapper.map_field(&class, &field)?;
+		let field_new = remapper.map_field(&class, &field_name, &field_desc)?;
 
 		Ok((class_new.into(), field_new.name.into(), field_new.desc.into()))
 	};
 	let method = |class: &'static str, method: &'static str, descriptor: &'static str| -> Result<(String, String, String)> {
 		let class = ClassName::from(class);
-		let method = MethodKey { desc: descriptor.into(), name: method.into() };
+		let method_name = method.into();
+		let method_desc = descriptor.into();
 
 		let class_new = remapper.map_class(&class)?;
-		let method_new = remapper.map_method(&class, &method)?;
+		let method_new = remapper.map_method(&class, &method_name, &method_desc)?;
 
 		Ok((class_new.into(), method_new.name.into(), method_new.desc.into()))
 	};

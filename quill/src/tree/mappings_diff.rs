@@ -2,9 +2,9 @@ use anyhow::{bail, Result};
 use indexmap::IndexMap;
 use indexmap::map::Entry;
 use duke::tree::class::ClassName;
-use duke::tree::field::FieldName;
-use duke::tree::method::{MethodName, ParameterName};
-use crate::tree::mappings::{FieldKey, JavadocMapping, MethodKey,ParameterKey};
+use duke::tree::field::{FieldName, FieldNameAndDesc};
+use duke::tree::method::{MethodName, MethodNameAndDesc, ParameterName};
+use crate::tree::mappings::{JavadocMapping, ParameterKey};
 use crate::tree::NodeInfo;
 
 #[derive(Debug, Clone, Default)]
@@ -59,8 +59,8 @@ impl MappingsDiff {
 #[derive(Debug, Clone)]
 pub(crate) struct ClassNowodeDiff {
 	pub(crate) info: Action<ClassName>,
-	pub(crate) fields: IndexMap<FieldKey, FieldNowodeDiff>,
-	pub(crate) methods: IndexMap<MethodKey, MethodNowodeDiff>,
+	pub(crate) fields: IndexMap<FieldNameAndDesc, FieldNowodeDiff>,
+	pub(crate) methods: IndexMap<MethodNameAndDesc, MethodNowodeDiff>,
 	pub(crate) javadoc: Option<Action<JavadocMapping>>,
 }
 
@@ -84,7 +84,7 @@ impl NodeInfo<Action<ClassName>> for ClassNowodeDiff {
 }
 
 impl ClassNowodeDiff {
-	pub(crate) fn add_field(&mut self, key: FieldKey, child: FieldNowodeDiff) -> Result<()> {
+	pub(crate) fn add_field(&mut self, key: FieldNameAndDesc, child: FieldNowodeDiff) -> Result<()> {
 		match self.fields.entry(key) {
 			Entry::Occupied(e) => {
 				bail!("cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
@@ -97,7 +97,7 @@ impl ClassNowodeDiff {
 		Ok(())
 	}
 
-	pub(crate) fn add_method(&mut self, key: MethodKey, child: MethodNowodeDiff) -> Result<()> {
+	pub(crate) fn add_method(&mut self, key: MethodNameAndDesc, child: MethodNowodeDiff) -> Result<()> {
 		match self.methods.entry(key) {
 			Entry::Occupied(e) => {
 				bail!("cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
