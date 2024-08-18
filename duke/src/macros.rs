@@ -2,7 +2,8 @@
 /// Assuming a `struct Foo(Cow<'static, str>);`, creates implementations for
 /// - `From<String> for Foo`, `From<&str> for Foo`, and
 /// - `From<Foo> for String`, `From<&'a Foo> for &'a str`, and
-/// - `.as_mut_string(&mut self) -> &mut String`, `.as_str(&self) -> &str`.
+/// - `.as_mut_string(&mut self) -> &mut String`, `.as_str(&self) -> &str` and
+/// - `AsRef<str> for Foo`.
 macro_rules! from_impl_for_string_and_str {
 	($name:ident) => {
 		impl From<String> for $name {
@@ -36,6 +37,12 @@ macro_rules! from_impl_for_string_and_str {
 
 			pub fn as_str(&self) -> &str {
 				&self.0
+			}
+		}
+
+		impl AsRef<str> for $name {
+			fn as_ref(&self) -> &str {
+				self.as_str()
 			}
 		}
 	}
