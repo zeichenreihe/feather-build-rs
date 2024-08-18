@@ -12,7 +12,10 @@ pub struct NamedMemJar {
 
 impl Debug for NamedMemJar {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		f.debug_struct("MemJar").field("name", &self.name).finish_non_exhaustive()
+		f.debug_struct("MemJar")
+			.field("name", &self.name)
+			.field("size", &self.data.len())
+			.finish_non_exhaustive()
 	}
 }
 
@@ -39,7 +42,9 @@ pub struct UnnamedMemJar {
 
 impl Debug for UnnamedMemJar {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		f.debug_struct("MemJar").finish_non_exhaustive()
+		f.debug_struct("MemJar")
+			.field("size", &self.data.len())
+			.finish_non_exhaustive()
 	}
 }
 
