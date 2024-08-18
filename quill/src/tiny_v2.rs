@@ -1,4 +1,4 @@
-//! Methods to read and write mappings in the "Tiny v2" format.
+//! Functions to read and write mappings in the "Tiny v2" format.
 //!
 //! # Reading
 //! You can read a `.tiny` file using the [`read_file`] method, by passing a path.
@@ -12,7 +12,6 @@
 //!
 //! Note that all writing sorts the tiny files.
 
-use std::fmt::Debug;
 use std::fs::File;
 use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
@@ -40,9 +39,9 @@ use crate::tree::NodeInfo;
 ///
 /// mappings.info.namespaces.check_that(["namespaceA", "namespaceB"]).unwrap();
 /// ```
-pub fn read_file<const N: usize>(path: impl AsRef<Path> + Debug) -> Result<Mappings<N>> {
+pub fn read_file<const N: usize>(path: impl AsRef<Path>) -> Result<Mappings<N>> {
 	read(File::open(&path)?)
-		.with_context(|| anyhow!("failed to read mappings file {path:?}"))
+		.with_context(|| anyhow!("failed to read mappings file {:?} as tiny v2 file", path.as_ref()))
 }
 
 #[allow(clippy::tabs_in_doc_comments)]

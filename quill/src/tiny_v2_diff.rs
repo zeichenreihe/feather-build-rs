@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use std::fs::File;
 use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, Read};
@@ -12,9 +11,9 @@ use crate::tree::mappings::ParameterKey;
 use crate::tree::mappings_diff::{Action, ClassNowodeDiff, FieldNowodeDiff, MappingsDiff, MethodNowodeDiff, ParameterNowodeDiff};
 use crate::tree::NodeInfo;
 
-pub fn read_file(path: impl AsRef<Path> + Debug) -> Result<MappingsDiff> {
+pub fn read_file(path: impl AsRef<Path>) -> Result<MappingsDiff> {
 	read(File::open(&path)?)
-		.with_context(|| anyhow!("failed to read mappings file {path:?}"))
+		.with_context(|| anyhow!("failed to read mappings file {:?} as tiny diff", path.as_ref()))
 }
 
 pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {

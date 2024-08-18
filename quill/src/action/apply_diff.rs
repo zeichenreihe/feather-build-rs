@@ -63,7 +63,7 @@ fn apply_diff_map<const N: usize, Key, Diff, Target, Name, Mapping>(
 	where
 		Key: Debug + Hash + Eq + Clone,
 		Diff: NodeInfo<Action<Name>>,
-		Target: Clone + NodeInfo<Mapping>,
+		Target: NodeInfo<Mapping>,
 		Name: Debug + PartialEq + Clone,
 		Mapping: FromKey<Key> + GetNames<N, Name>,
 {
@@ -80,7 +80,7 @@ fn apply_diff_map<const N: usize, Key, Diff, Target, Name, Mapping>(
 	let mut results = IndexMap::new();
 
 	for (key, mut target) in targets.into_iter() {
-		if let Some(diff) = diffs.remove(&key) {
+		if let Some(diff) = diffs.swap_remove(&key) {
 			// Case 1: Key in both.
 
 			// Our diff can take four forms:
@@ -146,7 +146,6 @@ fn apply_diff_map<const N: usize, Key, Diff, Target, Name, Mapping>(
 		match diff.get_node_info() {
 			Action::Add(b) => {
 				let mut info = Mapping::from_key(key.clone());
-
 
 				info.get_names_mut()[target_namespace] = Some(b.clone());
 

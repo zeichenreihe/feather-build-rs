@@ -6,9 +6,12 @@ use crate::tree::names::Namespaces;
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, FieldNowodeMapping, MappingInfo, Mappings, MethodMapping, MethodNowodeMapping, ParameterMapping, ParameterNowodeMapping};
 use crate::tree::NodeInfo;
 
-fn merge_option<F, T, V>(f: F, a: &Option<T>, b: &Option<T>) -> Result<Option<V>>
+fn merge_option<T, V>(
+	f: impl Fn(&T) -> &Option<V>,
+	a: &Option<T>,
+	b: &Option<T>
+) -> Result<Option<V>>
 where
-	F: Fn(&T) -> &Option<V>,
 	V: Clone + Debug,
 {
 	Ok(match (a.as_ref().map(&f), b.as_ref().map(f)) {
@@ -20,16 +23,20 @@ where
 				(None, None) => None,
 				(None, Some(b)) => Some(b.clone()),
 				(Some(a), None) => Some(a.clone()),
+				// TODO: what if a == b?
 				(Some(a), Some(b)) => bail!("cannot merge: both left {a:?} and right {b:?} are given"),
 			}
 		},
 	})
 }
 
-fn merge_map<K, V, W, F>(a: Option<&IndexMap<K, V>>, b: Option<&IndexMap<K, V>>, merger: F) -> Result<IndexMap<K, W>>
+fn merge_map<K, V, W>(
+	a: Option<&IndexMap<K, V>>,
+	b: Option<&IndexMap<K, V>>,
+	merger: impl Fn(Option<&V>, Option<&V>) -> Result<W>
+) -> Result<IndexMap<K, W>>
 where
 	K: Hash + Eq + Clone,
-	F: Fn(Option<&V>, Option<&V>) -> Result<W>,
 {
 	let keys_a = a.iter().map(|x| x.keys());
 	let keys_b = b.iter().map(|x| x.keys());
