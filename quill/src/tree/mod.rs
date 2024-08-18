@@ -1,3 +1,4 @@
+use anyhow::Result;
 use crate::tree::names::Names;
 
 pub mod mappings;
@@ -10,7 +11,7 @@ pub trait NodeInfo<I> {
 }
 
 pub trait ToKey<K> {
-	fn get_key(&self) -> K;
+	fn get_key(&self) -> Result<K>;
 }
 
 pub(crate) trait FromKey<K> {
@@ -25,14 +26,14 @@ pub(crate) trait GetNames<const N: usize, T> {
 pub mod names {
 	use std::fmt::{Debug, Formatter};
 	use std::ops::{Index, IndexMut};
-	use anyhow::{bail, Result};
+	use anyhow::{anyhow, bail, Context, Error, Result};
 
 	/// Describes a given namespace of a mapping tree.
 	///
 	/// This object exists to remove out of bounds checks. If this object exists from a given mapping (obtained via
 	/// [`Namespaces::get_namespace`]), no range checking is necessary.
 	#[derive(Debug, Copy, Clone, PartialEq)]
-	pub struct Namespace<const N: usize>(usize);
+	pub struct Namespace<const N: usize>(pub(super) usize);
 
 	impl<const N: usize> Namespace<N> {
 		pub(crate) fn new(id: usize) -> Result<Namespace<N>> {
@@ -121,9 +122,15 @@ pub mod names {
 		}
 	}
 
-	impl<const N: usize> From<[String; N]> for Namespaces<N> {
-		fn from(names: [String; N]) -> Self {
-			Namespaces { names }
+	impl<const N: usize> TryFrom<[String; N]> for Namespaces<N> {
+		type Error = Error;
+
+		fn try_from(value: [String; N]) -> Result<Self> {
+			if value.iter().any(|i| i.is_empty()) {
+				bail!("found empty namespace name in {value:?}, every namespace name must be non-empty");
+			}
+
+			Ok(Namespaces { names: value })
 		}
 	}
 
@@ -141,8 +148,6 @@ pub mod names {
 	/// Implements the [Index] and [IndexMut] traits for [Namespace].
 	#[derive(Clone, PartialEq, PartialOrd, Eq, Ord)]
 	pub struct Names<const N: usize, T> {
-		/// Invariants:
-		/// the first item, is always [Some]
 		names: [Option<T>; N],
 	}
 
@@ -161,30 +166,37 @@ pub mod names {
 	}
 
 	impl<const N: usize, T> Names<N, T> {
-		pub(crate) fn from_first_name(src: T) -> Names<N, T> {
-			// TODO: check invariants
-			let mut names = std::array::from_fn(|_| None);
-			names[0] = Some(src);
+		pub(crate) fn none() -> Names<N, T> {
+			let names = std::array::from_fn(|_| None);
 			Names { names }
 		}
 
-		pub(crate) fn first_name(&self) -> &T {
-			self.names[0].as_ref().unwrap()
+		pub(crate) fn from_first_name(src: T) -> Names<N, T> {
+			let mut names = std::array::from_fn(|_| None);
+			if let Some(zero) = names.first_mut() {
+				*zero = Some(src);
+			}
+			Names { names }
+		}
+
+		pub(crate) fn first_name(&self) -> Result<&T> where T: Debug {
+			self.names.first().context("N = 0 is too small for having a name in first namespace")?
+				.as_ref().with_context(|| anyhow!("no name for the first namespace: {self:?}"))
 		}
 
 		pub(crate) fn names(&self) -> impl Iterator<Item=Option<&T>> {
 			self.names.iter().map(|x| x.as_ref())
 		}
 
-		pub(crate) fn get_mut_with_src(&mut self, namespace: Namespace<N>) -> Result<(&T, Option<&mut T>)> {
+		pub(crate) fn get_mut_with_src(&mut self, namespace: Namespace<N>) -> Result<(Option<&T>, Option<&mut T>)> {
 			if namespace.0 == 0 {
 				bail!("can't make a mutable and immutable reference to the same member of the array at once");
 			}
 
 			match &mut self.names[..] {
-				[] | [_] => bail!("not enough length"),
+				[] | [_] => bail!("not enough length: N = {N}"),
 				[head, tail @ ..] => {
-					Ok((head.as_ref().unwrap(), tail[namespace.0 - 1].as_mut()))
+					Ok((head.as_ref(), tail[namespace.0 - 1].as_mut()))
 				},
 			}
 		}
@@ -194,10 +206,6 @@ pub mod names {
 			T: Clone + Debug,
 		{
 			let names = table.map(|namespace| self[namespace].clone());
-
-			if names[0].is_none() {
-				bail!("can't reorder names: {self:?} with {table:?} gives {names:?}: we don't get a name for the first namespace");
-			}
 
 			Ok(Names { names })
 		}
@@ -223,16 +231,28 @@ pub mod names {
 		}
 	}
 
-	impl<const N: usize, T> From<[T; N]> for Names<N, T> {
-		fn from(value: [T; N]) -> Self {
-			Names { names: value.map(Some) }
+	/// Note that empty inputs are converted into `None`.
+	///
+	/// Emptiness is determined by the `AsRef<str>` implementation, and then `.is_empty()`.
+	impl<const N: usize, T> TryFrom<[T; N]> for Names<N, T> where T: AsRef<str> {
+		type Error = Error;
+
+		fn try_from(value: [T; N]) -> Result<Self> {
+			let names = value.map(|x| if x.as_ref().is_empty() { None } else { Some(x) });
+
+			Ok(Names { names })
 		}
 	}
 
-	impl<const N: usize, T> From<[Option<T>; N]> for Names<N, T> {
-		fn from(value: [Option<T>; N]) -> Self {
-			// TODO: some size checks
-			Names { names: value }
+	impl<const N: usize, T> TryFrom<[Option<T>; N]> for Names<N, T> where T: AsRef<str> + Debug {
+		type Error = Error;
+
+		fn try_from(value: [Option<T>; N]) -> Result<Self> {
+			if value.iter().any(|i| i.as_ref().is_some_and(|i| i.as_ref().is_empty())) {
+				bail!("cannot create names where an existing name is an empty string: {value:?}");
+			}
+
+			Ok(Names { names: value })
 		}
 	}
 

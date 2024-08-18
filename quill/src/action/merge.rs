@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use std::hash::Hash;
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Context, Error, Result};
 use indexmap::{IndexMap, IndexSet};
 use crate::tree::names::Namespaces;
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, FieldNowodeMapping, MappingInfo, Mappings, MethodMapping, MethodNowodeMapping, ParameterMapping, ParameterNowodeMapping};
@@ -58,7 +58,7 @@ fn merge_namespaces(a: &Namespaces<2>, b: &Namespaces<2>) -> Result<Namespaces<3
 	}
 	let [_, c] = b;
 	let [a, b] = a;
-	Ok([a, b, c].into())
+	[a, b, c].try_into()
 }
 
 fn merge_names<F, T, U, N2, N3, V>(f: F, a: Option<&T>, b: Option<&T>) -> Result<N3>
@@ -66,18 +66,18 @@ where
 	F: Fn(&V) -> &N2 + Copy,
 	T: NodeInfo<V>,
 	for<'a> &'a N2: Into<&'a [Option<U>; 2]>,
-	[Option<U>; 3]: Into<N3>,
+	[Option<U>; 3]: TryInto<N3, Error=Error>,
 	U: Debug + Clone + PartialEq,
 {
-	Ok(match (a.map(NodeInfo::get_node_info).map(f), b.map(NodeInfo::get_node_info).map(f)) {
+	match (a.map(NodeInfo::get_node_info).map(f), b.map(NodeInfo::get_node_info).map(f)) {
 		(None, None) => unreachable!(),
 		(None, Some(b)) => {
 			let b: &[Option<U>; 2] = b.into();
-			[b[0].clone(), None, b[1].clone()].into()
+			[b[0].clone(), None, b[1].clone()].try_into()
 		},
 		(Some(a), None) => {
 			let a: &[Option<U>; 2] = a.into();
-			[a[0].clone(), a[1].clone(), None].into()
+			[a[0].clone(), a[1].clone(), None].try_into()
 		},
 		(Some(a), Some(b)) => {
 			let a: &[Option<U>; 2] = a.into();
@@ -85,9 +85,9 @@ where
 			if a[0] != b[0] {
 				bail!("cannot merge {a:?} and {b:?}: the first names must match up");
 			}
-			[a[0].clone(), a[1].clone(), b[1].clone()].into()
+			[a[0].clone(), a[1].clone(), b[1].clone()].try_into()
 		}
-	})
+	}
 }
 
 fn merge_equal<F, T, V>(f: F, a: &Option<T>, b: &Option<T>) -> Result<V>

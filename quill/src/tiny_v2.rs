@@ -84,14 +84,14 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 		bail!("header version isn't tiny v2.0");
 	}
 
-	let namespaces = header.list()?.into();
+	let namespaces = header.list()?.try_into()?;
 
 	let mut mappings = Mappings::new(MappingInfo { namespaces });
 
 	let mut iter = WithMoreIdentIter::new(&mut lines);
 	while let Some(line) = iter.next().transpose()? {
 		if line.first_field == "c" {
-			let names = line.list()?.map(ClassName::from).into();
+			let names = line.list()?.map(ClassName::from).try_into()?;
 
 			let mapping = ClassMapping { names };
 
@@ -101,7 +101,7 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 			while let Some(mut line) = iter.next().transpose()? {
 				if line.first_field == "f" {
 					let desc = line.next()?.into();
-					let names = line.list()?.map(FieldName::from).into();
+					let names = line.list()?.map(FieldName::from).try_into()?;
 
 					let mapping = FieldMapping { desc, names };
 
@@ -120,7 +120,7 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 					class.add_field(field)?;
 				} else if line.first_field == "m" {
 					let desc = line.next()?.into();
-					let names = line.list()?.map(MethodName::from).into();
+					let names = line.list()?.map(MethodName::from).try_into()?;
 
 					let mapping = MethodMapping { desc, names };
 
@@ -130,7 +130,7 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 					while let Some(mut line) = iter.next().transpose()? {
 						if line.first_field == "p" {
 							let index = line.next()?.parse()?;
-							let names = line.list()?.map(ParameterName::from).into();
+							let names = line.list()?.map(ParameterName::from).try_into()?;
 
 							let mapping = ParameterMapping { index, names };
 

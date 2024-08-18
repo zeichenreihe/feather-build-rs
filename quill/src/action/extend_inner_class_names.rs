@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
 use duke::tree::class::ClassName;
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, Mappings};
 use crate::tree::names::{Names, Namespace};
@@ -27,6 +27,7 @@ impl<const N: usize> Names<N, ClassName> {
 		let mut names = self.clone();
 
 		if let (src, Some(b)) = names.get_mut_with_src(namespace)? {
+			let src = src.with_context(|| anyhow!("expected to have class name for first namespace, got {self:?}"))?;
 			*b = map(mappings, namespace, src.as_str(), b)?;
 		}
 

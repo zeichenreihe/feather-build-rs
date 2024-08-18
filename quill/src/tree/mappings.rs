@@ -34,7 +34,9 @@ impl<const N: usize> NodeInfo<MappingInfo<N>> for Mappings<N> {
 
 impl<const N: usize> Mappings<N> {
 	pub(crate) fn add_class(&mut self, child: ClassNowodeMapping<N>) -> Result<()> {
-		match self.classes.entry(child.info.get_key()) {
+		let key = child.info.get_key()
+			.with_context(|| anyhow!("failed to add class as child: cannot get it's key"))?;
+		match self.classes.entry(key) {
 			Entry::Occupied(e) => {
 				bail!("cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
 			},
@@ -85,7 +87,9 @@ impl<const N: usize> NodeInfo<ClassMapping<N>> for ClassNowodeMapping<N> {
 
 impl<const N: usize> ClassNowodeMapping<N> {
 	pub(crate) fn add_field(&mut self, child: FieldNowodeMapping<N>) -> Result<()> {
-		match self.fields.entry(child.info.get_key()) {
+		let key = child.info.get_key()
+			.with_context(|| anyhow!("failed to add parameter as child: cannot get it's key"))?;
+		match self.fields.entry(key) {
 			Entry::Occupied(e) => {
 				bail!("cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
 			},
@@ -98,7 +102,9 @@ impl<const N: usize> ClassNowodeMapping<N> {
 	}
 
 	pub(crate) fn add_method(&mut self, child: MethodNowodeMapping<N>) -> Result<()> {
-		match self.methods.entry(child.info.get_key()) {
+		let key = child.info.get_key()
+			.with_context(|| anyhow!("failed to add method as child: cannot get it's key"))?;
+		match self.methods.entry(key) {
 			Entry::Occupied(e) => {
 				bail!("cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
 			},
@@ -161,7 +167,9 @@ impl<const N: usize> NodeInfo<MethodMapping<N>> for MethodNowodeMapping<N> {
 
 impl<const N: usize> MethodNowodeMapping<N> {
 	pub(crate) fn add_parameter(&mut self, child: ParameterNowodeMapping<N>) -> Result<()> {
-		match self.parameters.entry(child.info.get_key()) {
+		let key = child.info.get_key()
+			.with_context(|| anyhow!("failed to add parameter as child: cannot get it's key"))?;
+		match self.parameters.entry(key) {
 			Entry::Occupied(e) => {
 				bail!("cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
 			},
@@ -213,8 +221,8 @@ pub struct ClassMapping<const N: usize> {
 }
 
 impl<const N: usize> ToKey<ClassName> for ClassMapping<N> {
-	fn get_key(&self) -> ClassName {
-		self.names.first_name().clone()
+	fn get_key(&self) -> Result<ClassName> {
+		self.names.first_name().cloned()
 	}
 }
 
@@ -243,11 +251,11 @@ pub struct FieldMapping<const N: usize> {
 }
 
 impl<const N: usize> ToKey<FieldNameAndDesc> for FieldMapping<N> {
-	fn get_key(&self) -> FieldNameAndDesc {
-		FieldNameAndDesc {
+	fn get_key(&self) -> Result<FieldNameAndDesc> {
+		Ok(FieldNameAndDesc {
 			desc: self.desc.clone(),
-			name: self.names.first_name().clone(),
-		}
+			name: self.names.first_name()?.clone(),
+		})
 	}
 }
 
@@ -277,11 +285,11 @@ pub struct MethodMapping<const N: usize> {
 }
 
 impl<const N: usize> ToKey<MethodNameAndDesc> for MethodMapping<N> {
-	fn get_key(&self) -> MethodNameAndDesc {
-		MethodNameAndDesc {
+	fn get_key(&self) -> Result<MethodNameAndDesc> {
+		Ok(MethodNameAndDesc {
 			desc: self.desc.clone(),
-			name: self.names.first_name().clone(),
-		}
+			name: self.names.first_name()?.clone(),
+		})
 	}
 }
 
@@ -317,11 +325,11 @@ pub struct ParameterMapping<const N: usize> {
 }
 
 impl<const N: usize> ToKey<ParameterKey> for ParameterMapping<N> {
-	fn get_key(&self) -> ParameterKey {
-		ParameterKey {
+	fn get_key(&self) -> Result<ParameterKey> {
+		Ok(ParameterKey {
 			index: self.index,
-			name: self.names.first_name().clone(),
-		}
+			name: self.names.first_name()?.clone(),
+		})
 	}
 }
 
