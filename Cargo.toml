@@ -2,6 +2,7 @@
 members = [
 	"duke",
 	"dukebox",
+	"dukenest",
 	"quill",
 	"raw_class_file"
 ]
@@ -41,6 +42,7 @@ pretty_assertions = "1.4.0"
 
 duke = { path = "duke" }
 dukebox = { path = "dukebox" }
+dukenest = { path = "dukenest" }
 quill = { path = "quill" }
 
 [dev-dependencies]
