@@ -17,6 +17,8 @@ mod specialized_methods;
 mod build;
 mod sus;
 
+mod dukelaunch;
+
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 /// The version id used in the mappings diffs and mappings files.
 /// This can end in `-client` and `-server`, or not have any suffix at all.
