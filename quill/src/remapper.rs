@@ -7,6 +7,9 @@
 //! [`Mappings::remapper_a`] and [`Mappings::remapper_b`] for remapping
 //! between given namespaces.
 //!
+//! In case you want to implement a remapper yourself, you only need to define the trait methods that don't have
+//! a default implementation.
+//!
 //! # What is a "remapper"?
 //! A remapper answers the question for you "what is the name of X in namespace Y?"
 //!
@@ -21,20 +24,45 @@ use crate::tree::names::Namespace;
 
 /// A remapper supporting remapping of class names and descriptors.
 pub trait ARemapper {
+	/// Maps a class name to a new one, if the mapping exists.
+	///
+	/// If the mapping doesn't exist, returns `Ok(None)`.
 	fn map_class_fail(&self, class: &ClassName) -> Result<Option<ClassName>>;
 
+	/// Maps a class name to a new one, if the mapping doesn't exist, return the old one.
+	///
+	/// Do not implement this yourself.
 	fn map_class(&self, class: &ClassName) -> Result<ClassName> {
 		Ok(self.map_class_fail(class)?.unwrap_or_else(|| class.clone()))
 	}
 
+	/// Maps a field descriptor to a new one.
+	///
+	/// Note that this relies on the fact that for non-existing class mappings class names are just copied over.
+	///
+	/// Do not implement this yourself.
 	fn map_field_desc(&self, desc: &FieldDescriptor) -> Result<FieldDescriptor> {
 		Ok(self.map_desc(desc.as_str())?.into())
 	}
 
+	/// Maps a method descriptor to a new one.
+	///
+	/// Note that this relies on the fact that for non-existing class mappings class names are just copied over.
+	///
+	/// Do not implement this yourself.
 	fn map_method_desc(&self, desc: &MethodDescriptor) -> Result<MethodDescriptor> {
 		Ok(self.map_desc(desc.as_str())?.into())
 	}
 
+	/// Maps a descriptor to a new one.
+	///
+	/// This is what [`ARemapper::map_field_desc`] and [`ARemapper::map_method_desc`] use internally. Most likely you want
+	/// to call one of these methods instead.
+	///
+	/// However, calling this method is perfectly fine if you're dealing with a return descriptor.
+	// TODO: return descriptors should just get their own Field/MethodDescriptor like struct...
+	///
+	/// Do not implement this yourself.
 	fn map_desc(&self, desc: &str) -> Result<String> {
 		let mut s = String::new();
 
@@ -104,8 +132,18 @@ impl Mappings<2> {
 ///
 /// If you only want to remap class names and descriptors, consider using [ARemapper] instead.
 pub trait BRemapper: ARemapper {
+	/// Maps a field name and field descriptor to new ones, if the mapping exists.
+	///
+	/// If the mapping doesn't exist, returns `Ok(None)`.
+	///
+	/// Note that in the `None` case you must map the field descriptor manually. See [`map_field`] for a method that
+	/// just takes the old name if no mapping exist (but yet maps the field descriptor).
 	fn map_field_fail(&self, owner_name: &ClassName, field_name: &FieldName, field_desc: &FieldDescriptor) -> Result<Option<FieldNameAndDesc>>;
 
+	/// Maps a field name and field descriptor to new ones, if the mapping doesn't exist returns the old name with a
+	/// mapped descriptor.
+	///
+	/// Do not implement this yourself.
 	fn map_field(&self, class: &ClassName, field_name: &FieldName, field_desc: &FieldDescriptor) -> Result<FieldNameAndDesc> {
 		self.map_field_fail(class, field_name, field_desc)?
 			.map(Ok)
@@ -115,6 +153,9 @@ pub trait BRemapper: ARemapper {
 			}))
 	}
 
+	/// Maps a [`FieldRef`], taking care of the class name as well.
+	///
+	/// Do not implement this yourself.
 	fn map_field_ref(&self, field_ref: &FieldRef) -> Result<FieldRef> {
 		let field_key = self.map_field(&field_ref.class, &field_ref.name, &field_ref.desc)?;
 		let class_name = self.map_class(&field_ref.class)?;
@@ -126,8 +167,18 @@ pub trait BRemapper: ARemapper {
 		})
 	}
 
+	/// Maps a method name and method descriptor to new ones, if the mapping exists.
+	///
+	/// If the mapping doesn't exist, returns `Ok(None)`.
+	///
+	/// Note that in the `None` case you must map the method descriptor manually. See [`map_method`] for a method that
+	/// just takes the old name if no mapping exist (but yet maps the method descriptor).
 	fn map_method_fail(&self, owner_name: &ClassName, method_name: &MethodName, method_desc: &MethodDescriptor) -> Result<Option<MethodNameAndDesc>>;
 
+	/// Maps a method name and method descriptor to new ones, if the mapping doesn't exist returns the old name with a
+	/// mapped descriptor.
+	///
+	/// Do not implement this yourself.
 	fn map_method(&self, class: &ClassName, method_name: &MethodName, method_desc: &MethodDescriptor) -> Result<MethodNameAndDesc> {
 		self.map_method_fail(class, method_name, method_desc)?
 			.map(Ok)
@@ -137,10 +188,18 @@ pub trait BRemapper: ARemapper {
 			}))
 	}
 
+	/// Maps a [`MethodNameAndDesc`].
+	///
+	/// This is essentially just a call to [`BRemapper::map_method`].
+	///
+	/// Do not implement this yourself.
 	fn map_method_name_and_desc(&self, class: &ClassName, method_name_and_desc: &MethodNameAndDesc) -> Result<MethodNameAndDesc> {
 		self.map_method(class, &method_name_and_desc.name, &method_name_and_desc.desc)
 	}
 
+	/// Maps a [`MethodRef`], taking care of the class name as well.
+	///
+	/// Do not implement this yourself.
 	fn map_method_ref(&self, method_ref: &MethodRef) -> Result<MethodRef> {
 		let method_key = self.map_method(&method_ref.class, &method_ref.name, &method_ref.desc)?;
 		let class_name = self.map_class(&method_ref.class)?;
