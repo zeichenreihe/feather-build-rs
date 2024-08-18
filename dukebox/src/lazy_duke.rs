@@ -1,11 +1,12 @@
 use std::borrow::Cow;
+use std::fmt::{Debug, Formatter};
 use std::io::Cursor;
 use anyhow::Result;
 use duke::tree::class::ClassFile;
 use duke::visitor::MultiClassVisitor;
 
 /// A lazily read [`ClassFile`].
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum ClassRepr {
 	Parsed {
 		class: ClassFile,
@@ -13,6 +14,15 @@ pub enum ClassRepr {
 	Vec {
 		data: Vec<u8>,
 	},
+}
+
+impl Debug for ClassRepr {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		match self {
+			ClassRepr::Parsed { class } => f.debug_struct("Parsed").field("class", &class).finish(),
+			ClassRepr::Vec { data } => f.debug_struct("Vec").field("size", &data.len()).finish_non_exhaustive(),
+		}
+	}
 }
 
 impl ClassRepr {
