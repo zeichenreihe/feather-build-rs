@@ -32,6 +32,10 @@ zip = "2.1.3"
 
 clap = { version = "4.5.7", features = ["derive"] }
 
+# logging
+log = "0.4.22"
+fern = "0.6.2"
+
 # TODO: move to dev-dependencies at some point again
 pretty_assertions = "1.4.0"
 

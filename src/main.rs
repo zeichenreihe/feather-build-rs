@@ -1,9 +1,10 @@
-use anyhow::Result;
+use anyhow::{anyhow, bail, Context, Result};
 use std::fmt::{Display, Formatter};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
+use log::trace;
 use tokio::task::JoinSet;
 use crate::download::Downloader;
 use crate::download::versions_manifest::MinecraftVersion;
@@ -63,11 +64,49 @@ TODO: publish
 TODO: version: uses `feather_version` for the version of the maven publication
  */
 
+pub(crate) fn setup_logger(verbose: u8) -> Result<()> {
+    let level_filter = match verbose {
+        0 => log::LevelFilter::Warn,
+        1 => log::LevelFilter::Info,
+        2 => log::LevelFilter::Debug,
+        3 => log::LevelFilter::Trace,
+        x => bail!("the -v option may be specified up to three times, got {x} times"),
+    };
+
+    fern::Dispatch::new()
+        //.level(log::LevelFilter::Off)
+        //.level_for("feather_build_rs", level_filter)
+        .level(level_filter)
+        .level_for("serde_xml_rs", log::LevelFilter::Off)
+        .level_for("reqwest", log::LevelFilter::Off)
+
+        .level_for("feather_build_rs::download", log::LevelFilter::Off)
+
+        .format({
+            let start = Instant::now();
+            move |out, message, record| {
+                let elapsed = start.elapsed();
+
+                let seconds = elapsed.as_secs();
+                let micros = elapsed.subsec_micros();
+
+                let level = record.level();
+                let target = record.target();
+
+                out.finish(format_args!("{seconds:4?}.{micros:06?} {level:5} {target} {message}"))
+            }
+        })
+        .chain(std::io::stderr())
+        .apply()
+        .with_context(|| anyhow!("failed to set logger config with log level filter {level_filter:?}"))
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    dbg!(&cli);
+    setup_logger(cli.verbose)?;
+    trace!("parsed command line arguments as {cli:?}");
 
     match cli.command {
         Command::Build { all, versions } => {
@@ -146,6 +185,13 @@ async fn main() -> Result<()> {
 #[derive(Debug, Parser)]
 #[command(version, about)]
 struct Cli {
+    /// Verbose mode. Errors and warnings are always logged. Multiple options increase verbosity.
+    ///
+    /// Multiple -v options increase the verbosity. The maximum is 3.
+    /// First comes info, then debug and then trace.
+    #[arg(short = 'v', action = ArgAction::Count)]
+    verbose: u8,
+
     /// Disable the caching to disk for downloaded files
     #[arg(long = "no-cache")]
     no_cache: bool, // TODO: currently this is not implemented
