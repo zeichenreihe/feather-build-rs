@@ -137,10 +137,6 @@ impl Downloader {
 			let cache_path = downloads.join(url_stripped);
 
 			if !cache_path.try_exists()? {
-				if let Some(parent) = cache_path.parent() {
-					fs::create_dir_all(parent)?;
-				}
-
 				info!("cache miss -> downloading {url:?} to {cache_path:?}");
 				let response = self.client.get(url).send().await?;
 				info!("got {}", response.status());
@@ -154,7 +150,12 @@ impl Downloader {
 
 				let bytes = response.bytes().await?;
 				let mut src: &[u8] = &bytes;
+
+				if let Some(parent) = cache_path.parent() {
+					fs::create_dir_all(parent)?;
+				}
 				let mut dest = File::create(&cache_path)?;
+
 				std::io::copy(&mut src, &mut dest)?;
 
 				Ok(Some(DownloadResult { url, data: DownloadData::FileNew { path: cache_path, bytes } }))
