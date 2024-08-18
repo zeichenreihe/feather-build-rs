@@ -1,6 +1,7 @@
 pub(crate) mod apply_diff;
 pub(crate) mod diff_mappings;
 pub(crate) mod extend_inner_class_names;
+pub(crate) mod insert_dummy;
 pub(crate) mod merge;
 pub(crate) mod remove_dummy;
 pub(crate) mod reorder;

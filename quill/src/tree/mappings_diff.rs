@@ -16,6 +16,17 @@ pub(crate) enum Action<T> {
 	None,
 }
 
+impl<T: PartialEq> Action<T> {
+	pub(crate) fn is_diff(&self) -> bool {
+		match self {
+			Action::Add(_) => true,
+			Action::Remove(_) => true,
+			Action::Edit(a, b) => a != b,
+			Action::None => false,
+		}
+	}
+}
+
 #[derive(Debug, Clone)]
 pub struct MappingsDiff {
 	pub(crate) info: Action<String>,
