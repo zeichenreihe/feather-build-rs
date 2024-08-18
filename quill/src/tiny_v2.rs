@@ -20,7 +20,8 @@ use std::path::Path;
 use duke::tree::class::ClassName;
 use duke::tree::field::FieldName;
 use duke::tree::method::{MethodName, ParameterName};
-use crate::tiny_v2_line::{Line, WithMoreIdentIter};
+use crate::lines::tiny_line::TinyLine;
+use crate::lines::WithMoreIdentIter;
 use crate::tree::mappings::{ClassMapping, FieldMapping, JavadocMapping, MappingInfo, MethodMapping, ParameterMapping, ClassNowodeMapping, FieldNowodeMapping, Mappings, MethodNowodeMapping, ParameterNowodeMapping};
 use crate::tree::names::{Names, Namespaces};
 use crate::tree::NodeInfo;
@@ -72,8 +73,8 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 	let mut lines = BufReader::new(reader)
 		.lines()
 		.enumerate()
-		.map(|(line_number, line)| -> Result<Line> {
-			Line::new(line_number + 1, line?)
+		.map(|(line_number, line)| -> Result<TinyLine> {
+			TinyLine::new(line_number + 1, &line?)
 		})
 		.peekable();
 

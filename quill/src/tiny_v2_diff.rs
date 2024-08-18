@@ -6,7 +6,8 @@ use std::path::Path;
 use duke::tree::class::ClassName;
 use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc};
 use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, ParameterName};
-use crate::tiny_v2_line::{Line, WithMoreIdentIter};
+use crate::lines::tiny_line::TinyLine;
+use crate::lines::WithMoreIdentIter;
 use crate::tree::mappings::ParameterKey;
 use crate::tree::mappings_diff::{Action, ClassNowodeDiff, FieldNowodeDiff, MappingsDiff, MethodNowodeDiff, ParameterNowodeDiff};
 use crate::tree::NodeInfo;
@@ -20,7 +21,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 	let mut lines = BufReader::new(reader)
 		.lines()
 		.enumerate()
-		.map(|(line_number, line)| Line::new(line_number + 1, line?))
+		.map(|(line_number, line)| TinyLine::new(line_number + 1, &line?))
 		.peekable();
 
 	let mut header = lines.next().context("no header")??;
