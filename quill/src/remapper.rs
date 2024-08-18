@@ -93,6 +93,13 @@ impl<const N: usize> Mappings<N> {
 	}
 }
 
+impl Mappings<2> {
+	// TODO: this should probably not exist...
+	pub fn remapper_a_first_to_second(&self) -> Result<ARemapperImpl<'_, 2>> {
+		self.remapper_a(Namespace::new(0)?, Namespace::new(1)?)
+	}
+}
+
 /// A remapper supporting remapping fields and methods, as well as class names and descriptors.
 ///
 /// If you only want to remap class names and descriptors, consider using [ARemapper] instead.
@@ -100,10 +107,12 @@ pub trait BRemapper: ARemapper {
 	fn map_field_fail(&self, owner_name: &ClassName, field_name: &FieldName, field_desc: &FieldDescriptor) -> Result<Option<FieldNameAndDesc>>;
 
 	fn map_field(&self, class: &ClassName, field_name: &FieldName, field_desc: &FieldDescriptor) -> Result<FieldNameAndDesc> {
-		Ok(self.map_field_fail(class, field_name, field_desc)?.unwrap_or_else(|| FieldNameAndDesc {
-			desc: field_desc.clone(),
-			name: field_name.clone(),
-		}))
+		self.map_field_fail(class, field_name, field_desc)?
+			.map(Ok)
+			.unwrap_or_else(|| Ok(FieldNameAndDesc {
+				desc: self.map_field_desc(field_desc)?,
+				name: field_name.clone(),
+			}))
 	}
 
 	fn map_field_ref(&self, field_ref: &FieldRef) -> Result<FieldRef> {
@@ -120,10 +129,12 @@ pub trait BRemapper: ARemapper {
 	fn map_method_fail(&self, owner_name: &ClassName, method_name: &MethodName, method_desc: &MethodDescriptor) -> Result<Option<MethodNameAndDesc>>;
 
 	fn map_method(&self, class: &ClassName, method_name: &MethodName, method_desc: &MethodDescriptor) -> Result<MethodNameAndDesc> {
-		Ok(self.map_method_fail(class, method_name, method_desc)?.unwrap_or_else(|| MethodNameAndDesc {
-			desc: method_desc.clone(),
-			name: method_name.clone(),
-		}))
+		self.map_method_fail(class, method_name, method_desc)?
+			.map(Ok)
+			.unwrap_or_else(|| Ok(MethodNameAndDesc {
+				desc: self.map_method_desc(method_desc)?,
+				name: method_name.clone(),
+			}))
 	}
 
 	fn map_method_name_and_desc(&self, class: &ClassName, method_name_and_desc: &MethodNameAndDesc) -> Result<MethodNameAndDesc> {
@@ -246,6 +257,13 @@ impl<const N: usize> Mappings<N> {
 			}
 		}
 		Ok(BRemapperImpl { classes, inheritance })
+	}
+}
+
+impl Mappings<2> {
+	// TODO: this should probably not exist...
+	pub fn remapper_b_first_to_second<'i, I>(&self, inheritance: &'i I) -> Result<BRemapperImpl<'_, 'i, 2, I>> {
+		self.remapper_b(Namespace::new(0)?, Namespace::new(1)?, inheritance)
 	}
 }
 
