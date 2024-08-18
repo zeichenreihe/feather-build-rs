@@ -5,7 +5,7 @@ use std::cmp::Ordering;
 /// Use the associated constants (like [`Version::V1_1`]) if you want that version.
 ///
 /// Take a look at [the list of class file versions](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.1-200-B.2).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Version {
 	pub(crate) major: u16,
 	pub(crate) minor: u16,
@@ -74,6 +74,24 @@ impl Ord for Version {
 	fn cmp(&self, other: &Self) -> Ordering {
 		self.major.cmp(&other.major)
 			.then_with(|| self.minor.cmp(&other.minor))
+	}
+}
+
+#[cfg(test)]
+mod testing {
+	use crate::tree::version::Version;
+
+	#[test]
+	fn test_cmp() {
+		assert!(Version::V21 < Version::V22);
+		assert!(Version::V21 < Version::V23);
+		assert!(Version::V21 <= Version::V21);
+		assert!(Version::V21 >= Version::V20);
+		assert!(Version::V21 >= Version::V10);
+
+		assert!(Version::V21 < Version::new(65, 1));
+		assert!(Version::V22 > Version::new(65, 1));
+		assert!(Version::new(65, 2) > Version::new(65, 1));
 	}
 }
 
