@@ -1,5 +1,6 @@
 use std::fs;
 use std::fs::File;
+use std::future::Future;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Context, Result};
@@ -15,6 +16,7 @@ use crate::download::maven_metadata::MavenMetadata;
 use quill::tree::mappings::Mappings;
 use dukebox::zip::file::FileJar;
 use dukenest::Nests;
+use maven_dependency_resolver::maven_pom::MavenPom;
 use crate::Version;
 
 pub(crate) mod versions_manifest;
@@ -278,7 +280,25 @@ impl Downloader {
 	}
 
 	pub(crate) async fn get_maven_metadata_xml(&self, url: &str) -> Result<MavenMetadata> {
+		// TODO: might also be a good idea to test the maven metadata parsing against a snapshot maven-metadata.xml like
+		//  https://s01.oss.sonatype.org/content/repositories/snapshots/org/vineflower/vineflower/1.10.0-SNAPSHOT/maven-metadata.xml
 		self.download(url).await?
 			.parse_as_xml().context("maven metadata")
+	}
+
+	async fn get_maven_pom(&self, url: &str) -> Result<Option<MavenPom>> {
+		self.download_with_special_404(url, true).await?
+			.map(|x| x.parse_as_xml().context("maven pom"))
+			.transpose()
+	}
+}
+
+impl maven_dependency_resolver::Downloader for Downloader {
+	// note: can't rewrite with async, bc of `+ Send`
+	#[allow(clippy::manual_async_fn)]
+	fn get_maven_pom(&self, url: &str) -> impl Future<Output=Result<Option<MavenPom>>> + Send {
+		async {
+			self.get_maven_pom(url).await
+		}
 	}
 }
