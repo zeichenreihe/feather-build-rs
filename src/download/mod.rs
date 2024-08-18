@@ -1,5 +1,6 @@
 use std::fs;
 use std::fs::File;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Context, Result};
 use bytes::{Buf, Bytes};
@@ -74,12 +75,20 @@ impl DownloadResult<'_> {
 		}
 	}
 
-	fn open_as_file(self) -> Result<File> {
+	fn mappings_from_zip_file(self) -> Result<Mappings<2>> {
 		match self.data {
-			DownloadData::NotCached { bytes } => todo!("not cached is not implemented for opening as file"),
+			DownloadData::NotCached { bytes } => {
+				let mut zip = ZipArchive::new(Cursor::new(bytes))?;
+				let file = zip.by_name("mappings/mappings.tiny").with_context(|| anyhow!("cannot find mappings in zip file from {:?}", self.url))?;
+				quill::tiny_v2::read(file).with_context(|| anyhow!("failed to read mappings from mappings/mappings.tiny of {:?}", self.url))
+			},
 			DownloadData::FileNew { path, .. } |
-			DownloadData::FileHit { path} => {
-				File::open(&path).with_context(|| anyhow!("failed to open cache file {:?} from {:?}", path, self.url))
+			DownloadData::FileHit { path } => {
+				let file = File::open(&path).with_context(|| anyhow!("failed to open cache file {:?} from {:?}", path, self.url))?;
+
+				let mut zip = ZipArchive::new(file)?;
+				let file = zip.by_name("mappings/mappings.tiny").with_context(|| anyhow!("cannot find mappings in zip file from {:?}", self.url))?;
+				quill::tiny_v2::read(file).with_context(|| anyhow!("failed to read mappings from mappings/mappings.tiny of {:?}", self.url))
 			},
 		}
 	}
@@ -206,13 +215,7 @@ impl Downloader {
 	pub(crate) async fn calamus_v2(&self, version: &Version) -> Result<Mappings<2>> {
 		let url = format!("https://maven.ornithemc.net/releases/net/ornithemc/calamus-intermediary/{version}/calamus-intermediary-{version}-v2.jar");
 
-		let body = self.download(&url).await?.open_as_file()?;
-
-		let mut zip = ZipArchive::new(body)?;
-
-		let file = zip.by_name("mappings/mappings.tiny").with_context(|| anyhow!("cannot find mappings in zip file from {url:?}"))?;
-
-		let mappings = quill::tiny_v2::read(file).with_context(|| anyhow!("failed to read mappings from mappings/mappings.tiny of {url:?}"))?;
+		let mappings = self.download(&url).await?.mappings_from_zip_file()?;
 
 		mappings.info.namespaces.check_that(["official", "intermediary"])?;
 
