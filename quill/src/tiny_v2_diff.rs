@@ -75,10 +75,13 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 					while let Some(mut line) = iter.next().transpose()? {
 						if line.first_field == "p" {
 							let index = line.next()?.parse()?;
-							let src: ParameterName = line.next()?.into();
+							let src = line.next()?;
+							if !src.is_empty() {
+								bail!("expected no src field for a parameter in a tiny diff");
+							}
 
 							let action = line.action()?;
-							let parameter_key = ParameterKey { index, name: src };
+							let parameter_key = ParameterKey { index };
 
 							let mut parameter = ParameterNowodeDiff::new(action);
 

@@ -315,7 +315,6 @@ impl<const N: usize> GetNames<N, MethodName> for MethodMapping<N> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParameterKey {
 	pub(crate) index: usize,
-	pub(crate) name: ParameterName,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
@@ -328,7 +327,6 @@ impl<const N: usize> ToKey<ParameterKey> for ParameterMapping<N> {
 	fn get_key(&self) -> Result<ParameterKey> {
 		Ok(ParameterKey {
 			index: self.index,
-			name: self.names.first_name()?.clone(),
 		})
 	}
 }
@@ -337,7 +335,7 @@ impl<const N: usize> FromKey<ParameterKey> for ParameterMapping<N> {
 	fn from_key(key: ParameterKey) -> ParameterMapping<N> {
 		ParameterMapping {
 			index: key.index,
-			names: Names::from_first_name(key.name),
+			names: Names::none(),
 		}
 	}
 }
