@@ -3,6 +3,7 @@ members = [
 	"duke",
 	"dukebox",
 	"dukenest",
+	"maven_dependency_resolver",
 	"quill",
 	"raw_class_file"
 ]
@@ -43,6 +44,7 @@ pretty_assertions = "1.4.0"
 duke = { path = "duke" }
 dukebox = { path = "dukebox" }
 dukenest = { path = "dukenest" }
+maven_dependency_resolver = { path = "maven_dependency_resolver" }
 quill = { path = "quill" }
 
 [dev-dependencies]
