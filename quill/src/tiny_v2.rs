@@ -15,7 +15,7 @@
 use std::fmt::Debug;
 use std::fs::File;
 use anyhow::{anyhow, bail, Context, Result};
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::path::Path;
 use duke::tree::class::ClassName;
 use duke::tree::field::FieldName;
@@ -326,6 +326,10 @@ fn write_names<const N: usize, T>(w: &mut impl Write, names: &Names<N, T>) -> Re
 /// Note that there are also the helper methods [`write_vec`] for writing into a `Vec<u8>` directly,
 /// and the helper method [`write_string`] that also tries to convert that `Vec<u8>` into a `String`.
 pub fn write<const N: usize>(mappings: &Mappings<N>, w: &mut impl Write) -> Result<()> {
+	// the buffering makes it much faster
+	let mut w = BufWriter::new(w);
+	let w = &mut w;
+
 	write!(w, "tiny\t2\t0")?;
 	write_namespaces(w, &mappings.info.namespaces)?;
 
