@@ -4,6 +4,7 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Context, Result};
 use bytes::{Buf, Bytes};
+use log::{info, trace};
 use reqwest::{Client, StatusCode};
 use zip::ZipArchive;
 use crate::download::version_details::VersionDetails;
@@ -140,9 +141,9 @@ impl Downloader {
 					fs::create_dir_all(parent)?;
 				}
 
-				println!("downloading {url}");
-
+				info!("cache miss -> downloading {url:?} to {cache_path:?}");
 				let response = self.client.get(url).send().await?;
+				info!("got {}", response.status());
 
 				if do_special_404 && response.status() == StatusCode::NOT_FOUND {
 					return Ok(None);
@@ -158,12 +159,13 @@ impl Downloader {
 
 				Ok(Some(DownloadResult { url, data: DownloadData::FileNew { path: cache_path, bytes } }))
 			} else {
+				trace!("cache hit for {url:?} as {cache_path:?}");
 				Ok(Some(DownloadResult { url, data: DownloadData::FileHit { path: cache_path } }))
 			}
 		} else {
-			println!("downloading {url}");
-
+			info!("no cache -> downloading {url:?}");
 			let response = self.client.get(url).send().await?;
+			info!("got {}", response.status());
 
 			if do_special_404 && response.status() == StatusCode::NOT_FOUND {
 				return Ok(None);
