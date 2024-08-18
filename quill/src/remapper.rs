@@ -291,6 +291,26 @@ impl JarSuperProv {
 }
 
 
+// TODO: I guess make a method ARemapper::to_b_remapper() to make a BRemapper out of an Self...
+pub struct ARemapperAsBRemapper<T>(pub T) where T: ARemapper;
+
+impl<T> ARemapper for ARemapperAsBRemapper<T> where T: ARemapper {
+	fn map_class_fail(&self, class: &ClassName) -> Result<Option<ClassName>> {
+		self.0.map_class_fail(class)
+	}
+}
+
+impl<T> BRemapper for ARemapperAsBRemapper<T> where T: ARemapper {
+	fn map_field_fail(&self, owner_name: &ClassName, field_name: &FieldName, field_desc: &FieldDescriptor) -> Result<Option<FieldNameAndDesc>> {
+		Ok(None)
+	}
+
+	fn map_method_fail(&self, owner_name: &ClassName, method_name: &MethodName, method_desc: &MethodDescriptor) -> Result<Option<MethodNameAndDesc>> {
+		Ok(None)
+	}
+}
+
+
 pub trait SuperClassProvider {
 	fn get_super_classes(&self, class: &ClassName) -> Result<Option<&IndexSet<ClassName>>>;
 }
@@ -308,6 +328,21 @@ impl<S: SuperClassProvider> SuperClassProvider for Vec<S> {
 				return Ok(Some(x));
 			}
 		}
+		Ok(None)
+	}
+}
+
+pub struct NoSuperClassProvider;
+
+impl NoSuperClassProvider {
+	pub fn new() -> &'static NoSuperClassProvider {
+		static INSTANCE: NoSuperClassProvider = NoSuperClassProvider;
+		&INSTANCE
+	}
+}
+
+impl SuperClassProvider for NoSuperClassProvider {
+	fn get_super_classes(&self, class: &ClassName) -> Result<Option<&IndexSet<ClassName>>> {
 		Ok(None)
 	}
 }
