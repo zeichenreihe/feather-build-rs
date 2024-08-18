@@ -4,7 +4,7 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Context, Result};
 use bytes::{Buf, Bytes};
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
 use zip::ZipArchive;
 use crate::download::version_details::VersionDetails;
 use crate::download::version_manifest::VersionManifest;
@@ -13,6 +13,7 @@ use crate::Environment;
 use crate::download::maven_metadata::MavenMetadata;
 use quill::tree::mappings::Mappings;
 use dukebox::zip::file::FileJar;
+use dukenest::Nests;
 use crate::Version;
 
 pub(crate) mod versions_manifest;
@@ -102,6 +103,14 @@ impl DownloadResult<'_> {
 			},
 		}
 	}
+
+	fn to_vec(&self) -> Result<Vec<u8>> {
+		match &self.data {
+			DownloadData::NotCached { bytes } => Ok(bytes.to_vec()),
+			DownloadData::FileNew { bytes, .. } => Ok(bytes.to_vec()),
+			DownloadData::FileHit { path } => Ok(fs::read(path)?)
+		}
+	}
 }
 
 impl Downloader {
@@ -109,7 +118,12 @@ impl Downloader {
 		Downloader { cache, client: Client::new() }
 	}
 
-	async fn download<'a>(&'a self, url: &'a str) -> Result<DownloadResult> {
+	async fn download<'a>(&self, url: &'a str) -> Result<DownloadResult<'a>> {
+		self.download_with_special_404(url, false).await.map(|x| x.unwrap())
+	}
+
+	// TODO: let this also cache a 404 result if (another, yet to add) parameter "cache_404" is true
+	async fn download_with_special_404<'a>(&self, url: &'a str, do_special_404: bool) -> Result<Option<DownloadResult<'a>>> {
 		if self.cache {
 			let downloads = Path::new("./download");
 
@@ -129,6 +143,10 @@ impl Downloader {
 				println!("downloading {url}");
 
 				let response = self.client.get(url).send().await?;
+
+				if do_special_404 && response.status() == StatusCode::NOT_FOUND {
+					return Ok(None);
+				}
 				if !response.status().is_success() {
 					bail!("got a \"{}\" for {url:?}", response.status());
 				}
@@ -138,21 +156,25 @@ impl Downloader {
 				let mut dest = File::create(&cache_path)?;
 				std::io::copy(&mut src, &mut dest)?;
 
-				Ok(DownloadResult { url, data: DownloadData::FileNew { path: cache_path, bytes } })
+				Ok(Some(DownloadResult { url, data: DownloadData::FileNew { path: cache_path, bytes } }))
 			} else {
-				Ok(DownloadResult { url, data: DownloadData::FileHit { path: cache_path } })
+				Ok(Some(DownloadResult { url, data: DownloadData::FileHit { path: cache_path } }))
 			}
 		} else {
 			println!("downloading {url}");
 
 			let response = self.client.get(url).send().await?;
+
+			if do_special_404 && response.status() == StatusCode::NOT_FOUND {
+				return Ok(None);
+			}
 			if !response.status().is_success() {
 				bail!("got a \"{}\" for {url:?}", response.status());
 			}
 
 			let bytes = response.bytes().await?;
 
-			Ok(DownloadResult { url, data: DownloadData::NotCached { bytes } })
+			Ok(Some(DownloadResult { url, data: DownloadData::NotCached { bytes } }))
 		}
 	}
 
@@ -236,6 +258,20 @@ impl Downloader {
 		}
 
 		Ok(libs)
+	}
+
+	pub(crate) async fn download_nests(&self, version: &Version) -> Result<Option<Nests>> {
+		let url = format!("https://github.com/OrnitheMC/nests/raw/main/nests/{version}.nest");
+
+		if let Some(nests) = self.download_with_special_404(&url, true).await? {
+			let nests = nests.to_vec()?;
+
+			let nests = Nests::read(&nests)?;
+
+			Ok(Some(nests))
+		} else {
+			Ok(None)
+		}
 	}
 
 	pub(crate) async fn get_maven_metadata_xml(&self, url: &str) -> Result<MavenMetadata> {
