@@ -88,7 +88,8 @@ pub(crate) enum ProtocolType {
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct WorldInfo {
 	pub(crate) format: WorldFormat,
-	pub(crate) version: usize,
+	// TODO: For 1.8, this is None. 1.8 uses anvil. Investigate this further.
+	pub(crate) version: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
