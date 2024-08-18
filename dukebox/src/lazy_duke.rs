@@ -37,7 +37,7 @@ impl ClassRepr {
 		}
 	}
 
-	pub(crate) fn read(self) -> Result<ClassFile> {
+	pub fn read(self) -> Result<ClassFile> {
 		match self {
 			ClassRepr::Parsed { class } => Ok(class),
 			ClassRepr::Vec { data } => duke::read_class(&mut Cursor::new(data)),

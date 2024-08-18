@@ -11,7 +11,7 @@ use crate::zip::mem::UnnamedMemJar;
 
 #[derive(Debug, Default)]
 pub struct ParsedJar {
-	pub(crate) entries: IndexMap<String, ParsedJarEntry>,
+	pub entries: IndexMap<String, ParsedJarEntry>,
 }
 
 impl Jar for ParsedJar {

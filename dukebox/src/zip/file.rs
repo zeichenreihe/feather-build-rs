@@ -6,7 +6,7 @@ use crate::Jar;
 
 #[derive(Debug)]
 pub struct FileJar {
-	pub(crate) path: PathBuf,
+	pub path: PathBuf,
 }
 
 impl FileJar {

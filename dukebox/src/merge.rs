@@ -286,7 +286,7 @@ fn visit_sided_annotation(class: ClassRepr, side: Side) -> Result<ClassRepr> {
 	class.edit(|x| x.runtime_visible_annotations.push(sided_annotation(side)))
 }
 
-
+// TODO: doc
 pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
 	let mut opened_a = client.open()?;
 	let mut opened_b = server.open()?;

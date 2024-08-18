@@ -12,7 +12,8 @@ use quill::remapper::JarSuperProv;
 use crate::parsed::ParsedJarEntry;
 
 pub mod merge;
-mod parsed;
+pub mod remap;
+pub mod parsed;
 pub mod zip;
 mod lazy_duke;
 
@@ -120,6 +121,15 @@ impl BasicFileAttributes {
 		let ctime = extended_timestamp.and_then(|x| x.cr_time());
 
 		BasicFileAttributes { last_modified, mtime, atime, ctime }
+	}
+
+	pub fn new_empty() -> BasicFileAttributes {
+		BasicFileAttributes {
+			last_modified: None,
+			mtime: None,
+			atime: None,
+			ctime: None,
+		}
 	}
 
 	fn to_file_options<'k>(self) -> FileOptions<'k, ExtendedFileOptions> {
