@@ -144,7 +144,7 @@ impl<const N: usize> NodeInfo<FieldMapping<N>> for FieldNowodeMapping<N> {
 pub struct MethodNowodeMapping<const N: usize> {
 	pub info: MethodMapping<N>,
 	pub parameters: IndexMap<ParameterKey, ParameterNowodeMapping<N>>,
-	pub(crate) javadoc: Option<JavadocMapping>,
+	pub javadoc: Option<JavadocMapping>,
 }
 
 impl<const N: usize> NodeInfo<MethodMapping<N>> for MethodNowodeMapping<N> {
@@ -185,7 +185,7 @@ impl<const N: usize> MethodNowodeMapping<N> {
 #[derive(Debug, Clone)]
 pub struct ParameterNowodeMapping<const N: usize> {
 	pub info: ParameterMapping<N>,
-	pub(crate) javadoc: Option<JavadocMapping>,
+	pub javadoc: Option<JavadocMapping>,
 }
 
 impl<const N: usize> NodeInfo<ParameterMapping<N>> for ParameterNowodeMapping<N> {
@@ -212,7 +212,7 @@ pub struct MappingInfo<const N: usize> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct ClassKey {
-	pub(crate) src: ClassName,
+	pub src: ClassName,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
@@ -246,7 +246,7 @@ impl<const N: usize> GetNames<N, ClassName> for ClassMapping<N> {
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct FieldMapping<const N: usize> {
-	pub(crate) desc: FieldDescriptor,
+	pub desc: FieldDescriptor,
 	pub names: Names<N, FieldName>,
 }
 
@@ -314,12 +314,12 @@ impl<const N: usize> GetNames<N, MethodName> for MethodMapping<N> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParameterKey {
-	pub(crate) index: usize,
+	pub index: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct ParameterMapping<const N: usize> {
-	pub(crate) index: usize,
+	pub index: usize,
 	pub names: Names<N, ParameterName>,
 }
 
@@ -351,7 +351,7 @@ impl<const N: usize> GetNames<N, ParameterName> for ParameterMapping<N> {
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct JavadocMapping(pub(crate) String);
+pub struct JavadocMapping(pub String);
 
 impl From<String> for JavadocMapping {
 	fn from(value: String) -> Self {
