@@ -11,10 +11,10 @@ const FILE_SEPARATOR: &str = ";";
 
 #[derive(Debug)]
 pub struct JavaRunConfig {
-	pub main_class: String,
+	pub main_class: OsString,
 	pub classpath: Vec<OsString>,
-	pub jvm_args: Vec<String>,
-	pub args: Vec<String>,
+	pub jvm_args: Vec<OsString>,
+	pub args: Vec<OsString>,
 }
 
 #[derive(Debug)]
