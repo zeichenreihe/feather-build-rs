@@ -54,19 +54,12 @@ impl Nests {
 			} ) };
 			let access = access().with_context(|| anyhow!("invalid mapping {line:?} in line {line_number}: invalid access flags"))?;
 
-			// TODO: dangerous string position stuff?
-			let idx = inner_name.char_indices()
-				.take_while(|(_, ch)| ch.is_ascii_digit())
-				.map(|(pos, _)| pos)
-				.last()
-				.unwrap_or(0);
-
-			let nest_type = if idx == inner_name.len() { // TODO: this test might be wrong...
+			let nest_type = if inner_name.chars().all(|x| x.is_ascii_digit()) {
 				NestType::Anonymous
-			} else if idx == 0 {
-				NestType::Inner
-			} else {
+			} else if inner_name.starts_with(|x: char| x.is_ascii_digit()) {
 				NestType::Local
+			} else {
+				NestType::Inner
 			};
 
 			let nest = Nest {
