@@ -12,20 +12,18 @@ fn merge_option<T, V>(
 	b: &Option<T>
 ) -> Result<Option<V>>
 where
-	V: Clone + Debug,
+	V: Clone + Debug + PartialEq,
 {
 	Ok(match (a.as_ref().map(&f), b.as_ref().map(f)) {
 		(None, None) => unreachable!(),
 		(None, Some(b)) => b.clone(),
 		(Some(a), None) => a.clone(),
-		(Some(a), Some(b)) => {
-			match (a, b) {
-				(None, None) => None,
-				(None, Some(b)) => Some(b.clone()),
-				(Some(a), None) => Some(a.clone()),
-				// TODO: what if a == b?
-				(Some(a), Some(b)) => bail!("cannot merge: both left {a:?} and right {b:?} are given"),
-			}
+		(Some(a), Some(b)) => match (a, b) {
+			(None, None) => None,
+			(None, Some(b)) => Some(b.clone()),
+			(Some(a), None) => Some(a.clone()),
+			(Some(a), Some(b)) if a == b => Some(a.clone()),
+			(Some(a), Some(b)) => bail!("cannot merge: both left {a:?} and right {b:?} are given"),
 		},
 	})
 }
@@ -38,22 +36,19 @@ fn merge_map<K, V, W>(
 where
 	K: Hash + Eq + Clone,
 {
-	let keys_a = a.iter().map(|x| x.keys());
-	let keys_b = b.iter().map(|x| x.keys());
+	let keys: IndexSet<&K> = a.into_iter().chain(b).flat_map(IndexMap::keys).collect();
 
-	let keys: IndexSet<&K> = keys_a.chain(keys_b).flatten().collect();
+	keys.into_iter()
+		.map(|key| {
+			// at least one of the two is Some(_)!
+			// TODO? can we encode this with types?
+			let a = a.and_then(|x| x.get(key));
+			let b = b.and_then(|x| x.get(key));
 
-	let mut result = IndexMap::new();
-
-	for key in keys {
-		let a = a.and_then(|x| x.get(key));
-		let b = b.and_then(|x| x.get(key));
-
-		let merged = merger(a, b)?;
-		result.insert(key.clone(), merged);
-	}
-
-	Ok(result)
+			let merged = merger(a, b)?;
+			Ok((key.clone(), merged))
+		})
+		.collect()
 }
 
 fn merge_namespaces(a: &Namespaces<2>, b: &Namespaces<2>) -> Result<Namespaces<3>> {
@@ -107,18 +102,10 @@ where
 
 	match (a, b) {
 		(None, None) => unreachable!(),
-		(None, Some(b)) => {
-			Ok(b.clone())
-		},
-		(Some(a), None) => {
-			Ok(a.clone())
-		},
-		(Some(a), Some(b)) => {
-			if a != b {
-				bail!("cannot merge {a:?} and {b:?}: expected them to be equal, but they are not equal");
-			}
-			Ok(a.clone())
-		}
+		(None, Some(b)) => Ok(b.clone()),
+		(Some(a), None) => Ok(a.clone()),
+		(Some(a), Some(b)) if a == b => Ok(a.clone()),
+		(Some(a), Some(b)) => bail!("cannot merge {a:?} and {b:?}: expected them to be equal, but they are not equal"),
 	}
 }
 
