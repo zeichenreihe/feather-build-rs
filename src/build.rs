@@ -6,7 +6,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use zip::write::FileOptions;
 use zip::ZipWriter;
 use duke::tree::class::ClassName;
-use duke::tree::method::{MethodName, ParameterName};
+use duke::tree::method::MethodName;
 use dukebox::Jar;
 use crate::download::Downloader;
 use crate::download::versions_manifest::VersionsManifest;
@@ -18,6 +18,7 @@ use crate::version_graph::VersionGraph;
 
 
 fn inspect<const N: usize>(mappings: &Mappings<N>, path: &str) -> Result<()> {
+	let start = Instant::now();
 
 	// fix the order of the other file being looked at, which makes diffing easier...
 	/*
@@ -29,6 +30,8 @@ fn inspect<const N: usize>(mappings: &Mappings<N>, path: &str) -> Result<()> {
 
 	let mut file = File::create(path)?;
 	quill::tiny_v2::write(mappings, &mut file)?;
+
+	eprintln!("inspect: {:?}", start.elapsed());
 	Ok(())
 }
 
@@ -216,15 +219,6 @@ impl ApplyFix for Mappings<3> {
 				// further: make this something for the sus module
 
 				check_names(&m.info.names)?;
-
-				for p in m.parameters.values_mut() {
-					//replace_empty(&mut p.info.names, named, intermediary);
-					if p.info.names[official].is_none() {
-						p.info.names[official] = Some(ParameterName::from(""));
-					}
-
-					check_names(&p.info.names)?;
-				}
 			}
 		}
 

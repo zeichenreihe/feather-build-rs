@@ -329,12 +329,12 @@ pub(crate) fn add_specialized_methods_to_mappings(
 		let named_specialized = remapper_named.map_method_ref(&bridge)?.name;
 
 		let info = MethodMapping {
-			names: Names::from([specialized.name, named_specialized]),
+			names: Names::try_from([specialized.name, named_specialized])?,
 			desc: specialized.desc,
 		};
 
 		if let Some(class) = mappings.classes.get_mut(&bridge.class) {
-			match class.methods.entry(info.get_key()) {
+			match class.methods.entry(info.get_key()?) {
 				Entry::Occupied(mut e) => {
 					// only replace the info, not the rest
 					e.get_mut().info = info;

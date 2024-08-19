@@ -3,7 +3,6 @@ use std::path::Path;
 use std::time::Instant;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::map::Entry;
-use duke::tree::method::ParameterName;
 use quill::remapper::{BRemapper, JarSuperProv};
 use quill::tree::mappings::{Mappings, MethodMapping, MethodNowodeMapping};
 use quill::tree::names::Names;
@@ -161,14 +160,6 @@ impl ApplyFix for Mappings<3> {
 				}
 
 				check_names(&m.info.names)?;
-
-				for p in m.parameters.values_mut() {
-					if p.info.names[official].is_none() {
-						p.info.names[official] = Some(ParameterName::from(""));
-					}
-
-					check_names(&p.info.names)?;
-				}
 			}
 		}
 
@@ -209,12 +200,12 @@ fn add_specialized_methods_to_mappings(
 		let named_specialized = remapper_named.map_method_ref(&bridge)?.name;
 
 		let info = MethodMapping {
-			names: Names::from([specialized.name, named_specialized]),
+			names: Names::try_from([specialized.name, named_specialized])?,
 			desc: specialized.desc,
 		};
 
 		if let Some(class) = mappings.classes.get_mut(&bridge.class) {
-			match class.methods.entry(info.get_key()) {
+			match class.methods.entry(info.get_key()?) {
 				Entry::Occupied(mut e) => {
 					if e.get().info != info {
 						eprintln!("sus: method already existing: {:?} != {:?}", e.get().info, info);
