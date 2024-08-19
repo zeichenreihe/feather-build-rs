@@ -285,7 +285,7 @@ fn strip_local_class_prefix(inner_name: &str) -> String {
 	if idx == inner_name.len() {
 		inner_name.to_owned()
 	} else {
-		// TODO: dangerous direct access to string slice...
+		// TODO: dangerous direct access to string slice... (before touching this, first write a test!)
 		inner_name[idx..].to_owned()
 	}
 }
@@ -314,7 +314,7 @@ pub fn map_nests(mappings: &Mappings<2>, nests: Nests) -> Result<Nests> {
 					.unwrap_or(0);
 
 				if i < nest.inner_name.len() {
-					// TODO: dangerous direct access to string slice...
+					// TODO: dangerous direct access to string slice... (before touching this, write a test!)
 					// local classes have a number prefix
 					let prefix = &nest.inner_name[0..i];
 					let simple_name = &nest.inner_name[i..];

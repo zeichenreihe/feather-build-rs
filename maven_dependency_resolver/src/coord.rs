@@ -158,7 +158,6 @@ impl FromStr for MavenCoord {
 			type_: type_.unwrap_or("jar").to_owned(),
 		})
 	}
-	// TODO: add tests for this implementation (also failure cases)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -296,8 +295,33 @@ impl Types {
 
 #[cfg(test)]
 mod testing {
+	use std::str::FromStr;
+	use anyhow::Result;
 	use pretty_assertions::assert_eq;
-	use crate::coord::to_snapshot_version;
+	use crate::coord::{MavenCoord, to_snapshot_version};
+
+	#[test]
+	fn test_maven_coord_from_str() -> Result<()> {
+		fn coord(g: &str, a: &str, v: &str, c: Option<&str>, t: &str) -> MavenCoord {
+			MavenCoord {
+				group: g.to_owned(),
+				artifact: a.to_owned(),
+				version: v.to_owned(),
+				classifier: c.map(|x| x.to_owned()),
+				type_: t.to_owned(),
+			}
+		}
+
+		assert_eq!(MavenCoord::from_str("group:artifact:version")?, coord("group", "artifact", "version", None, "jar"));
+		assert_eq!(MavenCoord::from_str("group:artifact:type:version")?, coord("group", "artifact", "version", None, "type"));
+		assert_eq!(MavenCoord::from_str("group:artifact:type::version")?, coord("group", "artifact", "version", Some(""), "type"));
+		assert_eq!(MavenCoord::from_str("group:artifact:type:classifier:version")?, coord("group", "artifact", "version", Some("classifier"), "type"));
+
+		assert!(MavenCoord::from_str("group:artifact").is_err());
+		assert!(MavenCoord::from_str("group:artifact:type:classifier:version:something").is_err());
+
+		Ok(())
+	}
 
 	#[test]
 	fn test_to_snapshot_version() {

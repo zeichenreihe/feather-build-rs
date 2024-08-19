@@ -15,10 +15,9 @@ log = "0.4.22"
 # need this for recursion on async functions
 async-recursion = "1.1.1"
 
-# TODO: move to dev-dependencies at some point again
+[dev-dependencies]
 pretty_assertions = "1.4.0"
 
-[dev-dependencies]
 # for testing async functions
 tokio = { version = "1.33.0", features = ["full"] }
 

@@ -39,6 +39,8 @@ where
 
 	keys.into_iter()
 		.map(|key| {
+			// at least one of the two is Some(_)!
+			// TODO? can we encode this with types?
 			let a = a.and_then(|x| x.get(key));
 			let b = b.and_then(|x| x.get(key));
 

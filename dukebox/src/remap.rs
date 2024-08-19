@@ -36,8 +36,7 @@ pub fn remap(jar: impl Jar, remapper: impl BRemapper) -> Result<ParsedJar> {
 
 pub fn remap_jar_entry_name(name: String, remapper: &impl BRemapper) -> Result<String> {
 	return Ok(name);
-	// TODO: remap a name of a jar entry!
-	todo!()
+	todo!("remap a name of a jar entry")
 }
 
 pub fn remap_jar_entry(entry: ParsedJarEntry, remapper: &impl BRemapper) -> Result<ParsedJarEntry> {

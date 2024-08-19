@@ -123,7 +123,7 @@ fn clean_up_dependencies(mut forest: Vec<Tree<FoundDependency<'_>>>) -> Vec<Tree
 /// doesn't allow us to specify the lifetime.
 ///
 /// The [Display] implementation allows round trips with [TryFrom<&str>]. Note: round trips remove the repositories name.
-// TODO: tests for both FromStr, and Display...
+// TODO: tests for both TryFrom<&str>, and Display...
 #[derive(Debug, PartialEq)]
 pub struct FoundDependency<'a> {
 	pub resolver: Resolver<'a>,
@@ -263,8 +263,7 @@ mod testing {
 				}),
 				dependency_management: None,
 			}),
-			// TODO: do classifiers work like that? I think they're only for the artifact, not the pom...
-			("invalid://maven.example.com/foo/com/example/bar/0.2/bar-0.2-extra.pom", MavenPom {
+			("invalid://maven.example.com/foo/com/example/bar/0.2/bar-0.2.pom", MavenPom {
 				model_version: "4.0.0".to_string(),
 				parent: None,
 				group_id: Some("com.example".to_string()),

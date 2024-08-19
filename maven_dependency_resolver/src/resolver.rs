@@ -70,8 +70,10 @@ pub(crate) async fn try_get_pom_for<'a>(downloader: &impl Downloader, resolvers:
 
 #[cfg(test)]
 mod testing {
+	use anyhow::{anyhow, Result};
 	use pretty_assertions::assert_eq;
 	use crate::Resolver;
+	use crate::resolver::try_resolvers;
 
 	/*#[test]
 	fn resolver_appends_missing_slash() {
@@ -79,4 +81,23 @@ mod testing {
 		assert_eq!(Resolver::new("test", "https://maven.example.org/").maven, "https://maven.example.org/");
 	}*/
 	// TODO: tests?
+
+	#[tokio::test]
+	async fn test_try_resolvers() -> Result<()> {
+		let resolvers = [ Resolver::new("a", "a"), Resolver::new("b", "b"), Resolver::new("c", "c") ];
+
+		let (resolver, x) = try_resolvers(&resolvers, |resolver| resolver.maven.to_string(), |url: String| async move {
+			match url.as_str() {
+				"a" => Ok(None),
+				"b" => Ok(None),
+				"c" => Ok(Some(1)),
+				_ => Err(anyhow!("should be impossible")),
+			}
+		}).await?;
+
+		assert_eq!(resolver.name, "c");
+		assert_eq!(x, 1);
+
+		Ok(())
+	}
 }

@@ -38,9 +38,6 @@ clap = { version = "4.5.7", features = ["derive"] }
 log = "0.4.22"
 fern = "0.6.2"
 
-# TODO: move to dev-dependencies at some point again
-pretty_assertions = "1.4.0"
-
 duke = { path = "duke" }
 dukebox = { path = "dukebox" }
 dukenest = { path = "dukenest" }
@@ -48,4 +45,6 @@ maven_dependency_resolver = { path = "maven_dependency_resolver" }
 quill = { path = "quill" }
 
 [dev-dependencies]
+pretty_assertions = "1.4.0"
+
 raw_class_file = { path = "raw_class_file" }

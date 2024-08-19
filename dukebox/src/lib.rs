@@ -133,7 +133,7 @@ impl BasicFileAttributes {
 	}
 
 	fn to_file_options<'k>(self) -> FileOptions<'k, ExtendedFileOptions> {
-		// TODO: set the ctime, atime, mtime to the ones from self
+		// TODO: awaiting lib support: set the ctime, atime, mtime to the ones from self
 
 		FileOptions::default().last_modified_time(self.last_modified.unwrap())
 	}
