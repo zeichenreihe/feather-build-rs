@@ -1,7 +1,10 @@
 [package]
 name = "dukebox"
 version = "0.1.0"
+authors = ["zeichenreihe"]
 edition = "2021"
+repository = "https://github.com/zeichenreihe/feather-build-rs/"
+license = "EUPL-1.2"
 
 [lints]
 workspace = true
