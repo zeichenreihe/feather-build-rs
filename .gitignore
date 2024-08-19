@@ -1,3 +1,20 @@
 /target
 
 /.idea
+
+/download
+build.gradle
+bib.class
+vg.class
+/tmp
+/src/lookat.txt
+/out.txt
+
+# these contain references to objweb
+/duke/tests
+duke/objweb_code_read.java
+.gitignore
+/duke/benches
+
+/mappings/
+
