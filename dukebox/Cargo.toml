@@ -3,18 +3,19 @@ name = "dukebox"
 version = "0.1.0"
 edition = "2021"
 
+[lints]
+workspace = true
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = { version = "1.0.71", features = ["backtrace"] }
+anyhow = { workspace = true }
+indexmap = { workspace = true }
+zip = { workspace = true }
 
-indexmap = "2.0.2"
-
-zip = "2.1.3"
-
-duke = { path = "../duke" }
-quill = { path = "../quill" }
+duke = { workspace = true }
+quill = { workspace = true }
 
 #[dev-dependencies]
 # TODO: move to dev-dependencies at some point again
-pretty_assertions = "1.4.0"
+pretty_assertions = { workspace = true }

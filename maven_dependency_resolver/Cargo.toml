@@ -3,23 +3,18 @@ name = "maven_dependency_resolver"
 version = "0.1.0"
 edition = "2021"
 
+[lints]
+workspace = true
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = { version = "1.0.71", features = ["backtrace"] }
-
-serde = { version = "1.0.189", features = ["derive"] }
-
-log = "0.4.22"
-
-# need this for recursion on async functions
-async-recursion = "1.1.1"
+anyhow = { workspace = true }
+async-recursion = { workspace = true } # need this for recursion on async functions
+log = { workspace = true }
+serde = { workspace = true }
 
 [dev-dependencies]
-pretty_assertions = "1.4.0"
-
-# for testing async functions
-tokio = { version = "1.33.0", features = ["full"] }
-
-# for reading poms from xml
-serde-xml-rs = "0.6.0"
+pretty_assertions = { workspace = true }
+serde-xml-rs = { workspace = true } # for reading poms from xml
+tokio = { workspace = true } # for testing async functions
