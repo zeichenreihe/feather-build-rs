@@ -6,7 +6,7 @@ use duke::tree::class::ClassName;
 use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc};
 use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, ParameterName};
 use crate::lines::tiny_line::TinyLine;
-use crate::lines::WithMoreIdentIter;
+use crate::lines::{Line, WithMoreIdentIter};
 use crate::tree::mappings::ParameterKey;
 use crate::tree::mappings_diff::{Action, ClassNowodeDiff, FieldNowodeDiff, MappingsDiff, MethodNowodeDiff, ParameterNowodeDiff};
 use crate::tree::NodeInfo;
@@ -23,16 +23,19 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 		.map(|(line_number, line)| TinyLine::new(line_number + 1, &line?))
 		.peekable();
 
-	let mut header = lines.next().context("no header")??;
+	let mut header = lines.next().context("no header line")??;
+	let header_line_number = header.get_line_number();
 
 	if header.first_field != "tiny" || header.next()? != "2" || header.end()? != "0" {
-		bail!("header version isn't tiny v2.0");
+		bail!("header version isn't tiny v2.0, in line {header_line_number:?}");
 	}
 
 	let mut mappings = MappingsDiff::new(Action::None);
 
 	let mut iter = WithMoreIdentIter::new(&mut lines);
 	while let Some(mut line) = iter.next().transpose()? {
+		let line_number = line.get_line_number();
+
 		if line.first_field == "c" {
 			let class_key: ClassName = line.next()?.into();
 
@@ -42,6 +45,8 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 
 			let mut iter = iter.next_level();
 			while let Some(mut line) = iter.next().transpose()? {
+				let line_number = line.get_line_number();
+
 				if line.first_field == "f" {
 					let desc: FieldDescriptor = line.next()?.into();
 					let name: FieldName = line.next()?.into();
@@ -53,15 +58,18 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 
 					let mut iter = iter.next_level();
 					while let Some(line) = iter.next().transpose()? {
+						let line_number = line.get_line_number();
+
 						if line.first_field == "c" {
 							let action = line.action()?;
 							if field.javadoc.replace(action).is_some() {
-								bail!("only one comment diff per field is allowed")
+								bail!("only one comment diff per field is allowed (on line {line_number})")
 							}
 						}
 					}
 
-					class.add_field(field_key, field)?;
+					class.add_field(field_key, field)
+						.with_context(|| anyhow!("for field defined on line {line_number}"))?;
 				} else if line.first_field == "m" {
 					let desc: MethodDescriptor = line.next()?.into();
 					let name: MethodName = line.next()?.into();
@@ -73,11 +81,13 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 
 					let mut iter = iter.next_level();
 					while let Some(mut line) = iter.next().transpose()? {
+						let line_number = line.get_line_number();
+
 						if line.first_field == "p" {
 							let index = line.next()?.parse()?;
 							let src = line.next()?;
 							if !src.is_empty() {
-								bail!("expected no src field for a parameter in a tiny diff");
+								bail!("expected no src field for a parameter in a tiny diff (on line {line_number})");
 							}
 
 							let action = line.action()?;
@@ -87,33 +97,38 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 
 							let mut iter = iter.next_level();
 							while let Some(line) = iter.next().transpose()? {
+								let line_number = line.get_line_number();
+
 								if line.first_field == "c" {
 									let action = line.action()?;
 									if parameter.javadoc.replace(action).is_some() {
-										bail!("only one comment diff per parameter is allowed")
+										bail!("only one comment diff per parameter is allowed (on line {line_number})")
 									}
 								}
 							}
 
-							method.add_parameter(parameter_key, parameter)?;
+							method.add_parameter(parameter_key, parameter)
+								.with_context(|| anyhow!("for parameter defined on line {line_number}"))?;
 						} else if line.first_field == "c" {
 							let action = line.action()?;
 							if method.javadoc.replace(action).is_some() {
-								bail!("only one comment diff per method is allowed")
+								bail!("only one comment diff per method is allowed (on line {line_number})")
 							}
 						}
 					}
 
-					class.add_method(method_key, method)?;
+					class.add_method(method_key, method)
+						.with_context(|| anyhow!("for method defined on line {line_number}"))?;
 				} else if line.first_field == "c" {
 					let action = line.action()?;
 					if class.javadoc.replace(action).is_some() {
-						bail!("only one comment diff per class is allowed")
+						bail!("only one comment diff per class is allowed (on line {line_number})")
 					}
 				}
 			}
 
-			mappings.add_class(class_key, class)?;
+			mappings.add_class(class_key, class)
+				.with_context(|| anyhow!("for class defined on line {line_number}"))?;
 		}
 	}
 

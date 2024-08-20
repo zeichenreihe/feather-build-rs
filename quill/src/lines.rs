@@ -105,11 +105,8 @@ pub(crate) mod tiny_line {
 		pub(crate) fn list<const N: usize>(self) -> Result<[String; N]> {
 			let vec: Vec<_> = self.fields.collect();
 
-			if vec.len() != N {
-				bail!("line {} contained more or less fields ({}) than the expected {N}: {:?}", self.line_number, vec.len(), vec);
-			}
-
-			Ok(vec.try_into().unwrap()) // can't panic, we checked the size
+			<[String; N]>::try_from(vec)
+				.map_err(|vec| anyhow!("line {} contained more or less fields ({}) than the expected {N}: {:?}", self.line_number, vec.len(), vec))
 		}
 
 		pub(crate) fn action<T>(mut self) -> Result<Action<T>>
