@@ -349,6 +349,15 @@ async fn main() -> Result<()> {
 
             java_launcher.launch(&arg)
         },
+        Command::InsertMappings {} => {
+            let downloader = Downloader::new(!cli.no_cache);
+
+            let version = Version(String::from("1.12.2"));
+
+            info!("saving mappings for {version}");
+
+            insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::None).await
+        }
         Command::PropagateMappings {} => {
             let downloader = Downloader::new(!cli.no_cache);
 
@@ -357,15 +366,6 @@ async fn main() -> Result<()> {
             info!("saving mappings for {version}");
 
             insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::Both).await
-        },
-        Command::PropagateMappingsDown {} => {
-            let downloader = Downloader::new(!cli.no_cache);
-
-            let version = Version(String::from("1.12.2"));
-
-            info!("saving mappings for {version}");
-
-            insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::Down).await
         },
         Command::PropagateMappingsUp {} => {
             let downloader = Downloader::new(!cli.no_cache);
@@ -376,15 +376,23 @@ async fn main() -> Result<()> {
 
             insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::Up).await
         },
-        // TODO: insertMappings task
+        Command::PropagateMappingsDown {} => {
+            let downloader = Downloader::new(!cli.no_cache);
+
+            let version = Version(String::from("1.12.2"));
+
+            info!("saving mappings for {version}");
+
+            insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::Down).await
+        },
     }
 }
 
 enum PropagationDirection {
-    None, // TODO: used for insertMappings task
+    None,
     Both,
-    Down,
     Up,
+    Down,
 }
 
 struct PropagationOptions {
@@ -558,9 +566,11 @@ enum Command {
         version: String,
     },
     // TODO: doc
+    InsertMappings,
+    // TODO: doc
     PropagateMappings,
     // TODO: doc
-    PropagateMappingsDown,
-    // TODO: doc
     PropagateMappingsUp,
+    // TODO: doc
+    PropagateMappingsDown,
 }
