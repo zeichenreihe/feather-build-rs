@@ -28,29 +28,22 @@ pub(crate) fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result
 		})
 		.peekable();
 
-	let mut iter = WithMoreIdentIter::new(&mut lines);
-	while let Some(line) = iter.next().transpose()? {
-		let line_number = line.get_line_number();
-
+	WithMoreIdentIter::new(&mut lines).on_every_line(|iter, line| {
 		match line.first_field.as_str() {
 			CLASS => {
 				// We use recursion here to parse classes contained in classes...
-				parse_class(mappings, &mut iter, line, None)?;
-
 				fn parse_class(
 					mappings: &mut Mappings<2>,
 					iter: &mut WithMoreIdentIter<impl Iterator<Item=Result<EnigmaLine>>>,
 					line: EnigmaLine,
 					parent: Option<&String>
 				) -> Result<()> {
-					let line_number = line.get_line_number();
-
 					let (src, dst) = match line.fields.as_slice() {
 						[src] => (src, None),
 						[src, mod_] if is_modifier(mod_) => (src, None),
 						[src, dst] => (src, Some(dst)),
 						[src, dst, _mod] => (src, Some(dst)),
-						slice => bail!("on line {line_number} illegal number of arguments ({}) for class mapping, expected 1-3, got {slice:?}", slice.len()),
+						slice => bail!("illegal number of arguments ({}) for class mapping, expected 1-3, got {slice:?}", slice.len()),
 					};
 
 					let src = if let Some(parent) = parent {
@@ -60,43 +53,33 @@ pub(crate) fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result
 					};
 					let parent = src.clone();
 					let mut class = ClassNowodeMapping::new(ClassMapping {
-						names: Names::try_from([Some(src.into()), dst.map(|x| x.clone().into())])
-							.with_context(|| anyhow!("on line {line_number}"))?,
+						names: Names::try_from([Some(src.into()), dst.map(|x| x.clone().into())])?,
 					});
 
-					let mut iter = iter.next_level();
-					while let Some(line) = iter.next().transpose()? {
-						let line_number = line.get_line_number();
-
+					iter.next_level().on_every_line(|iter, line| {
 						match line.first_field.as_str() {
-							CLASS => {
-								parse_class(mappings, &mut iter, line, Some(&parent))?
-							},
+							CLASS => parse_class(mappings, iter, line, Some(&parent)),
 							FIELD => {
 								let (src, dst, desc) = match line.fields.as_slice() {
 									[src, desc] => (src, None, desc),
 									[src, desc, mod_] if is_modifier(mod_) => (src, None, desc),
 									[src, dst, desc] => (src, Some(dst), desc),
 									[src, dst, desc, _mod] => (src, Some(dst), desc),
-									slice => bail!("on line {line_number} illegal number of arguments ({}) for field mapping, expected 2-4, got {slice:?}", slice.len()),
+									slice => bail!("illegal number of arguments ({}) for field mapping, expected 2-4, got {slice:?}", slice.len()),
 								};
 								let mut field = FieldNowodeMapping::new(FieldMapping {
 									desc: desc.to_owned().into(),
 									names: Names::try_from([Some(src.clone().into()), dst.map(|x| x.clone().into())])?,
 								});
 
-								let mut iter = iter.next_level();
-								while let Some(line) = iter.next().transpose()? {
-									let line_number = line.get_line_number();
-
+								iter.next_level().on_every_line(|_, line| {
 									match line.first_field.as_str() {
 										COMMENT => insert_comment(&mut field.javadoc, line),
-										tag => bail!("on line {line_number} unknown mapping target {tag:?} for inside field, allowed are: `COMMENT`"),
+										tag => bail!("unknown mapping target {tag:?} for inside field, allowed are: `COMMENT`"),
 									}
-								}
+								}).context("reading `FIELD` sub-sections")?;
 
 								class.add_field(field)
-									.with_context(|| anyhow!("for field defined on line {line_number}"))?;
 							},
 							METHOD => {
 								let (src, dst, desc) = match line.fields.as_slice() {
@@ -104,69 +87,57 @@ pub(crate) fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result
 									[src, desc, mod_] if is_modifier(mod_) => (src, None, desc),
 									[src, dst, desc] => (src, Some(dst), desc),
 									[src, dst, desc, _mod] => (src, Some(dst), desc),
-									slice => bail!("on line {line_number} illegal number of arguments ({}) for method mapping, expected 2-4, got {slice:?}", slice.len()),
+									slice => bail!("illegal number of arguments ({}) for method mapping, expected 2-4, got {slice:?}", slice.len()),
 								};
 								let mut method = MethodNowodeMapping::new(MethodMapping {
 									desc: desc.to_owned().into(),
-									names: Names::try_from([Some(src.clone().into()), dst.map(|x| x.clone().into())])
-										.with_context(|| anyhow!("on line {line_number}"))?,
+									names: Names::try_from([Some(src.clone().into()), dst.map(|x| x.clone().into())])?,
 								});
 
-								let mut iter = iter.next_level();
-								while let Some(line) = iter.next().transpose()? {
-									let line_number = line.get_line_number();
-
+								iter.next_level().on_every_line(|iter, line| {
 									match line.first_field.as_str() {
 										PARAMETER => {
 											let (raw_index, dst) = match line.fields.as_slice() {
 												[raw_index, dst] => (raw_index, dst),
-												slice => bail!("on line {line_number} illegal number of arguments ({}) for parameter mapping, expected 2, got {slice:?}", slice.len()),
+												slice => bail!("illegal number of arguments ({}) for parameter mapping, expected 2, got {slice:?}", slice.len()),
 											};
 
 											let index: usize = raw_index.parse()
-												.with_context(|| anyhow!("on line {line_number} illegal parameter index {raw_index:?}, index cannot be negative"))?;
+												.with_context(|| anyhow!("illegal parameter index {raw_index:?}, index cannot be negative"))?;
 
 											let mut parameter = ParameterNowodeMapping::new(ParameterMapping {
 												index,
-												names: [None, Some(dst.clone().into())].try_into()
-													.with_context(|| anyhow!("on line {line_number}"))?,
+												names: [None, Some(dst.clone().into())].try_into()?,
 											});
 
-											let mut iter = iter.next_level();
-											while let Some(line) = iter.next().transpose()? {
+											iter.next_level().on_every_line(|_, line| {
 												match line.first_field.as_str() {
 													COMMENT => insert_comment(&mut parameter.javadoc, line),
-													tag => bail!("on line {line_number} unknown mapping target {tag:?} for inside parameter, allowed are: `COMMENT`"),
+													tag => bail!("unknown mapping target {tag:?} for inside parameter, allowed are: `COMMENT`"),
 												}
-											}
+											}).context("reading `ARG` sub-sections")?;
 
 											method.add_parameter(parameter)
-												.with_context(|| anyhow!("for parameter defined on line {line_number}"))?;
 										},
-
 										COMMENT => insert_comment(&mut method.javadoc, line),
-
-										tag => bail!("on line {line_number} unknown mapping target {tag:?} for inside method, allowed are: `ARG`, `COMMENT`"),
+										tag => bail!("unknown mapping target {tag:?} for inside method, allowed are: `ARG`, `COMMENT`"),
 									}
-								}
+								}).context("reading `METHOD` sub-sections")?;
 
 								class.add_method(method)
-									.with_context(|| anyhow!("for method defined on line {line_number}"))?;
 							},
 							COMMENT => insert_comment(&mut class.javadoc, line),
-							tag => bail!("on line {line_number} unknown mapping target {tag:?} for inside class, allowed are: `CLASS`, `FIELD`, `METHOD`, `COMMENT`"),
+							tag => bail!("unknown mapping target {tag:?} for inside class, allowed are: `CLASS`, `FIELD`, `METHOD`, `COMMENT`"),
 						}
-					}
+					}).context("reading `CLASS` sub-sections")?;
 
 					mappings.add_class(class)
-						.with_context(|| anyhow!("for class defined on line {line_number}"))
 				}
+				parse_class(mappings, iter, line, None)
 			},
-			tag => bail!("on line {line_number} unknown mapping target {tag:?} for inside root, allowed are: `CLASS`"),
+			tag => bail!("unknown mapping target {tag:?} for inside root, allowed are: `CLASS`"),
 		}
-	}
-
-	Ok(())
+	}).context("reading lines")
 }
 
 fn is_modifier(s: &str) -> bool {
@@ -174,7 +145,7 @@ fn is_modifier(s: &str) -> bool {
 	s.starts_with(MODIFIER)
 }
 
-fn insert_comment(javadoc: &mut Option<JavadocMapping>, line: EnigmaLine) {
+fn insert_comment(javadoc: &mut Option<JavadocMapping>, line: EnigmaLine) -> Result<()> {
 	let string = line.fields.join(" ");
 
 	if let Some(javadoc) = javadoc {
@@ -183,8 +154,8 @@ fn insert_comment(javadoc: &mut Option<JavadocMapping>, line: EnigmaLine) {
 	} else {
 		*javadoc = Some(JavadocMapping(string));
 	}
+	Ok(())
 }
-
 
 mod enigma_line {
 	use anyhow::{anyhow, Context, Result};

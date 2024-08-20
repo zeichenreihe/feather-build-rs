@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::iter::Peekable;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 
 pub(crate) trait Line: Debug {
 	fn get_idents(&self) -> usize;
@@ -27,6 +27,17 @@ where
 			depth: self.depth + 1,
 			iter: self.iter,
 		}
+	}
+
+	pub(super) fn on_every_line(mut self, mut f: impl FnMut(&mut Self, L) -> Result<()>) -> Result<()> {
+		while let Some(line) = self.next() {
+			let line = line?;
+			let line_number = line.get_line_number();
+
+			f(&mut self, line)
+				.with_context(|| anyhow!("in line {line_number}"))?;
+		}
+		Ok(())
 	}
 }
 

@@ -89,109 +89,94 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 
 	let mut mappings = Mappings::new(MappingInfo { namespaces });
 
-	let mut iter = WithMoreIdentIter::new(&mut lines);
-	while let Some(line) = iter.next().transpose()? {
-		let line_number = line.get_line_number();
-
+	WithMoreIdentIter::new(&mut lines).on_every_line(|iter, line| {
 		if line.first_field == "c" {
-			let names = line.list()?.map(ClassName::from).try_into()
-				.with_context(|| anyhow!("on line {line_number}"))?;
+			let names = line.list()?.map(ClassName::from).try_into()?;
 
 			let mapping = ClassMapping { names };
 
 			let mut class: ClassNowodeMapping<N> = ClassNowodeMapping::new(mapping);
 
-			let mut iter = iter.next_level();
-			while let Some(mut line) = iter.next().transpose()? {
-				let line_number = line.get_line_number();
-
+			iter.next_level().on_every_line(|iter, mut line| {
 				if line.first_field == "f" {
 					let desc = line.next()?.into();
-					let names = line.list()?.map(FieldName::from).try_into()
-						.with_context(|| anyhow!("on line {line_number}"))?;
+					let names = line.list()?.map(FieldName::from).try_into()?;
 
 					let mapping = FieldMapping { desc, names };
 
 					let mut field: FieldNowodeMapping<N> = FieldNowodeMapping::new(mapping);
 
-					let mut iter = iter.next_level();
-					while let Some(line) = iter.next().transpose()? {
-						let line_number = line.get_line_number();
-
+					iter.next_level().on_every_line(|_, line| {
 						if line.first_field == "c" {
-							let comment = JavadocMapping(line.end()?);
-							if field.javadoc.replace(comment).is_some() {
-								bail!("only one comment per field is allowed (on line {line_number})");
-							}
+							add_comment(&mut field.javadoc, line)
+						} else {
+							Ok(())
 						}
-					}
+					}).context("reading field sub-sections")?;
 
 					class.add_field(field)
-						.with_context(|| anyhow!("for field defined on line {line_number}"))?;
 				} else if line.first_field == "m" {
 					let desc = line.next()?.into();
-					let names = line.list()?.map(MethodName::from).try_into()
-						.with_context(|| anyhow!("on line {line_number}"))?;
+					let names = line.list()?.map(MethodName::from).try_into()?;
 
 					let mapping = MethodMapping { desc, names };
 
 					let mut method: MethodNowodeMapping<N> = MethodNowodeMapping::new(mapping);
 
-					let mut iter = iter.next_level();
-					while let Some(mut line) = iter.next().transpose()? {
-						let line_number = line.get_line_number();
-
+					iter.next_level().on_every_line(|iter, mut line| {
 						if line.first_field == "p" {
 							let index = line.next()?.parse()?;
-							let names = line.list()?.map(ParameterName::from).try_into()
-								.with_context(|| anyhow!("on line {line_number}"))?;
+							let names = line.list()?.map(ParameterName::from).try_into()?;
 
 							let mapping = ParameterMapping { index, names };
 
 							let mut parameter: ParameterNowodeMapping<N> = ParameterNowodeMapping::new(mapping);
 
-							let mut iter = iter.next_level();
-							while let Some(line) = iter.next().transpose()? {
-								let line_number = line.get_line_number();
-
+							iter.next_level().on_every_line(|_, line| {
 								if line.first_field == "c" {
-									let comment = JavadocMapping(line.end()?);
-									if parameter.javadoc.replace(comment).is_some() {
-										bail!("only one comment per parameter is allowed (on line {line_number})");
-									}
+									add_comment(&mut parameter.javadoc, line)
+								} else {
+									Ok(())
 								}
-							}
+							}).context("reading parameter sub-sections")?;
 
 							method.add_parameter(parameter)
-								.with_context(|| anyhow!("for parameter defined on line {line_number}"))?;
 						} else if line.first_field == "c" {
-							let comment = JavadocMapping(line.end()?);
-							if method.javadoc.replace(comment).is_some() {
-								bail!("only one comment per method is allowed (on line {line_number})");
-							}
+							add_comment(&mut method.javadoc, line)
+						} else {
+							Ok(())
 						}
-					}
+					}).context("reading method sub-sections")?;
 
 					class.add_method(method)
-						.with_context(|| anyhow!("for method defined on line {line_number}"))?;
 				} else if line.first_field == "c" {
-					let comment = JavadocMapping(line.end()?);
-					if class.javadoc.replace(comment).is_some() {
-						bail!("only one comment per class is allowed (on line {line_number})");
-					}
+					add_comment(&mut class.javadoc, line)
+				} else {
+					Ok(())
 				}
-			}
+			}).context("reading class sub-sections")?;
 
 			mappings.add_class(class)
-				.with_context(|| anyhow!("for class defined on line {line_number}"))?;
+		} else {
+			Ok(())
 		}
-	}
+	}).context("reading lines")?;
 
 	if let Some(line) = lines.next() {
 		bail!("expected end of input, got: {line:?}");
 	}
 
 	Ok(mappings)
+}
+
+fn add_comment(javadoc: &mut Option<JavadocMapping>, line: TinyLine) -> Result<()> {
+	let comment = JavadocMapping(line.end()?);
+	if let Some(javadoc) = javadoc {
+		bail!("only one comment is allowed, got {javadoc:?} and {comment:?}")
+	} else {
+		*javadoc = Some(comment);
+		Ok(())
+	}
 }
 
 #[allow(clippy::tabs_in_doc_comments)]

@@ -7,7 +7,7 @@ use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc};
 use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, ParameterName};
 use crate::lines::tiny_line::TinyLine;
 use crate::lines::{Line, WithMoreIdentIter};
-use crate::tree::mappings::ParameterKey;
+use crate::tree::mappings::{JavadocMapping, ParameterKey};
 use crate::tree::mappings_diff::{Action, ClassNowodeDiff, FieldNowodeDiff, MappingsDiff, MethodNowodeDiff, ParameterNowodeDiff};
 use crate::tree::NodeInfo;
 
@@ -26,111 +26,86 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 	let mut header = lines.next().context("no header line")??;
 	let header_line_number = header.get_line_number();
 
-	if header.first_field != "tiny" || header.next()? != "2" || header.end()? != "0" {
-		bail!("header version isn't tiny v2.0, in line {header_line_number:?}");
+	if header.first_field != "tiny" || header.next()? != "2" || header.next()? != "0" || header.next().is_ok() {
+		bail!("header version isn't tiny v2.0 (or doesn't end right after), in line {header_line_number:?}");
 	}
 
 	let mut mappings = MappingsDiff::new(Action::None);
 
-	let mut iter = WithMoreIdentIter::new(&mut lines);
-	while let Some(mut line) = iter.next().transpose()? {
-		let line_number = line.get_line_number();
-
+	WithMoreIdentIter::new(&mut lines).on_every_line(|iter, mut line| {
 		if line.first_field == "c" {
 			let class_key: ClassName = line.next()?.into();
 
 			let action = line.action()?;
-
 			let mut class = ClassNowodeDiff::new(action);
 
-			let mut iter = iter.next_level();
-			while let Some(mut line) = iter.next().transpose()? {
-				let line_number = line.get_line_number();
-
+			iter.next_level().on_every_line(|iter, mut line| {
 				if line.first_field == "f" {
 					let desc: FieldDescriptor = line.next()?.into();
 					let name: FieldName = line.next()?.into();
-
-					let action = line.action()?;
 					let field_key = FieldNameAndDesc { desc, name };
 
+					let action = line.action()?;
 					let mut field = FieldNowodeDiff::new(action);
 
-					let mut iter = iter.next_level();
-					while let Some(line) = iter.next().transpose()? {
-						let line_number = line.get_line_number();
-
+					iter.next_level().on_every_line(|_, line| {
 						if line.first_field == "c" {
-							let action = line.action()?;
-							if field.javadoc.replace(action).is_some() {
-								bail!("only one comment diff per field is allowed (on line {line_number})")
-							}
+							add_comment(&mut field.javadoc, line)
+						} else {
+							Ok(())
 						}
-					}
+					}).context("reading field sub-sections")?;
 
 					class.add_field(field_key, field)
-						.with_context(|| anyhow!("for field defined on line {line_number}"))?;
 				} else if line.first_field == "m" {
 					let desc: MethodDescriptor = line.next()?.into();
 					let name: MethodName = line.next()?.into();
-
-					let action = line.action()?;
 					let method_key = MethodNameAndDesc { desc, name };
 
+					let action = line.action()?;
 					let mut method = MethodNowodeDiff::new(action);
 
-					let mut iter = iter.next_level();
-					while let Some(mut line) = iter.next().transpose()? {
-						let line_number = line.get_line_number();
-
+					iter.next_level().on_every_line(|iter, mut line| {
 						if line.first_field == "p" {
 							let index = line.next()?.parse()?;
 							let src = line.next()?;
 							if !src.is_empty() {
-								bail!("expected no src field for a parameter in a tiny diff (on line {line_number})");
+								bail!("expected no src field for a parameter in a tiny diff");
 							}
-
-							let action = line.action()?;
 							let parameter_key = ParameterKey { index };
 
+							let action = line.action()?;
 							let mut parameter = ParameterNowodeDiff::new(action);
 
-							let mut iter = iter.next_level();
-							while let Some(line) = iter.next().transpose()? {
-								let line_number = line.get_line_number();
-
+							iter.next_level().on_every_line(|_, line| {
 								if line.first_field == "c" {
-									let action = line.action()?;
-									if parameter.javadoc.replace(action).is_some() {
-										bail!("only one comment diff per parameter is allowed (on line {line_number})")
-									}
+									add_comment(&mut parameter.javadoc, line)
+								} else {
+									Ok(())
 								}
-							}
+							}).context("reading parameter sub-sections")?;
 
 							method.add_parameter(parameter_key, parameter)
-								.with_context(|| anyhow!("for parameter defined on line {line_number}"))?;
 						} else if line.first_field == "c" {
-							let action = line.action()?;
-							if method.javadoc.replace(action).is_some() {
-								bail!("only one comment diff per method is allowed (on line {line_number})")
-							}
+							add_comment(&mut method.javadoc, line)
+						} else {
+							Ok(())
 						}
-					}
+					}).context("reading method sub-sections")?;
 
 					class.add_method(method_key, method)
-						.with_context(|| anyhow!("for method defined on line {line_number}"))?;
 				} else if line.first_field == "c" {
-					let action = line.action()?;
-					if class.javadoc.replace(action).is_some() {
-						bail!("only one comment diff per class is allowed (on line {line_number})")
-					}
+					add_comment(&mut class.javadoc, line)
+				} else {
+					Ok(())
 				}
-			}
+			}).context("reading class sub-sections")?;
 
 			mappings.add_class(class_key, class)
-				.with_context(|| anyhow!("for class defined on line {line_number}"))?;
+		} else {
+			Ok(())
 		}
-	}
+	}).context("reading lines")?;
 
 	if let Some(line) = lines.next() {
 		let line = line?;
@@ -138,4 +113,14 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 	}
 
 	Ok(mappings)
+}
+
+fn add_comment(javadoc: &mut Option<Action<JavadocMapping>>, line: TinyLine) -> Result<()> {
+	let action = line.action()?;
+	if let Some(javadoc) = javadoc {
+		bail!("only one comment diff is allowed, got {javadoc:?} and {action:?}");
+	} else {
+		*javadoc = Some(action);
+		Ok(())
+	}
 }
