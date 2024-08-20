@@ -115,7 +115,7 @@ pub(crate) fn setup_logger(verbose: u8) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let cli: Cli = Cli::parse();
 
     setup_logger(cli.verbose)?;
     trace!("parsed command line arguments as {cli:?}");
@@ -125,6 +125,10 @@ async fn main() -> Result<()> {
     //    .check_java_version(17)
     //    .with_context(|| anyhow!("feathers buildscript requires java 17 or higher"))?;
 
+    let mappings_dir =
+        //mappings_dir.unwrap_or_else(|| "mappings".into())
+        cli.mappings_dir.unwrap_or_else(|| "mappings/mappings".into());
+
     let project_enigma_version = "1.9.0";
     let project_quilt_enigma_plugin_version = "1.3.0";
 
@@ -132,11 +136,9 @@ async fn main() -> Result<()> {
         Command::Build { all, versions } => {
             let downloader = Downloader::new(!cli.no_cache);
 
-            let dir = Path::new("mappings/mappings");
-
             let start = Instant::now();
 
-            let v = VersionGraph::resolve(dir)?;
+            let v = VersionGraph::resolve(mappings_dir)?;
             let v = Arc::new(v);
 
             //TODO: consider the version_shortcuts in feather.py
@@ -183,7 +185,9 @@ async fn main() -> Result<()> {
             Ok(())
         },
         Command::Sus { versions } => {
-            let result = sus::report_sus().await?;
+            let downloader = Downloader::new(!cli.no_cache);
+
+            let result = sus::report_sus(mappings_dir, downloader).await?;
 
             dbg!(result);
 
@@ -293,8 +297,7 @@ async fn main() -> Result<()> {
 
             let classpath = make_classpath(&downloader, &resolvers, &dependencies, dependency_tree_cached).await?;
 
-            let dir = Path::new("mappings/mappings");
-            let version_graph = VersionGraph::resolve(dir)?;
+            let version_graph = VersionGraph::resolve(mappings_dir)?;
             let version = version_graph.get(&version)?;
 
             // this is the "mainJar" remapped to calamus mappings
@@ -353,7 +356,7 @@ async fn main() -> Result<()> {
 
             info!("saving mappings for {version}");
 
-            insert_mappings(&downloader, &version, PropagationDirection::Both).await
+            insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::Both).await
         },
         Command::PropagateMappingsDown {} => {
             let downloader = Downloader::new(!cli.no_cache);
@@ -362,7 +365,7 @@ async fn main() -> Result<()> {
 
             info!("saving mappings for {version}");
 
-            insert_mappings(&downloader, &version, PropagationDirection::Down).await
+            insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::Down).await
         },
         Command::PropagateMappingsUp {} => {
             let downloader = Downloader::new(!cli.no_cache);
@@ -371,7 +374,7 @@ async fn main() -> Result<()> {
 
             info!("saving mappings for {version}");
 
-            insert_mappings(&downloader, &version, PropagationDirection::Up).await
+            insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::Up).await
         },
         // TODO: insertMappings task
     }
@@ -389,12 +392,11 @@ struct PropagationOptions {
     lenient: bool,
 }
 
-async fn insert_mappings(downloader: &Downloader, version: &Version, direction: PropagationDirection) -> Result<()> {
+async fn insert_mappings(mappings_dir: PathBuf, downloader: &Downloader, version: &Version, direction: PropagationDirection) -> Result<()> {
     // TODO: this is input...
-    let dir = Path::new("mappings/mappings"); // TODO: from `mappings_dir`
     let working_mappings_dir = Path::new("mappings/run/1.12.2"); // TODO: from `working_mappings` (see enigma launch code above!)
 
-    let version_graph = VersionGraph::resolve(dir)?;
+    let version_graph = VersionGraph::resolve(mappings_dir)?;
 
     let separated_mappings = version_graph.apply_diffs(version)? // calamus -> named
         .extend_inner_class_names("named")?;
@@ -514,14 +516,19 @@ async fn patch_nests(downloader: &Downloader, version: &Version) -> Result<Optio
 struct Cli {
     /// Verbose mode. Errors and warnings are always logged. Multiple options increase verbosity.
     ///
-    /// Multiple -v options increase the verbosity. The maximum is 3.
-    /// First comes info, then debug and then trace.
+    /// The maximum is 3. First comes info, then debug and then trace.
     #[arg(short = 'v', action = ArgAction::Count)]
     verbose: u8,
 
     /// Disable the caching to disk for downloaded files
     #[arg(long = "no-cache")]
     no_cache: bool, // TODO: currently this is not implemented
+
+    /// The mappings directory, default is 'mappings'
+    ///
+    /// This directory contains the '.tinydiff' and one '.tiny' file.
+    #[arg(short = 'm', long = "mappings-dir")]
+    mappings_dir: Option<PathBuf>,
 
     #[command(subcommand)]
     command: Command,

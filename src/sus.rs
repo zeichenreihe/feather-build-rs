@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::path::Path;
+use std::path::PathBuf;
 use std::time::Instant;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::map::Entry;
@@ -14,14 +14,10 @@ use crate::download::versions_manifest::VersionsManifest;
 use crate::specialized_methods::GetSpecializedMethods;
 use crate::version_graph::VersionGraph;
 
-pub(crate) async fn report_sus() -> Result<SusResult> {
-	let downloader = Downloader::new(true);
-
-	let dir = Path::new("mappings/mappings");
-
+pub(crate) async fn report_sus(mappings_dir: PathBuf, downloader: Downloader) -> Result<SusResult> {
 	let start = Instant::now();
 
-	let v = VersionGraph::resolve(dir)?;
+	let v = VersionGraph::resolve(mappings_dir)?;
 
 	println!("graph took {:?}", start.elapsed());
 

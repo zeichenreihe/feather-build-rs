@@ -23,14 +23,16 @@ pub(crate) struct VersionGraph {
 }
 
 impl VersionGraph {
-	pub(crate) fn resolve(dir: &Path) -> Result<VersionGraph> {
+	pub(crate) fn resolve(dir: impl AsRef<Path>) -> Result<VersionGraph> {
 		let mut graph: Graph<Version, MappingsDiff> = Graph::new();
 
 		let mut root: Option<(NodeIndex, PathBuf)> = None;
 
 		let mut versions = IndexMap::new();
 
-		for file in std::fs::read_dir(dir)? {
+		for file in std::fs::read_dir(&dir)
+			.with_context(|| anyhow!("cannot read version graph from {:?}", dir.as_ref()))?
+		{
 			let file = file?;
 
 			let path = file.path();
