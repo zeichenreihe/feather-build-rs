@@ -19,12 +19,12 @@ pub(crate) struct VersionGraph {
 
 	versions: IndexMap<Version, NodeIndex>,
 
-	graph: Graph<Version, MappingsDiff>,
+	graph: Graph<Version, PathBuf>,
 }
 
 impl VersionGraph {
 	pub(crate) fn resolve(dir: impl AsRef<Path>) -> Result<VersionGraph> {
-		let mut graph: Graph<Version, MappingsDiff> = Graph::new();
+		let mut graph: Graph<Version, PathBuf> = Graph::new();
 
 		let mut root: Option<(NodeIndex, PathBuf)> = None;
 
@@ -57,10 +57,7 @@ impl VersionGraph {
 				let v = add_node(version);
 				let p = add_node(parent);
 
-				let diff = quill::tiny_v2_diff::read_file(&path)
-					.with_context(|| anyhow!("failed to parse version diff from {path:?}"))?;
-
-				graph.add_edge(p, v, diff);
+				graph.add_edge(p, v, path);
 			}
 		}
 
@@ -111,7 +108,10 @@ impl VersionGraph {
 				let edge = self.graph.find_edge(a, b)
 					.ok_or_else(|| anyhow!("there is no edge between {a:?} ({from:?}) and {b:?} ({to:?})"))?;
 
-				let diff = &self.graph[edge];
+				let path = &self.graph[edge];
+
+				let diff = quill::tiny_v2_diff::read_file(path)
+					.with_context(|| anyhow!("failed to parse version diff from {path:?}"))?;
 
 				diff.apply_to(m, "named")
 					.with_context(|| anyhow!("failed to apply diff from version {from:?} to version {to:?} to mappings, for version {target_version:?}"))
