@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use std::hash::Hash;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use indexmap::map::Entry;
@@ -6,6 +8,20 @@ use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc};
 use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, ParameterName};
 use crate::tree::names::{Names, Namespace, Namespaces};
 use crate::tree::{FromKey, GetNames, NodeInfo, ToKey};
+
+fn add_child<Key, Node, Info>(map: &mut IndexMap<Key, Node>, child: Node) -> Result<&mut Node>
+where
+	Node: NodeInfo<Info>,
+	Info: ToKey<Key>,
+	Key: Debug + PartialEq + Eq + Hash,
+{
+	let key = child.get_node_info().get_key().context("cannot add child: failed to get its key")?;
+
+	match map.entry(key) {
+		Entry::Occupied(e) => bail!("cannot add child: key {:?} already exists", e.key()),
+		Entry::Vacant(e) => Ok(e.insert(child)),
+	}
+}
 
 #[derive(Debug, Clone)]
 pub struct Mappings<const N: usize> {
@@ -33,19 +49,9 @@ impl<const N: usize> NodeInfo<MappingInfo<N>> for Mappings<N> {
 }
 
 impl<const N: usize> Mappings<N> {
-	pub(crate) fn add_class(&mut self, child: ClassNowodeMapping<N>) -> Result<()> {
-		let key = child.info.get_key()
-			.with_context(|| anyhow!("failed to add class as child: cannot get it's key"))?;
-		match self.classes.entry(key) {
-			Entry::Occupied(e) => {
-				bail!("cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
-			},
-			Entry::Vacant(e) => {
-				e.insert(child);
-			},
-		}
-
-		Ok(())
+	pub(crate) fn add_class(&mut self, child: ClassNowodeMapping<N>) -> Result<&mut ClassNowodeMapping<N>> {
+		add_child(&mut self.classes, child)
+			.with_context(|| anyhow!("failed to add class to mappings {:?}", self.info))
 	}
 
 	pub(crate) fn get_class_name(&self, class: &ClassName, namespace: Namespace<N>) -> Result<&ClassName> {
@@ -86,34 +92,14 @@ impl<const N: usize> NodeInfo<ClassMapping<N>> for ClassNowodeMapping<N> {
 }
 
 impl<const N: usize> ClassNowodeMapping<N> {
-	pub(crate) fn add_field(&mut self, child: FieldNowodeMapping<N>) -> Result<()> {
-		let key = child.info.get_key()
-			.with_context(|| anyhow!("failed to add parameter as child: cannot get it's key"))?;
-		match self.fields.entry(key) {
-			Entry::Occupied(e) => {
-				bail!("cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
-			},
-			Entry::Vacant(e) => {
-				e.insert(child);
-			},
-		}
-
-		Ok(())
+	pub(crate) fn add_field(&mut self, child: FieldNowodeMapping<N>) -> Result<&mut FieldNowodeMapping<N>> {
+		add_child(&mut self.fields, child)
+			.with_context(|| anyhow!("failed to add field to class {:?}", self.info))
 	}
 
-	pub(crate) fn add_method(&mut self, child: MethodNowodeMapping<N>) -> Result<()> {
-		let key = child.info.get_key()
-			.with_context(|| anyhow!("failed to add method as child: cannot get it's key"))?;
-		match self.methods.entry(key) {
-			Entry::Occupied(e) => {
-				bail!("cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
-			},
-			Entry::Vacant(e) => {
-				e.insert(child);
-			},
-		}
-
-		Ok(())
+	pub(crate) fn add_method(&mut self, child: MethodNowodeMapping<N>) -> Result<&mut MethodNowodeMapping<N>> {
+		add_child(&mut self.methods, child)
+			.with_context(|| anyhow!("failed to add method to class {:?}", self.info))
 	}
 }
 
@@ -166,19 +152,9 @@ impl<const N: usize> NodeInfo<MethodMapping<N>> for MethodNowodeMapping<N> {
 }
 
 impl<const N: usize> MethodNowodeMapping<N> {
-	pub(crate) fn add_parameter(&mut self, child: ParameterNowodeMapping<N>) -> Result<()> {
-		let key = child.info.get_key()
-			.with_context(|| anyhow!("failed to add parameter as child: cannot get it's key"))?;
-		match self.parameters.entry(key) {
-			Entry::Occupied(e) => {
-				bail!("cannot add child {child:?} for key {:?}, as there's already one: {:?}", e.key(), e.get());
-			},
-			Entry::Vacant(e) => {
-				e.insert(child);
-			},
-		}
-
-		Ok(())
+	pub(crate) fn add_parameter(&mut self, child: ParameterNowodeMapping<N>) -> Result<&mut ParameterNowodeMapping<N>> {
+		add_child(&mut self.parameters, child)
+			.with_context(|| anyhow!("failed to add parameter to method {:?}", self.info))
 	}
 }
 

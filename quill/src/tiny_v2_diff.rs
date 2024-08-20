@@ -37,7 +37,8 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 			let class_key: ClassName = line.next()?.into();
 
 			let action = line.action()?;
-			let mut class = ClassNowodeDiff::new(action);
+			let class = ClassNowodeDiff::new(action);
+			let class = mappings.add_class(class_key, class)?;
 
 			iter.next_level().on_every_line(|iter, mut line| {
 				if line.first_field == "f" {
@@ -46,7 +47,8 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 					let field_key = FieldNameAndDesc { desc, name };
 
 					let action = line.action()?;
-					let mut field = FieldNowodeDiff::new(action);
+					let field = FieldNowodeDiff::new(action);
+					let field = class.add_field(field_key, field)?;
 
 					iter.next_level().on_every_line(|_, line| {
 						if line.first_field == "c" {
@@ -54,28 +56,29 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 						} else {
 							Ok(())
 						}
-					}).context("reading field sub-sections")?;
-
-					class.add_field(field_key, field)
+					}).context("reading field sub-sections")
 				} else if line.first_field == "m" {
 					let desc: MethodDescriptor = line.next()?.into();
 					let name: MethodName = line.next()?.into();
 					let method_key = MethodNameAndDesc { desc, name };
 
 					let action = line.action()?;
-					let mut method = MethodNowodeDiff::new(action);
+					let method = MethodNowodeDiff::new(action);
+					let method = class.add_method(method_key, method)?;
 
 					iter.next_level().on_every_line(|iter, mut line| {
 						if line.first_field == "p" {
 							let index = line.next()?.parse()?;
+							let parameter_key = ParameterKey { index };
+
 							let src = line.next()?;
 							if !src.is_empty() {
 								bail!("expected no src field for a parameter in a tiny diff");
 							}
-							let parameter_key = ParameterKey { index };
 
 							let action = line.action()?;
-							let mut parameter = ParameterNowodeDiff::new(action);
+							let parameter = ParameterNowodeDiff::new(action);
+							let parameter = method.add_parameter(parameter_key, parameter)?;
 
 							iter.next_level().on_every_line(|_, line| {
 								if line.first_field == "c" {
@@ -83,25 +86,19 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 								} else {
 									Ok(())
 								}
-							}).context("reading parameter sub-sections")?;
-
-							method.add_parameter(parameter_key, parameter)
+							}).context("reading parameter sub-sections")
 						} else if line.first_field == "c" {
 							add_comment(&mut method.javadoc, line)
 						} else {
 							Ok(())
 						}
-					}).context("reading method sub-sections")?;
-
-					class.add_method(method_key, method)
+					}).context("reading method sub-sections")
 				} else if line.first_field == "c" {
 					add_comment(&mut class.javadoc, line)
 				} else {
 					Ok(())
 				}
-			}).context("reading class sub-sections")?;
-
-			mappings.add_class(class_key, class)
+			}).context("reading class sub-sections")
 		} else {
 			Ok(())
 		}

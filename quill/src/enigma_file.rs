@@ -67,19 +67,18 @@ pub(crate) fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result
 									[src, dst, desc, _mod] => (src, Some(dst), desc),
 									slice => bail!("illegal number of arguments ({}) for field mapping, expected 2-4, got {slice:?}", slice.len()),
 								};
-								let mut field = FieldNowodeMapping::new(FieldMapping {
+								let field = FieldNowodeMapping::new(FieldMapping {
 									desc: desc.to_owned().into(),
 									names: Names::try_from([Some(src.clone().into()), dst.map(|x| x.clone().into())])?,
 								});
+								let field = class.add_field(field)?;
 
 								iter.next_level().on_every_line(|_, line| {
 									match line.first_field.as_str() {
 										COMMENT => insert_comment(&mut field.javadoc, line),
 										tag => bail!("unknown mapping target {tag:?} for inside field, allowed are: `COMMENT`"),
 									}
-								}).context("reading `FIELD` sub-sections")?;
-
-								class.add_field(field)
+								}).context("reading `FIELD` sub-sections")
 							},
 							METHOD => {
 								let (src, dst, desc) = match line.fields.as_slice() {
@@ -89,10 +88,11 @@ pub(crate) fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result
 									[src, dst, desc, _mod] => (src, Some(dst), desc),
 									slice => bail!("illegal number of arguments ({}) for method mapping, expected 2-4, got {slice:?}", slice.len()),
 								};
-								let mut method = MethodNowodeMapping::new(MethodMapping {
+								let method = MethodNowodeMapping::new(MethodMapping {
 									desc: desc.to_owned().into(),
 									names: Names::try_from([Some(src.clone().into()), dst.map(|x| x.clone().into())])?,
 								});
+								let method = class.add_method(method)?;
 
 								iter.next_level().on_every_line(|iter, line| {
 									match line.first_field.as_str() {
@@ -105,33 +105,33 @@ pub(crate) fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result
 											let index: usize = raw_index.parse()
 												.with_context(|| anyhow!("illegal parameter index {raw_index:?}, index cannot be negative"))?;
 
-											let mut parameter = ParameterNowodeMapping::new(ParameterMapping {
+											let parameter = ParameterNowodeMapping::new(ParameterMapping {
 												index,
 												names: [None, Some(dst.clone().into())].try_into()?,
 											});
+											let parameter = method.add_parameter(parameter)?;
 
 											iter.next_level().on_every_line(|_, line| {
 												match line.first_field.as_str() {
 													COMMENT => insert_comment(&mut parameter.javadoc, line),
 													tag => bail!("unknown mapping target {tag:?} for inside parameter, allowed are: `COMMENT`"),
 												}
-											}).context("reading `ARG` sub-sections")?;
-
-											method.add_parameter(parameter)
+											}).context("reading `ARG` sub-sections")
 										},
 										COMMENT => insert_comment(&mut method.javadoc, line),
 										tag => bail!("unknown mapping target {tag:?} for inside method, allowed are: `ARG`, `COMMENT`"),
 									}
-								}).context("reading `METHOD` sub-sections")?;
-
-								class.add_method(method)
+								}).context("reading `METHOD` sub-sections")
 							},
 							COMMENT => insert_comment(&mut class.javadoc, line),
 							tag => bail!("unknown mapping target {tag:?} for inside class, allowed are: `CLASS`, `FIELD`, `METHOD`, `COMMENT`"),
 						}
 					}).context("reading `CLASS` sub-sections")?;
 
-					mappings.add_class(class)
+					// needs to be different because the closure above needs to modify `mappings` in the recursion
+					mappings.add_class(class)?;
+
+					Ok(())
 				}
 				parse_class(mappings, iter, line, None)
 			},

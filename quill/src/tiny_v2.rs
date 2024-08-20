@@ -92,19 +92,17 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 	WithMoreIdentIter::new(&mut lines).on_every_line(|iter, line| {
 		if line.first_field == "c" {
 			let names = line.list()?.map(ClassName::from).try_into()?;
-
 			let mapping = ClassMapping { names };
-
-			let mut class: ClassNowodeMapping<N> = ClassNowodeMapping::new(mapping);
+			let class: ClassNowodeMapping<N> = ClassNowodeMapping::new(mapping);
+			let class = mappings.add_class(class)?;
 
 			iter.next_level().on_every_line(|iter, mut line| {
 				if line.first_field == "f" {
 					let desc = line.next()?.into();
 					let names = line.list()?.map(FieldName::from).try_into()?;
-
 					let mapping = FieldMapping { desc, names };
-
-					let mut field: FieldNowodeMapping<N> = FieldNowodeMapping::new(mapping);
+					let field: FieldNowodeMapping<N> = FieldNowodeMapping::new(mapping);
+					let field = class.add_field(field)?;
 
 					iter.next_level().on_every_line(|_, line| {
 						if line.first_field == "c" {
@@ -112,25 +110,21 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 						} else {
 							Ok(())
 						}
-					}).context("reading field sub-sections")?;
-
-					class.add_field(field)
+					}).context("reading field sub-sections")
 				} else if line.first_field == "m" {
 					let desc = line.next()?.into();
 					let names = line.list()?.map(MethodName::from).try_into()?;
-
 					let mapping = MethodMapping { desc, names };
-
-					let mut method: MethodNowodeMapping<N> = MethodNowodeMapping::new(mapping);
+					let method: MethodNowodeMapping<N> = MethodNowodeMapping::new(mapping);
+					let method = class.add_method(method)?;
 
 					iter.next_level().on_every_line(|iter, mut line| {
 						if line.first_field == "p" {
 							let index = line.next()?.parse()?;
 							let names = line.list()?.map(ParameterName::from).try_into()?;
-
 							let mapping = ParameterMapping { index, names };
-
-							let mut parameter: ParameterNowodeMapping<N> = ParameterNowodeMapping::new(mapping);
+							let parameter: ParameterNowodeMapping<N> = ParameterNowodeMapping::new(mapping);
+							let parameter = method.add_parameter(parameter)?;
 
 							iter.next_level().on_every_line(|_, line| {
 								if line.first_field == "c" {
@@ -138,25 +132,19 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 								} else {
 									Ok(())
 								}
-							}).context("reading parameter sub-sections")?;
-
-							method.add_parameter(parameter)
+							}).context("reading parameter sub-sections")
 						} else if line.first_field == "c" {
 							add_comment(&mut method.javadoc, line)
 						} else {
 							Ok(())
 						}
-					}).context("reading method sub-sections")?;
-
-					class.add_method(method)
+					}).context("reading method sub-sections")
 				} else if line.first_field == "c" {
 					add_comment(&mut class.javadoc, line)
 				} else {
 					Ok(())
 				}
-			}).context("reading class sub-sections")?;
-
-			mappings.add_class(class)
+			}).context("reading class sub-sections")
 		} else {
 			Ok(())
 		}
