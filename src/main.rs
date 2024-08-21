@@ -282,6 +282,7 @@ async fn main() -> Result<()> {
                 "org.quiltmc:procyon-quilt-core:jar:0.5.35.local:runtime @ https://maven.quiltmc.org/repository/release/"
             ].as_slice() };
             let dependency_tree_cached = Some(dependency_tree_cache);
+            //let dependency_tree_cached = None;
 
             let enigma = MavenCoord::from_group_artifact_version("net.ornithemc", "enigma-swing", project_enigma_version);
             let enigma_plugin = MavenCoord::from_group_artifact_version("org.quiltmc", "quilt-enigma-plugin", project_quilt_enigma_plugin_version);

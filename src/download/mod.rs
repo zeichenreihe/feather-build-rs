@@ -1,7 +1,8 @@
+use std::ffi::OsString;
 use std::fs;
 use std::fs::File;
 use std::future::Future;
-use std::io::Cursor;
+use std::io::{Cursor, Write};
 use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Context, Result};
 use bytes::{Buf, Bytes};
@@ -140,8 +141,19 @@ impl Downloader {
 			//TODO: reevaluate possible security vulnerabilities here
 			// - one thing could be something like https://evil.example.org/../../../../../../../../usr/bin/bla.jar and replaces a jar on our system
 			let cache_path = downloads.join(url_stripped);
+			// TODO: in theory our 404 stuff could fail if you'd also download a <other url>__404 file...
+			let cache_path_404: PathBuf = {
+				let mut x: OsString = cache_path.clone().into();
+				x.push("__404");
+				x.into()
+			};
 
 			if !cache_path.try_exists()? {
+				// if we recorded a 404, return that we can't request it
+				if do_special_404 && cache_path_404.try_exists()? {
+					return Ok(None);
+				}
+
 				info!("cache miss -> downloading {url:?} to {cache_path:?}");
 				let Some(client) = &self.client else {
 					bail!("cannot download, as we're running offline");
@@ -150,6 +162,12 @@ impl Downloader {
 				info!("got {}", response.status());
 
 				if do_special_404 && response.status() == StatusCode::NOT_FOUND {
+					if let Some(parent) = cache_path_404.parent() {
+						fs::create_dir_all(parent)?;
+					}
+					let mut dest = File::create(&cache_path_404)?;
+					write!(dest, "this file indicates a 404 answer for {url:?}")?;
+
 					return Ok(None);
 				}
 				if !response.status().is_success() {
