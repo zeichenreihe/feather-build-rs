@@ -31,7 +31,7 @@ pub(crate) mod maven_metadata;
 #[derive(Debug, Clone)]
 pub(crate) struct Downloader {
 	cache: bool,
-	client: Client,
+	client: Option<Client>,
 }
 
 struct DownloadResult<'a> {
@@ -117,8 +117,11 @@ impl DownloadResult<'_> {
 }
 
 impl Downloader {
-	pub(crate) fn new(cache: bool) -> Downloader {
-		Downloader { cache, client: Client::new() }
+	pub(crate) fn new(no_cache: bool, offline: bool) -> Downloader {
+		Downloader {
+			cache: !no_cache,
+			client: (!offline).then(Client::new),
+		}
 	}
 
 	async fn download<'a>(&self, url: &'a str) -> Result<DownloadResult<'a>> {
@@ -140,7 +143,10 @@ impl Downloader {
 
 			if !cache_path.try_exists()? {
 				info!("cache miss -> downloading {url:?} to {cache_path:?}");
-				let response = self.client.get(url).send().await?;
+				let Some(client) = &self.client else {
+					bail!("cannot download, as we're running offline");
+				};
+				let response = client.get(url).send().await?;
 				info!("got {}", response.status());
 
 				if do_special_404 && response.status() == StatusCode::NOT_FOUND {
@@ -167,7 +173,10 @@ impl Downloader {
 			}
 		} else {
 			info!("no cache -> downloading {url:?}");
-			let response = self.client.get(url).send().await?;
+			let Some(client) = &self.client else {
+				bail!("cannot download, as we're running offline");
+			};
+			let response = client.get(url).send().await?;
 			info!("got {}", response.status());
 
 			if do_special_404 && response.status() == StatusCode::NOT_FOUND {

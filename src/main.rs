@@ -129,13 +129,13 @@ async fn main() -> Result<()> {
         //mappings_dir.unwrap_or_else(|| "mappings".into())
         cli.mappings_dir.unwrap_or_else(|| "mappings/mappings".into());
 
+    let downloader = Downloader::new(cli.no_cache, cli.offline);
+
     let project_enigma_version = "1.9.0";
     let project_quilt_enigma_plugin_version = "1.3.0";
 
     match cli.command {
         Command::Build { all, versions } => {
-            let downloader = Downloader::new(!cli.no_cache);
-
             let start = Instant::now();
 
             let v = VersionGraph::resolve(mappings_dir)?;
@@ -185,8 +185,6 @@ async fn main() -> Result<()> {
             Ok(())
         },
         Command::Sus { versions } => {
-            let downloader = Downloader::new(!cli.no_cache);
-
             let result = sus::report_sus(mappings_dir, downloader).await?;
 
             dbg!(result);
@@ -199,8 +197,6 @@ async fn main() -> Result<()> {
 
             java_launcher.check_java_version(17)
                 .with_context(|| anyhow!("feathers buildscript requires java 17 or higher"))?;
-
-            let downloader = Downloader::new(!cli.no_cache);
 
             async fn make_classpath(downloader: &Downloader, resolvers: &[Resolver<'_>], dependencies: &[(MavenCoord, DependencyScope)],
                     cache: Option<&[&str]>) -> Result<Vec<PathBuf>> {
@@ -350,8 +346,6 @@ async fn main() -> Result<()> {
             java_launcher.launch(&arg)
         },
         Command::InsertMappings {} => {
-            let downloader = Downloader::new(!cli.no_cache);
-
             let version = Version(String::from("1.12.2"));
 
             info!("saving mappings for {version}");
@@ -359,8 +353,6 @@ async fn main() -> Result<()> {
             insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::None).await
         }
         Command::PropagateMappings {} => {
-            let downloader = Downloader::new(!cli.no_cache);
-
             let version = Version(String::from("1.12.2"));
 
             info!("saving mappings for {version}");
@@ -368,8 +360,6 @@ async fn main() -> Result<()> {
             insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::Both).await
         },
         Command::PropagateMappingsUp {} => {
-            let downloader = Downloader::new(!cli.no_cache);
-
             let version = Version(String::from("1.12.2"));
 
             info!("saving mappings for {version}");
@@ -377,8 +367,6 @@ async fn main() -> Result<()> {
             insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::Up).await
         },
         Command::PropagateMappingsDown {} => {
-            let downloader = Downloader::new(!cli.no_cache);
-
             let version = Version(String::from("1.12.2"));
 
             info!("saving mappings for {version}");
@@ -530,7 +518,11 @@ struct Cli {
 
     /// Disable the caching to disk for downloaded files
     #[arg(long = "no-cache")]
-    no_cache: bool, // TODO: currently this is not implemented
+    no_cache: bool,
+
+    /// Run offline
+    #[arg(long = "offline")]
+    offline: bool,
 
     /// The mappings directory, default is 'mappings'
     ///
