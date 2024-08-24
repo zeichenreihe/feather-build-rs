@@ -55,6 +55,8 @@ macro_rules! make_string_str_like {
 		impl std::ops::Deref for $owned {
 			type Target = $borrowed;
 
+			// deref may be inserted by the compiler at any time
+			// therefore the call path must not use deref itself...
 			fn deref(&self) -> &Self::Target {
 				self.as_slice()
 			}
@@ -73,6 +75,16 @@ macro_rules! make_string_str_like {
 		impl From<&str> for $owned {
 			fn from(value: &str) -> Self {
 				$owned(value.to_owned())
+			}
+		}
+		impl<'a> From<&'a $borrowed> for &'a str {
+			fn from(value: &'a $borrowed) -> Self {
+				value.as_str()
+			}
+		}
+		impl From<$owned> for String {
+			fn from(value: $owned) -> Self {
+				value.0
 			}
 		}
 

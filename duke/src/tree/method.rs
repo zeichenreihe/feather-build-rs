@@ -242,6 +242,11 @@ impl Display for MethodNameSlice {
 	}
 }
 
+impl MethodName {
+	pub const INIT: &'static MethodNameSlice = MethodNameSlice::from_str("<init>");
+	pub const CLINIT: &'static MethodNameSlice = MethodNameSlice::from_str("<clinit>");
+}
+
 make_string_str_like!(MethodDescriptor, MethodDescriptorSlice);
 
 make_string_str_like!(MethodSignature, MethodSignatureSlice);
