@@ -1130,7 +1130,9 @@ fn read_code<C: CodeVisitor>(
 		if let Some(stack_map_frame) = stack_map_frame.as_mut() {
 			if let Some(label) = label.as_ref() {
 				if stack_map_frame.front().is_some_and(|(frame_label, _)| frame_label == label) {
-					let (_, frame_) = stack_map_frame.pop_front().unwrap();
+					let Some((_, frame_)) = stack_map_frame.pop_front() else {
+						unreachable!("checked that it's Some above");
+					};
 					frame = Some(frame_);
 				}
 			}

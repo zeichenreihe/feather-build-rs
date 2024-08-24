@@ -1,13 +1,13 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
-use duke::tree::class::{ClassName, ClassNameSlice};
+use duke::tree::class::ClassNameSlice;
 use crate::action::extend_inner_class_names::ClassNameSliceExt;
 use crate::enigma_file::enigma_line::EnigmaLine;
-use crate::lines::{Line, WithMoreIdentIter};
+use crate::lines::WithMoreIdentIter;
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, FieldNowodeMapping, JavadocMapping, Mappings, MethodMapping, MethodNowodeMapping, ParameterMapping, ParameterNowodeMapping};
 use crate::tree::names::Names;
 use crate::tree::NodeInfo;
@@ -214,13 +214,12 @@ mod enigma_line {
 	}
 }
 
-fn write_class(class: &ClassNowodeMapping<2>, w: &mut impl Write, indent: usize) -> Result<()> {
+fn write_class(class_key: &ClassNameSlice, class: &ClassNowodeMapping<2>, w: &mut impl Write, indent: usize) -> Result<()> {
 	let indent = "\t".repeat(indent);
 
-	let [src, dst] = class.info.names.names();
-	let src = src.as_ref().unwrap(); // TODO: unwrap
+	let [_, dst] = class.info.names.names();
 	// get to only the part after $ if it exists
-	let src: ClassName = src.as_str().rsplit_once('$').map_or_else(|| src.clone(), |(_, x)| x.to_owned().into());
+	let src = class_key.get_inner_class_name().unwrap_or(class_key);
 
 	write!(w, "{indent}CLASS {src}")?;
 	if let Some(dst) = dst {
@@ -234,18 +233,15 @@ fn write_class(class: &ClassNowodeMapping<2>, w: &mut impl Write, indent: usize)
 		}
 	}
 
-	let mut fields: Vec<_> = class.fields.values().collect();
-	fields.sort_by(|a, b| a.info.names.cmp(&b.info.names).then_with(|| a.info.desc.cmp(&b.info.desc)));
-	for field in fields {
-		let desc = &field.info.desc;
-		let [src, dst] = field.info.names.names();
-		let src = src.as_ref().unwrap(); // TODO: unwrap
-
-		write!(w, "{indent}\tFIELD {src}")?;
+	let mut fields: Vec<_> = class.fields.iter().collect();
+	fields.sort_by(|a, b| a.1.info.names.cmp(&b.1.info.names).then_with(|| a.1.info.desc.cmp(&b.1.info.desc)));
+	for (key, field) in fields {
+		write!(w, "{indent}\tFIELD {}", key.name)?;
+		let [_, dst] = field.info.names.names();
 		if let Some(dst) = dst {
 			write!(w, " {dst}")?;
 		}
-		writeln!(w, " {}", desc.as_str())?;
+		writeln!(w, " {}", key.desc.as_str())?;
 
 		if let Some(javadoc) = &field.javadoc {
 			for line in javadoc.0.split('\n') {
@@ -254,18 +250,15 @@ fn write_class(class: &ClassNowodeMapping<2>, w: &mut impl Write, indent: usize)
 		}
 	}
 
-	let mut methods: Vec<_> = class.methods.values().collect();
-	methods.sort_by(|a, b| a.info.names.cmp(&b.info.names).then_with(|| a.info.desc.cmp(&b.info.desc)));
-	for method in methods {
-		let desc = &method.info.desc;
-		let [src, dst] = method.info.names.names();
-		let src = src.as_ref().unwrap(); // TODO: unwrap
-
-		write!(w, "{indent}\tMETHOD {src}")?;
+	let mut methods: Vec<_> = class.methods.iter().collect();
+	methods.sort_by(|a, b| a.1.info.names.cmp(&b.1.info.names).then_with(|| a.1.info.desc.cmp(&b.1.info.desc)));
+	for (key, method) in methods {
+		write!(w, "{indent}\tMETHOD {}", key.name)?;
+		let [_, dst] = method.info.names.names();
 		if let Some(dst) = dst {
 			write!(w, " {dst}")?;
 		}
-		writeln!(w, " {}", desc.as_str())?;
+		writeln!(w, " {}", key.desc.as_str())?;
 
 		if let Some(javadoc) = &method.javadoc {
 			for line in javadoc.0.split('\n') {
@@ -370,7 +363,7 @@ fn write_one_tree_starting_at(
 ) -> Result<()> {
 	let mut queue: VecDeque<_> = vec![ (node, 0) ].into();
 	while let Some((parent, depth)) = queue.pop_front() {
-		write_class(parent.class, w, depth)?;
+		write_class(parent.src, parent.class, w, depth)?;
 
 		if let Some(children) = child_map.get(parent.src) {
 			for &child in children.iter().rev() {

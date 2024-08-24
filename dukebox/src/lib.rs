@@ -112,6 +112,7 @@ impl BasicFileAttributes {
 		let extended_timestamp = extra_data_fields
 			.filter_map(|extra_field| match extra_field {
 				ExtraField::ExtendedTimestamp(x) => Some(x),
+				#[allow(unreachable_patterns)]
 				_ => None,
 			})
 			.next();
@@ -133,8 +134,13 @@ impl BasicFileAttributes {
 	}
 
 	fn to_file_options<'k>(self) -> FileOptions<'k, ExtendedFileOptions> {
+		let mut file_options = FileOptions::default();
+
+		if let Some(last_modified) = self.last_modified {
+			file_options = file_options.last_modified_time(last_modified);
+		}
 		// TODO: awaiting lib support: set the ctime, atime, mtime to the ones from self
 
-		FileOptions::default().last_modified_time(self.last_modified.unwrap())
+		file_options
 	}
 }

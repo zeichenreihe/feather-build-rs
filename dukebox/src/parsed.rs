@@ -1,6 +1,6 @@
 use std::io::{Cursor, Seek, Write};
 use std::ops::Range;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, Context, Result};
 use indexmap::IndexMap;
 use zip::write::FileOptions;
 use zip::ZipWriter;

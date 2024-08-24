@@ -31,13 +31,10 @@ where
 
 /// Reads a single java class file from the reader.
 pub fn read_class(reader: &mut (impl Read + Seek)) -> Result<ClassFile> {
-    let mut classes: Vec<ClassFile> = class_reader::read(reader, Vec::new())?;
-
-    if classes.len() != 1 {
-        bail!("there was no class inside it");
-    }
-
-    Ok(classes.pop().unwrap())
+    class_reader::read(reader, Vec::new())?
+        .try_into()
+        .map(|[class]: [ClassFile; 1]| class)
+        .map_err(|_| anyhow!("there was no class inside it"))
 }
 
 pub fn write_class(writer: &mut impl Write, class: &ClassFile) -> Result<()> {

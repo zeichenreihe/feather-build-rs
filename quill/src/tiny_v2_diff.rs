@@ -4,7 +4,7 @@ use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use duke::tree::class::ClassName;
 use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc};
-use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, ParameterName};
+use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc};
 use crate::lines::tiny_line::TinyLine;
 use crate::lines::{Line, WithMoreIdentIter};
 use crate::tree::mappings::{JavadocMapping, ParameterKey};

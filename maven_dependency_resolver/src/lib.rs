@@ -4,13 +4,11 @@ mod maven_pom_done;
 pub mod resolver;
 pub mod tree;
 
-use std::borrow::Cow;
 use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 use std::future::Future;
 use std::str::FromStr;
 use anyhow::{anyhow, bail, Context, Error, Result};
-use log::{trace, warn};
 use serde::{Deserialize, Serialize};
 use crate::coord::MavenCoord;
 use crate::maven_pom::MavenPom;

@@ -1,5 +1,5 @@
 use std::ops::ControlFlow;
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use crate::OptionExpansion;
 use crate::class_reader::pool::PoolRead;
 use crate::tree::annotation::{Annotation, ElementValue, ElementValuePair, Object};
@@ -465,11 +465,9 @@ impl MethodVisitor for Method {
 		Ok((self, Vec::new()))
 	}
 
-	fn finish_annotation_default(mut this: Self::AnnotationDefaultResidual, mut element_value_visitor: Self::AnnotationDefaultVisitor) -> Result<Self> {
-		if element_value_visitor.len() != 1 {
-			bail!("didn't get proper number of `element_value`s: expected exactly one: {element_value_visitor:?}");
-		}
-		let element_value = element_value_visitor.pop().unwrap();
+	fn finish_annotation_default(mut this: Self::AnnotationDefaultResidual, element_value_visitor: Self::AnnotationDefaultVisitor) -> Result<Self> {
+		let [element_value]: [_; 1] = element_value_visitor.try_into()
+			.map_err(|vec| anyhow!("didn't get proper number of `element_value`s: expected exactly one: {vec:?}"))?;
 
 		this.annotation_default = Some(element_value);
 

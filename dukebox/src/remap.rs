@@ -1,17 +1,12 @@
-use std::fmt::Debug;
-use std::hash::Hash;
-use anyhow::{bail, Result};
+use anyhow::Result;
 use indexmap::IndexMap;
-use indexmap::map::Entry;
 use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
 use duke::tree::class::{ClassFile, ClassName, ClassSignature, EnclosingMethod, InnerClass};
 use duke::tree::field::{ConstantValue, Field, FieldDescriptor, FieldSignature};
 use duke::tree::method::Method;
 use duke::tree::type_annotation::{TargetInfoClass, TargetInfoField, TargetInfoMethod, TypeAnnotation};
 use quill::remapper::BRemapper;
-use quill::tree::mappings::{Mappings};
 use crate::{Jar, JarEntry, OpenedJar};
-use crate::lazy_duke::ClassRepr;
 use crate::parsed::{ParsedJar, ParsedJarEntry};
 
 

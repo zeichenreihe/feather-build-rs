@@ -278,8 +278,12 @@ impl<const N: usize, I> ARemapper for BRemapperImpl<'_, '_, N, I> {
 
 impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 'i, N, I> {
 	fn map_field_fail(&self, owner_name: &ClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<Option<FieldNameAndDesc>> {
-		assert!(!owner_name.as_str().is_empty());
-		assert!(!owner_name.as_str().starts_with('['));
+		if owner_name.as_str().is_empty() {
+			bail!("expected owner name to not be empty: {owner_name:?}");
+		}
+		if owner_name.as_str().starts_with('[') {
+			bail!("expected owner name to not start with '[': {owner_name:?}, most likely this is a bug");
+		}
 
 		if let Some(class) = self.classes.get(owner_name) {
 			let key = TupleReq(field_name, field_desc);
@@ -303,9 +307,15 @@ impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 
 
 	fn map_method_fail(&self, owner_name: &ClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice)
 			-> Result<Option<MethodNameAndDesc>> {
-		assert!(!owner_name.as_str().is_empty());
-		assert!(!owner_name.as_str().starts_with('['));
-		assert!(!method_name.as_str().is_empty());
+		if owner_name.as_str().is_empty() {
+			bail!("expected owner name to not be empty: {owner_name:?}");
+		}
+		if owner_name.as_str().starts_with('[') {
+			bail!("expected owner name to not start with '[': {owner_name:?}, most likely this is a bug");
+		}
+		if method_name.as_str().is_empty() {
+			bail!("expected method name to not be empty: {method_name:?}");
+		}
 
 		if let Some(class) = self.classes.get(owner_name) {
 			let key = TupleReq(method_name, method_desc);

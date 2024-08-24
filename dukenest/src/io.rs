@@ -17,11 +17,10 @@ impl Nests {
 			let line_number = line_number + 1;
 			let line = line?;
 
-			let vec: Vec<&str> = line.split('\t').collect();
-			if vec.len() != 6 {
-				bail!("invalid mapping {line:?} in {line_number}: wrong number of fields: {}, expected 6", vec.len());
-			}
-			let array: [&str; 6] = vec.try_into().unwrap(); // can't panic, we checked the size
+			let array: [&str; 6] = line.split('\t')
+				.collect::<Vec<&str>>()
+				.try_into()
+				.map_err(|vec: Vec<&str>| anyhow!("invalid mapping in {line_number}: wrong number of fields {}, expected 6: {vec:?}", vec.len()))?;
 
 			let [class_name, encl_class_name, encl_method_name,
 				encl_method_desc, inner_name, access_string] = array;

@@ -36,7 +36,13 @@ raw_class_file = { path = "raw_class_file" }
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "forbid"
-unsafe_code = "forbid"
+#unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+panic_in_result_fn = "warn"
 
 [package]
 name = "feather-build-rs"

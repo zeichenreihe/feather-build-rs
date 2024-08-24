@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use indexmap::IndexMap;
 use petgraph::{Direction, Graph};
 use petgraph::graph::NodeIndex;
-use quill::tree::mappings_diff::MappingsDiff;
 use quill::tree::mappings::Mappings;
 use crate::Version;
 
@@ -37,7 +36,8 @@ impl VersionGraph {
 
 			let path = file.path();
 
-			let file_name = file.file_name().into_string().unwrap();
+			let file_name = file.file_name().into_string()
+				.map_err(|file_name| anyhow!("failed to turn file name {file_name:?} into a string"))?;
 
 			let mut add_node = |version: &str| *versions.entry(Version(version.to_owned()))
 				.or_insert_with_key(|k| graph.add_node(k.clone()));

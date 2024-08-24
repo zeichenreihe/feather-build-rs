@@ -1,6 +1,5 @@
 use std::convert::Infallible;
-use anyhow::{Context, Result};
-use std::io::{Read, Seek};
+use anyhow::Result;
 use std::ops::ControlFlow;
 use indexmap::{IndexMap, IndexSet};
 use indexmap::map::Entry;
@@ -35,7 +34,7 @@ struct InheritanceIndex {
 impl InheritanceIndex {
 	fn store(&mut self, name: &ClassName, super_class: Option<ClassName>, interfaces: Vec<ClassName>) {
 		if let Some(super_class) = super_class {
-			if &super_class != ClassName::JAVA_LANG_OBJECT {
+			if super_class != ClassName::JAVA_LANG_OBJECT {
 				self.parents.entry(name.clone()).or_default().insert(super_class.clone());
 				self.children.entry(super_class).or_default().insert(name.clone());
 			}

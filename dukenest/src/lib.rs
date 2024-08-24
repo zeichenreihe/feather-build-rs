@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use indexmap::{IndexMap, IndexSet};
 use duke::tree::class::{ClassAccess, ClassFile, ClassName, ClassNameSlice, EnclosingMethod, InnerClass, InnerClassFlags};
 use duke::tree::method::MethodNameAndDesc;
@@ -99,7 +99,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 
 	let methods_map = methods_map;
 
-	let class_version = class_version.unwrap();
+	let class_version = class_version.context("no classes in input")?;
 
 	let this_nests: IndexMap<_, _> = nests.all
 		.into_iter()

@@ -17,10 +17,14 @@ impl ClassNameExt for ClassName {
 
 pub(crate) trait ClassNameSliceExt {
 	fn get_inner_class_parent(&self) -> Option<&ClassNameSlice>;
+	fn get_inner_class_name(&self) -> Option<&ClassNameSlice>;
 }
 impl ClassNameSliceExt for ClassNameSlice {
 	fn get_inner_class_parent(&self) -> Option<&ClassNameSlice> {
 		self.as_str().rsplit_once('$').map(|(parent, _)| ClassNameSlice::from_str(parent))
+	}
+	fn get_inner_class_name(&self) -> Option<&ClassNameSlice> {
+		self.as_str().rsplit_once('$').map(|(_, name)| ClassNameSlice::from_str(name))
 	}
 }
 

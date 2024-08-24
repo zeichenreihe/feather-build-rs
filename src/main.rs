@@ -12,7 +12,7 @@ use dukenest::{NesterOptions, Nests};
 use maven_dependency_resolver::coord::MavenCoord;
 use maven_dependency_resolver::{DependencyScope, FoundDependency};
 use maven_dependency_resolver::resolver::Resolver;
-use quill::remapper::{ARemapper, BRemapper, NoSuperClassProvider};
+use quill::remapper::NoSuperClassProvider;
 use quill::tree::mappings::{Mappings};
 use quill::tree::mappings_diff::MappingsDiff;
 use crate::download::Downloader;
