@@ -5,6 +5,7 @@ use std::path::Path;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use duke::tree::class::{ClassName, ClassNameSlice};
+use crate::action::extend_inner_class_names::ClassNameSliceExt;
 use crate::enigma_file::enigma_line::EnigmaLine;
 use crate::lines::{Line, WithMoreIdentIter};
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, FieldNowodeMapping, JavadocMapping, Mappings, MethodMapping, MethodNowodeMapping, ParameterMapping, ParameterNowodeMapping};
@@ -319,13 +320,9 @@ fn figure_out_files(mappings: &Mappings<2>) -> Placement<'_> {
 	let mut child_map = IndexMap::new();
 	let mut file_map = IndexMap::new();
 
-	for (key, class) in &mappings.classes {
-		let src = key.as_slice();
-
+	for (src, class) in &mappings.classes {
 		// if the class has a parent that's in the mappings, don't create a file for it
-		if let Some((parent, _)) = src.as_str().rsplit_once('$') {
-			let parent = ClassNameSlice::from_str(parent);
-
+		if let Some(parent) = src.get_inner_class_parent() {
 			if mappings.classes.contains_key(parent) {
 				// instead write it inside it's parent
 				child_map.entry(parent).or_insert_with(Vec::new)

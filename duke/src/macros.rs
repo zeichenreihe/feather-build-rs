@@ -17,7 +17,7 @@ macro_rules! make_string_str_like {
 
 		impl $owned {
 			pub fn as_slice(&self) -> &$borrowed {
-				$borrowed::from_str(&self.0)
+				self
 			}
 		}
 
@@ -48,7 +48,7 @@ macro_rules! make_string_str_like {
 
 		impl std::borrow::Borrow<$borrowed> for $owned {
 			fn borrow(&self) -> &$borrowed {
-				self.as_slice()
+				$borrowed::from_str(&self.0)
 			}
 		}
 
@@ -58,7 +58,7 @@ macro_rules! make_string_str_like {
 			// deref may be inserted by the compiler at any time
 			// therefore the call path must not use deref itself...
 			fn deref(&self) -> &Self::Target {
-				self.as_slice()
+				$borrowed::from_str(&self.0)
 			}
 		}
 

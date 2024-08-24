@@ -3,22 +3,37 @@ use duke::tree::class::{ClassName, ClassNameSlice};
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, Mappings};
 use crate::tree::names::{Names, Namespace};
 
-fn map<const N: usize>(mappings: &Mappings<N>, namespace: Namespace<N>, name: &ClassNameSlice, mapped: &ClassNameSlice) -> Result<ClassName> {
-	if let Some((parent, _)) = name.as_str().rsplit_once('$') {
-		let parent = ClassNameSlice::from_str(parent);
+pub(crate) trait ClassNameExt {
+	fn from_inner_class_parent(parent: ClassName, inner_name: impl AsRef<str>) -> ClassName;
+}
+impl ClassNameExt for ClassName {
+	fn from_inner_class_parent(parent: ClassName, inner_name: impl AsRef<str>) -> ClassName {
+		let mut s: String = parent.into();
+		s.push('$');
+		s.push_str(inner_name.as_ref());
+		s.into()
+	}
+}
 
+pub(crate) trait ClassNameSliceExt {
+	fn get_inner_class_parent(&self) -> Option<&ClassNameSlice>;
+}
+impl ClassNameSliceExt for ClassNameSlice {
+	fn get_inner_class_parent(&self) -> Option<&ClassNameSlice> {
+		self.as_str().rsplit_once('$').map(|(parent, _)| ClassNameSlice::from_str(parent))
+	}
+}
+
+fn map<const N: usize>(mappings: &Mappings<N>, namespace: Namespace<N>, name: &ClassNameSlice, mapped: &ClassNameSlice) -> Result<ClassName> {
+	Ok(if let Some(parent) = name.get_inner_class_parent() {
 		let mapped_parent = mappings.get_class_name(parent, namespace)?;
 
 		let result = map(mappings, namespace, parent, mapped_parent)?;
 
-		let mut s: String = result.into();
-		s.push('$');
-		s.push_str(mapped.as_str());
-
-		Ok(s.into())
+		ClassName::from_inner_class_parent(result, mapped)
 	} else {
-		Ok(mapped.to_owned())
-	}
+		mapped.to_owned()
+	})
 }
 
 impl<const N: usize> Names<N, ClassName> {
