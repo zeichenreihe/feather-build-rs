@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use anyhow::Result;
 use indexmap::{IndexMap, IndexSet};
-use duke::tree::class::{ClassAccess, ClassFile, ClassName, EnclosingMethod, InnerClass, InnerClassFlags};
+use duke::tree::class::{ClassAccess, ClassFile, ClassName, ClassNameSlice, EnclosingMethod, InnerClass, InnerClassFlags};
 use duke::tree::method::MethodNameAndDesc;
 use dukebox::{BasicFileAttributes, Jar, JarEntry, OpenedJar};
 use dukebox::parsed::{ParsedJar, ParsedJarEntry};
@@ -119,7 +119,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 							..ClassAccess::default()
 						},
 						nest.encl_class_name.clone(),
-						Some(ClassName::JAVA_LANG_OBJECT.clone()),
+						Some(ClassName::JAVA_LANG_OBJECT.to_owned()),
 						vec![]
 					));
 
@@ -154,25 +154,24 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 
 	// only when remapping it's needed
 		fn remap(this_nests: &IndexMap<ClassName, Nest>, corresponding_nest: &Nest) -> ClassName {
-			let mut result = this_nests.get(&corresponding_nest.encl_class_name)
+			let result = this_nests.get(&corresponding_nest.encl_class_name)
 				.map(|nest| remap(this_nests, nest))
 				.unwrap_or_else(|| corresponding_nest.encl_class_name.clone());
 
-			let s = result.as_mut_string();
+			let mut s: String = result.into();
 			s.push('$');
 			s.push_str(corresponding_nest.inner_name.as_str());
-
-			result
+			s.into()
 		}
 
 		let map = this_nests.iter()
-			.map(|(old_name, nest)| (old_name, remap(&this_nests, nest)))
-			.filter(|(old_name, new_name)| &new_name != old_name)
+			.map(|(old_name, nest)| (old_name.as_slice(), remap(&this_nests, nest)))
+			.filter(|(old_name, new_name)| old_name != new_name)
 			.collect();
 
-		struct MyRemapper<'a>(IndexMap<&'a ClassName, ClassName>);
+		struct MyRemapper<'a>(IndexMap<&'a ClassNameSlice, ClassName>);
 		impl ARemapper for MyRemapper<'_> {
-			fn map_class_fail(&self, class: &ClassName) -> Result<Option<ClassName>> {
+			fn map_class_fail(&self, class: &ClassNameSlice) -> Result<Option<ClassName>> {
 				Ok(self.0.get(class).cloned())
 			}
 		}
