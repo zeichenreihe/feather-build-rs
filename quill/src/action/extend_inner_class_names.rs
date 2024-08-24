@@ -1,24 +1,23 @@
 use anyhow::{anyhow, Context, Result};
-use duke::tree::class::ClassName;
+use duke::tree::class::{ClassName, ClassNameSlice};
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, Mappings};
 use crate::tree::names::{Names, Namespace};
 
-fn map<const N: usize>(mappings: &Mappings<N>, namespace: Namespace<N>, name: &str, mapped: &ClassName) -> Result<ClassName> {
-	if let Some((parent, _)) = name.rsplit_once('$') {
+fn map<const N: usize>(mappings: &Mappings<N>, namespace: Namespace<N>, name: &ClassNameSlice, mapped: &ClassNameSlice) -> Result<ClassName> {
+	if let Some((parent, _)) = name.as_str().rsplit_once('$') {
+		let parent = ClassNameSlice::from_str(parent);
 
-		let parent_name = parent.to_owned().into();
+		let mapped_parent = mappings.get_class_name(parent, namespace)?;
 
-		let mapped_parent = mappings.get_class_name(&parent_name, namespace)?;
+		let result = map(mappings, namespace, parent, mapped_parent)?;
 
-		let mut result = map(mappings, namespace, parent, mapped_parent)?;
-
-		let s = result.as_mut_string();
+		let mut s: String = result.into();
 		s.push('$');
 		s.push_str(mapped.as_str());
 
-		Ok(result)
+		Ok(s.into())
 	} else {
-		Ok(mapped.clone())
+		Ok(mapped.to_owned())
 	}
 }
 
@@ -28,7 +27,7 @@ impl<const N: usize> Names<N, ClassName> {
 
 		if let (src, Some(b)) = names.get_mut_with_src(namespace)? {
 			let src = src.with_context(|| anyhow!("expected to have class name for first namespace, got {self:?}"))?;
-			*b = map(mappings, namespace, src.as_str(), b)?;
+			*b = map(mappings, namespace, src, b)?;
 		}
 
 		Ok(names)

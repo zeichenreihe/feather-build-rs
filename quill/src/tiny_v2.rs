@@ -265,12 +265,9 @@ fn write_namespaces<const N: usize>(w: &mut impl Write, namespaces: &Namespaces<
 	Ok(())
 }
 
-fn write_names<const N: usize, T>(w: &mut impl Write, names: &Names<N, T>) -> Result<()>
-	where
-			for<'a> &'a str: From<&'a T>,
-{
+fn write_names<const N: usize>(w: &mut impl Write, names: &Names<N, impl AsRef<str>>) -> Result<()> {
 	for name in names.names() {
-		let name = name.as_ref().map(|x| x.into());
+		let name = name.as_ref().map(|x| x.as_ref());
 		write!(w, "\t{}", name.unwrap_or(""))?;
 	}
 	writeln!(w)?;

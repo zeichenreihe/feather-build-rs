@@ -1,5 +1,5 @@
-
 use anyhow::Result;
+use duke::tree::method::MethodName;
 use crate::tree::mappings::Mappings;
 
 impl<const N: usize> Mappings<N> {
@@ -33,8 +33,8 @@ impl<const N: usize> Mappings<N> {
 					!v.parameters.is_empty() ||
 					!v.info.names[namespace].as_ref().is_some_and(|x|
 						x.as_str().starts_with("m_") ||
-							x == "<init>" ||
-							x == "<clinit>"
+							x == MethodName::INIT ||
+							x == MethodName::CLINIT
 					)
 			});
 

@@ -3,7 +3,7 @@ use std::hash::Hash;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use indexmap::map::Entry;
-use duke::tree::class::ClassName;
+use duke::tree::class::{ClassName, ClassNameSlice};
 use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc};
 use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, ParameterName};
 use crate::tree::names::{Names, Namespace, Namespaces};
@@ -54,12 +54,12 @@ impl<const N: usize> Mappings<N> {
 			.with_context(|| anyhow!("failed to add class to mappings {:?}", self.info))
 	}
 
-	pub(crate) fn get_class_name(&self, class: &ClassName, namespace: Namespace<N>) -> Result<&ClassName> {
+	pub(crate) fn get_class_name(&self, class: &ClassNameSlice, namespace: Namespace<N>) -> Result<&ClassNameSlice> {
 		self.classes.get(class)
 			.with_context(|| anyhow!("no entry for class {class:?}"))?
 			.info
 			.names[namespace]
-			.as_ref()
+			.as_deref()
 			.with_context(|| anyhow!("no name for namespace {namespace:?} for class {class:?}"))
 	}
 }

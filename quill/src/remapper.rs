@@ -14,11 +14,13 @@
 //! A remapper answers the question for you "what is the name of X in namespace Y?"
 //!
 
+use std::borrow::Borrow;
+use std::hash::{Hash, Hasher};
 use anyhow::{bail, Result};
 use indexmap::{IndexMap, IndexSet};
-use duke::tree::class::ClassName;
-use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc, FieldRef};
-use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, MethodRef};
+use duke::tree::class::{ClassName, ClassNameSlice};
+use duke::tree::field::{FieldDescriptor, FieldDescriptorSlice, FieldNameAndDesc, FieldNameSlice, FieldRef};
+use duke::tree::method::{MethodDescriptor, MethodDescriptorSlice, MethodNameAndDesc, MethodNameSlice, MethodRef};
 use crate::tree::mappings::Mappings;
 use crate::tree::names::Namespace;
 
@@ -27,13 +29,13 @@ pub trait ARemapper {
 	/// Maps a class name to a new one, if the mapping exists.
 	///
 	/// If the mapping doesn't exist, returns `Ok(None)`.
-	fn map_class_fail(&self, class: &ClassName) -> Result<Option<ClassName>>;
+	fn map_class_fail(&self, class: &ClassNameSlice) -> Result<Option<ClassName>>;
 
 	/// Maps a class name to a new one, if the mapping doesn't exist, return the old one.
 	///
 	/// Do not implement this yourself.
-	fn map_class(&self, class: &ClassName) -> Result<ClassName> {
-		Ok(self.map_class_fail(class)?.unwrap_or_else(|| class.clone()))
+	fn map_class(&self, class: &ClassNameSlice) -> Result<ClassName> {
+		Ok(self.map_class_fail(class)?.unwrap_or_else(|| class.to_owned()))
 	}
 
 	/// Maps a field descriptor to a new one.
@@ -41,7 +43,7 @@ pub trait ARemapper {
 	/// Note that this relies on the fact that for non-existing class mappings class names are just copied over.
 	///
 	/// Do not implement this yourself.
-	fn map_field_desc(&self, desc: &FieldDescriptor) -> Result<FieldDescriptor> {
+	fn map_field_desc(&self, desc: &FieldDescriptorSlice) -> Result<FieldDescriptor> {
 		Ok(self.map_desc(desc.as_str())?.into())
 	}
 
@@ -50,7 +52,7 @@ pub trait ARemapper {
 	/// Note that this relies on the fact that for non-existing class mappings class names are just copied over.
 	///
 	/// Do not implement this yourself.
-	fn map_method_desc(&self, desc: &MethodDescriptor) -> Result<MethodDescriptor> {
+	fn map_method_desc(&self, desc: &MethodDescriptorSlice) -> Result<MethodDescriptor> {
 		Ok(self.map_desc(desc.as_str())?.into())
 	}
 
@@ -83,7 +85,7 @@ pub trait ARemapper {
 					bail!("descriptor {desc:?} has a missing semicolon somewhere");
 				}
 
-				let old_class_name = class_name.into();
+				let old_class_name = ClassName::from(class_name);
 				let new_class_name = self.map_class(&old_class_name)?;
 
 				s.push_str(new_class_name.as_str());
@@ -97,14 +99,14 @@ pub trait ARemapper {
 
 #[derive(Debug)]
 pub struct ARemapperImpl<'a, const N: usize> {
-	classes: IndexMap<&'a ClassName, &'a ClassName>,
+	classes: IndexMap<&'a ClassNameSlice, &'a ClassNameSlice>,
 }
 
 impl<'a, const N: usize> ARemapper for ARemapperImpl<'a, N> {
-	fn map_class_fail(&self, class: &ClassName) -> Result<Option<ClassName>> {
+	fn map_class_fail(&self, class: &ClassNameSlice) -> Result<Option<ClassName>> {
 		match self.classes.get(class) {
 			None => Ok(None),
-			Some(&class) => Ok(Some(class.clone())),
+			Some(&class) => Ok(Some(class.to_owned())),
 		}
 	}
 }
@@ -114,7 +116,7 @@ impl<const N: usize> Mappings<N> {
 		let mut classes = IndexMap::new();
 		for class in self.classes.values() {
 			if let (Some(from), Some(to)) = (&class.info.names[from], &class.info.names[to]) {
-				classes.insert(from, to);
+				classes.insert(from.as_slice(), to.as_slice());
 			}
 		}
 		Ok(ARemapperImpl { classes })
@@ -138,18 +140,18 @@ pub trait BRemapper: ARemapper {
 	///
 	/// Note that in the `None` case you must map the field descriptor manually. See [`map_field`] for a method that
 	/// just takes the old name if no mapping exist (but yet maps the field descriptor).
-	fn map_field_fail(&self, owner_name: &ClassName, field_name: &FieldName, field_desc: &FieldDescriptor) -> Result<Option<FieldNameAndDesc>>;
+	fn map_field_fail(&self, owner_name: &ClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<Option<FieldNameAndDesc>>;
 
 	/// Maps a field name and field descriptor to new ones, if the mapping doesn't exist returns the old name with a
 	/// mapped descriptor.
 	///
 	/// Do not implement this yourself.
-	fn map_field(&self, class: &ClassName, field_name: &FieldName, field_desc: &FieldDescriptor) -> Result<FieldNameAndDesc> {
+	fn map_field(&self, class: &ClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<FieldNameAndDesc> {
 		self.map_field_fail(class, field_name, field_desc)?
 			.map(Ok)
 			.unwrap_or_else(|| Ok(FieldNameAndDesc {
 				desc: self.map_field_desc(field_desc)?,
-				name: field_name.clone(),
+				name: field_name.to_owned(),
 			}))
 	}
 
@@ -173,18 +175,19 @@ pub trait BRemapper: ARemapper {
 	///
 	/// Note that in the `None` case you must map the method descriptor manually. See [`map_method`] for a method that
 	/// just takes the old name if no mapping exist (but yet maps the method descriptor).
-	fn map_method_fail(&self, owner_name: &ClassName, method_name: &MethodName, method_desc: &MethodDescriptor) -> Result<Option<MethodNameAndDesc>>;
+	fn map_method_fail(&self, owner_name: &ClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice)
+		-> Result<Option<MethodNameAndDesc>>;
 
 	/// Maps a method name and method descriptor to new ones, if the mapping doesn't exist returns the old name with a
 	/// mapped descriptor.
 	///
 	/// Do not implement this yourself.
-	fn map_method(&self, class: &ClassName, method_name: &MethodName, method_desc: &MethodDescriptor) -> Result<MethodNameAndDesc> {
+	fn map_method(&self, class: &ClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice) -> Result<MethodNameAndDesc> {
 		self.map_method_fail(class, method_name, method_desc)?
 			.map(Ok)
 			.unwrap_or_else(|| Ok(MethodNameAndDesc {
 				desc: self.map_method_desc(method_desc)?,
-				name: method_name.clone(),
+				name: method_name.to_owned(),
 			}))
 	}
 
@@ -193,7 +196,7 @@ pub trait BRemapper: ARemapper {
 	/// This is essentially just a call to [`BRemapper::map_method`].
 	///
 	/// Do not implement this yourself.
-	fn map_method_name_and_desc(&self, class: &ClassName, method_name_and_desc: &MethodNameAndDesc) -> Result<MethodNameAndDesc> {
+	fn map_method_name_and_desc(&self, class: &ClassNameSlice, method_name_and_desc: &MethodNameAndDesc) -> Result<MethodNameAndDesc> {
 		self.map_method(class, &method_name_and_desc.name, &method_name_and_desc.desc)
 	}
 
@@ -212,21 +215,60 @@ pub trait BRemapper: ARemapper {
 	}
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct TupleKey<A, B>(A, B);
+#[derive(Debug, PartialEq, Eq)]
+struct TupleReq<A, B>(A, B);
+
+impl<Name, Desc, DescDeref: ?Sized> Hash for TupleKey<&'_ Name, Desc>
+where
+	Name: Hash + ?Sized,
+	Desc: std::ops::Deref<Target = DescDeref>,
+	DescDeref: Hash,
+{
+	fn hash<H: Hasher>(&self, state: &mut H) {
+		self.0.hash(state);
+		std::ops::Deref::deref(&self.1).hash(state);
+	}
+}
+
+impl<Name, Desc> Hash for TupleReq<&'_ Name, &'_ Desc>
+where
+	Name: Hash + ?Sized,
+	Desc: Hash + ?Sized,
+{
+	fn hash<H: Hasher>(&self, state: &mut H) {
+		self.0.hash(state);
+		self.1.hash(state);
+	}
+}
+
+impl<'a, Name, Desc, DescBorrowed> indexmap::Equivalent<TupleKey<&'a Name, Desc>> for TupleReq<&'a Name, &'a DescBorrowed>
+where
+	Name: ?Sized + PartialEq + Eq,
+	Desc: Borrow<DescBorrowed>,
+	DescBorrowed: ?Sized + PartialEq + Eq,
+{
+	fn equivalent(&self, key: &TupleKey<&'a Name, Desc>) -> bool {
+		self.0 == key.0 && self.1 == Borrow::borrow(&key.1)
+	}
+}
+
 #[derive(Debug)]
 struct BRemapperClass<'a> {
 	name: &'a ClassName,
-	fields: IndexMap<(&'a FieldName, FieldDescriptor), (&'a FieldName, FieldDescriptor)>,
-	methods: IndexMap<(&'a MethodName, MethodDescriptor), (&'a MethodName, MethodDescriptor)>,
+	fields: IndexMap<TupleKey<&'a FieldNameSlice, FieldDescriptor>, TupleKey<&'a FieldNameSlice, FieldDescriptor>>,
+	methods: IndexMap<TupleKey<&'a MethodNameSlice, MethodDescriptor>, TupleKey<&'a MethodNameSlice, MethodDescriptor>>,
 }
 
 #[derive(Debug)]
 pub struct BRemapperImpl<'a, 'i, const N: usize, I> {
-	classes: IndexMap<&'a ClassName, BRemapperClass<'a>>,
+	classes: IndexMap<&'a ClassNameSlice, BRemapperClass<'a>>,
 	inheritance: &'i I,
 }
 
 impl<const N: usize, I> ARemapper for BRemapperImpl<'_, '_, N, I> {
-	fn map_class_fail(&self, class: &ClassName) -> Result<Option<ClassName>> {
+	fn map_class_fail(&self, class: &ClassNameSlice) -> Result<Option<ClassName>> {
 		match self.classes.get(class) {
 			None => Ok(None),
 			Some(class) => Ok(Some(class.name.clone())),
@@ -235,14 +277,15 @@ impl<const N: usize, I> ARemapper for BRemapperImpl<'_, '_, N, I> {
 }
 
 impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 'i, N, I> {
-	fn map_field_fail(&self, owner_name: &ClassName, field_name: &FieldName, field_desc: &FieldDescriptor) -> Result<Option<FieldNameAndDesc>> {
+	fn map_field_fail(&self, owner_name: &ClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<Option<FieldNameAndDesc>> {
 		assert!(!owner_name.as_str().is_empty());
 		assert!(!owner_name.as_str().starts_with('['));
 
 		if let Some(class) = self.classes.get(owner_name) {
-			if let Some(&(name, ref desc)) = class.fields.get(&(field_name, field_desc.clone())) {
+			let key = TupleReq(field_name, field_desc);
+			if let Some(&TupleKey(name, ref desc)) = class.fields.get(&key) {
 				let desc = desc.clone();
-				let src = name.clone();
+				let src = name.to_owned();
 				return Ok(Some(FieldNameAndDesc { desc, name: src }));
 			}
 
@@ -258,15 +301,17 @@ impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 
 		Ok(None)
 	}
 
-	fn map_method_fail(&self, owner_name: &ClassName, method_name: &MethodName, method_desc: &MethodDescriptor) -> Result<Option<MethodNameAndDesc>> {
+	fn map_method_fail(&self, owner_name: &ClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice)
+			-> Result<Option<MethodNameAndDesc>> {
 		assert!(!owner_name.as_str().is_empty());
 		assert!(!owner_name.as_str().starts_with('['));
 		assert!(!method_name.as_str().is_empty());
 
 		if let Some(class) = self.classes.get(owner_name) {
-			if let Some(&(name, ref desc)) = class.methods.get(&(method_name, method_desc.clone())) {
+			let key = TupleReq(method_name, method_desc);
+			if let Some(&TupleKey(name, ref desc)) = class.methods.get(&key) {
 				let desc = desc.clone();
-				let src = name.clone();
+				let src = name.to_owned();
 				return Ok(Some(MethodNameAndDesc { desc, name: src }));
 			}
 
@@ -298,7 +343,7 @@ impl<const N: usize> Mappings<N> {
 						let desc_from = remapper_a_from.map_field_desc(&field.info.desc)?;
 						let desc_to = remapper_a_to.map_field_desc(&field.info.desc)?;
 
-						fields.insert((name_from, desc_from), (name_to, desc_to));
+						fields.insert(TupleKey(name_from.as_slice(), desc_from), TupleKey(name_to.as_slice(), desc_to));
 					}
 				}
 
@@ -308,11 +353,11 @@ impl<const N: usize> Mappings<N> {
 						let desc_from = remapper_a_from.map_method_desc(&method.info.desc)?;
 						let desc_to = remapper_a_to.map_method_desc(&method.info.desc)?;
 
-						methods.insert((name_from, desc_from), (name_to, desc_to));
+						methods.insert(TupleKey(name_from.as_slice(), desc_from), TupleKey(name_to.as_slice(), desc_to));
 					}
 				}
 
-				classes.insert(name_from, BRemapperClass { name: name_to, fields, methods });
+				classes.insert(name_from.as_slice(), BRemapperClass { name: name_to, fields, methods });
 			}
 		}
 		Ok(BRemapperImpl { classes, inheritance })
@@ -354,34 +399,35 @@ impl JarSuperProv {
 pub struct ARemapperAsBRemapper<T>(pub T) where T: ARemapper;
 
 impl<T> ARemapper for ARemapperAsBRemapper<T> where T: ARemapper {
-	fn map_class_fail(&self, class: &ClassName) -> Result<Option<ClassName>> {
+	fn map_class_fail(&self, class: &ClassNameSlice) -> Result<Option<ClassName>> {
 		self.0.map_class_fail(class)
 	}
 }
 
 impl<T> BRemapper for ARemapperAsBRemapper<T> where T: ARemapper {
-	fn map_field_fail(&self, owner_name: &ClassName, field_name: &FieldName, field_desc: &FieldDescriptor) -> Result<Option<FieldNameAndDesc>> {
+	fn map_field_fail(&self, owner_name: &ClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<Option<FieldNameAndDesc>> {
 		Ok(None)
 	}
 
-	fn map_method_fail(&self, owner_name: &ClassName, method_name: &MethodName, method_desc: &MethodDescriptor) -> Result<Option<MethodNameAndDesc>> {
+	fn map_method_fail(&self, owner_name: &ClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice)
+			-> Result<Option<MethodNameAndDesc>> {
 		Ok(None)
 	}
 }
 
 
 pub trait SuperClassProvider {
-	fn get_super_classes(&self, class: &ClassName) -> Result<Option<&IndexSet<ClassName>>>;
+	fn get_super_classes(&self, class: &ClassNameSlice) -> Result<Option<&IndexSet<ClassName>>>;
 }
 
 impl SuperClassProvider for JarSuperProv {
-	fn get_super_classes(&self, class: &ClassName) -> Result<Option<&IndexSet<ClassName>>> {
+	fn get_super_classes(&self, class: &ClassNameSlice) -> Result<Option<&IndexSet<ClassName>>> {
 		Ok(self.super_classes.get(class))
 	}
 }
 
 impl<S: SuperClassProvider> SuperClassProvider for Vec<S> {
-	fn get_super_classes(&self, class: &ClassName) -> Result<Option<&IndexSet<ClassName>>> {
+	fn get_super_classes(&self, class: &ClassNameSlice) -> Result<Option<&IndexSet<ClassName>>> {
 		for i in self {
 			if let Some(x) = i.get_super_classes(class)? {
 				return Ok(Some(x));
@@ -401,7 +447,7 @@ impl NoSuperClassProvider {
 }
 
 impl SuperClassProvider for NoSuperClassProvider {
-	fn get_super_classes(&self, class: &ClassName) -> Result<Option<&IndexSet<ClassName>>> {
+	fn get_super_classes(&self, class: &ClassNameSlice) -> Result<Option<&IndexSet<ClassName>>> {
 		Ok(None)
 	}
 }
