@@ -186,7 +186,7 @@ impl ApplyFix for Mappings<3> {
 		}
 
 		fn copy_init_and_starting_with_not_m<const N: usize>(names: &mut Names<N, MethodName>, from: Namespace<N>, to: Namespace<N>) {
-			if names[to].is_none() && names[from].as_ref().is_some_and(|x| x == "<init>" || !x.as_str().starts_with("m_")) {
+			if names[to].is_none() && names[from].as_ref().is_some_and(|x| x == MethodName::INIT || !x.as_str().starts_with("m_")) {
 				names[to] = names[from].clone();
 			}
 		}

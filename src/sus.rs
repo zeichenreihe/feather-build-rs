@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::map::Entry;
+use duke::tree::method::MethodName;
 use quill::remapper::{BRemapper, JarSuperProv};
 use quill::tree::mappings::{Mappings, MethodMapping, MethodNowodeMapping};
 use quill::tree::names::Names;
@@ -133,7 +134,7 @@ impl ApplyFix for Mappings<3> {
 					m.info.names[named] = m.info.names[intermediary].clone();
 				}
 
-				if m.info.names[official].is_none() && m.info.names[intermediary].as_ref().is_some_and(|x| x == "<init>") {
+				if m.info.names[official].is_none() && m.info.names[intermediary].as_ref().is_some_and(|x| x == MethodName::INIT) {
 					m.info.names[official] = m.info.names[intermediary].clone();
 				}
 
