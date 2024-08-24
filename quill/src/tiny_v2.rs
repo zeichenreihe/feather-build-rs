@@ -270,7 +270,7 @@ fn write_names<const N: usize, T>(w: &mut impl Write, names: &Names<N, T>) -> Re
 			for<'a> &'a str: From<&'a T>,
 {
 	for name in names.names() {
-		let name = name.map(|x| x.into());
+		let name = name.as_ref().map(|x| x.into());
 		write!(w, "\t{}", name.unwrap_or(""))?;
 	}
 	writeln!(w)?;

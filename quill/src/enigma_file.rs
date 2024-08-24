@@ -1,7 +1,10 @@
+use std::collections::{HashSet, VecDeque};
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use anyhow::{anyhow, bail, Context, Result};
+use indexmap::IndexMap;
+use duke::tree::class::ClassName;
 use crate::enigma_file::enigma_line::EnigmaLine;
 use crate::lines::{Line, WithMoreIdentIter};
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, FieldNowodeMapping, JavadocMapping, Mappings, MethodMapping, MethodNowodeMapping, ParameterMapping, ParameterNowodeMapping};
@@ -208,6 +211,172 @@ mod enigma_line {
 			self.line_number
 		}
 	}
+}
+
+fn write_class(class: &ClassNowodeMapping<2>, w: &mut impl Write, indent: usize) -> Result<()> {
+	let indent = "\t".repeat(indent);
+
+	let [src, dst] = class.info.names.names();
+	let src = src.as_ref().unwrap(); // TODO: unwrap
+	// get to only the part after $ if it exists
+	let src: ClassName = src.as_str().rsplit_once('$').map_or_else(|| src.clone(), |(_, x)| x.to_owned().into());
+
+	write!(w, "{indent}CLASS {src}")?;
+	if let Some(dst) = dst {
+		write!(w, " {dst}")?;
+	}
+	writeln!(w)?;
+
+	if let Some(javadoc) = &class.javadoc {
+		for line in javadoc.0.split('\n') {
+			writeln!(w, "{indent}\tCOMMENT {line}")?;
+		}
+	}
+
+	let mut fields: Vec<_> = class.fields.values().collect();
+	fields.sort_by(|a, b| a.info.names.cmp(&b.info.names).then_with(|| a.info.desc.cmp(&b.info.desc)));
+	for field in fields {
+		let desc = &field.info.desc;
+		let [src, dst] = field.info.names.names();
+		let src = src.as_ref().unwrap(); // TODO: unwrap
+
+		write!(w, "{indent}\tFIELD {src}")?;
+		if let Some(dst) = dst {
+			write!(w, " {dst}")?;
+		}
+		writeln!(w, " {}", desc.as_str())?;
+
+		if let Some(javadoc) = &field.javadoc {
+			for line in javadoc.0.split('\n') {
+				writeln!(w, "{indent}\t\tCOMMENT {line}")?;
+			}
+		}
+	}
+
+	let mut methods: Vec<_> = class.methods.values().collect();
+	methods.sort_by(|a, b| a.info.names.cmp(&b.info.names).then_with(|| a.info.desc.cmp(&b.info.desc)));
+	for method in methods {
+		let desc = &method.info.desc;
+		let [src, dst] = method.info.names.names();
+		let src = src.as_ref().unwrap(); // TODO: unwrap
+
+		write!(w, "{indent}\tMETHOD {src}")?;
+		if let Some(dst) = dst {
+			write!(w, " {dst}")?;
+		}
+		writeln!(w, " {}", desc.as_str())?;
+
+		if let Some(javadoc) = &method.javadoc {
+			for line in javadoc.0.split('\n') {
+				writeln!(w, "{indent}\t\tCOMMENT {line}")?;
+			}
+		}
+
+		let mut parameters: Vec<_> = method.parameters.values().collect();
+		parameters.sort_by_key(|x| &x.info);
+		for parameter in parameters {
+			let index = parameter.info.index;
+			let [_, dst] = parameter.info.names.names();
+			let dst = dst.as_ref().unwrap(); // TODO: unwrap
+
+			writeln!(w, "{indent}\t\tARG {index} {}", dst.as_str())?;
+
+			if let Some(javadoc) = &parameter.javadoc {
+				for line in javadoc.0.split('\n') {
+					writeln!(w, "{indent}\t\t\tCOMMENT {line}")?;
+				}
+			}
+		}
+	}
+
+	Ok(())
+}
+
+/// a node `( src, Node )` in the class-parent tree
+#[derive(Clone, Copy)]
+struct Node<'a> {
+	src: &'a str,
+	class: &'a ClassNowodeMapping<2>,
+}
+struct Placement<'a> {
+	/// `dst -> ( src, Node )` for all `Node`s without a parent
+	file_map: IndexMap<&'a str, Node<'a>>,
+	/// `parent src -> Vec<( child src, child Node )>` for all other nodes
+	child_map: IndexMap<&'a str, Vec<Node<'a>>>,
+}
+
+impl Placement<'_> {
+	fn dbg(&self) {
+		dbg!(self.file_map.keys().collect::<Vec<_>>());
+		dbg!(self.child_map.iter().map(|(a, v)| (a, v.iter().map(|b| b.src).collect::<Vec<_>>())).collect::<IndexMap<_, _>>());
+	}
+}
+
+/// Creates a mapping from path for file to a tree of class nodes to put in there
+fn figure_out_files(mappings: &Mappings<2>) -> Placement<'_> {
+	let src_class_names: HashSet<&str> = mappings.classes.keys().map(|x| x.as_str()).collect();
+
+	let mut child_map = IndexMap::new();
+	let mut file_map = IndexMap::new();
+
+	for (key, class) in &mappings.classes {
+		let src = key.as_str();
+
+		// if the class has a parent that's in the mappings, don't create a file for it
+		if let Some((parent, _)) = src.rsplit_once('$') {
+			if src_class_names.contains(parent) {
+				// instead write it inside it's parent
+				child_map.entry(parent).or_insert_with(Vec::new)
+					.push(Node { src, class });
+
+				continue;
+			}
+		}
+
+		// in any other case, add a file to the output list
+		let dst = class.info.names.names()[1].as_ref().map(|x| x.as_str());
+		let file_name = dst.unwrap_or(src);
+		file_map.insert(file_name, Node { src, class });
+	}
+
+	Placement { file_map, child_map }
+}
+
+
+pub(crate) fn write_all(mappings: &Mappings<2>, w: &mut impl Write) -> Result<()> {
+	let f = figure_out_files(mappings);
+
+	for (file_name, &node) in &f.file_map {
+		writeln!(w, "# {file_name}")?; // TODO: not legal...
+		write_one_tree_starting_at(node, &f.child_map, w)?;
+	}
+
+	Ok(())
+}
+
+pub(crate) fn write_one(mappings: &Mappings<2>, class_name: &str, w: &mut impl Write) -> Result<()> {
+	let f = figure_out_files(mappings);
+
+	let Some(&node) = f.file_map.get(class_name) else {
+		bail!("class {class_name:?} (dst name) isn't parent-free");
+	};
+
+	write_one_tree_starting_at(node, &f.child_map, w)
+}
+
+fn write_one_tree_starting_at(node: Node, child_map: &IndexMap<&str, Vec<Node>>, w: &mut impl Write) -> Result<()> {
+	let mut queue: VecDeque<_> = vec![ (node, 0) ].into();
+	while let Some((parent, depth)) = queue.pop_front() {
+		write_class(parent.class, w, depth)?;
+
+		if let Some(children) = child_map.get(parent.src) {
+			for &child in children.iter().rev() {
+				queue.push_front((child, depth + 1));
+			}
+		}
+	}
+
+	Ok(())
 }
 
 // TODO: tests

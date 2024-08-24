@@ -67,8 +67,8 @@ pub mod names {
 	}
 
 	impl<const N: usize> Namespaces<N> {
-		pub(crate) fn names(&self) -> impl Iterator<Item=&String> {
-			self.names.iter()
+		pub(crate) fn names(&self) -> &[String; N] {
+			&self.names
 		}
 
 		pub(crate) fn get_namespace(&self, name: &str) -> Result<Namespace<N>> {
@@ -184,8 +184,8 @@ pub mod names {
 				.as_ref().with_context(|| anyhow!("no name for the first namespace: {self:?}"))
 		}
 
-		pub(crate) fn names(&self) -> impl Iterator<Item=Option<&T>> {
-			self.names.iter().map(|x| x.as_ref())
+		pub(crate) fn names(&self) -> &[Option<T>; N] {
+			&self.names
 		}
 
 		pub(crate) fn get_mut_with_src(&mut self, namespace: Namespace<N>) -> Result<(Option<&T>, Option<&mut T>)> {
