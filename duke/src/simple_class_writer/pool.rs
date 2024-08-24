@@ -377,10 +377,10 @@ impl<'a> PoolWrite<'a> {
 		where
 			't: 'a,
 			'u: 'a,
-			&'t T: Into<&'t str>,
-			&'u U: Into<&'u str>,
+			T: AsRef<str>,
+			U: AsRef<str>,
 	{
-		let entry = PoolEntry::from_name_and_type(self, t.into(), u.into())?;
+		let entry = PoolEntry::from_name_and_type(self, t.as_ref(), u.as_ref())?;
 		self.put(entry)
 	}
 

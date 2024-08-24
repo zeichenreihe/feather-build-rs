@@ -1,8 +1,7 @@
-use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 use anyhow::{bail, Result};
 use crate::class_constants::atype;
-use crate::macros::{from_impl_for_string_and_str, partial_eq_impl_for_str};
+use crate::macros::make_string_str_like;
 use crate::tree::attribute::Attribute;
 use crate::tree::class::ClassName;
 use crate::tree::field::{FieldDescriptor, FieldName, FieldRef, FieldSignature};
@@ -100,17 +99,18 @@ impl Code {
 	}
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct LocalVariableName(Cow<'static, str>);
+make_string_str_like!(LocalVariableName, LocalVariableNameSlice);
 
 impl Display for LocalVariableName {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.0)
+		Display::fmt(self.as_slice(), f)
 	}
 }
-
-from_impl_for_string_and_str!(LocalVariableName);
-partial_eq_impl_for_str!(LocalVariableName);
+impl Display for LocalVariableNameSlice {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.as_str())
+	}
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Exception {

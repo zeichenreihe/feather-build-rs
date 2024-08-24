@@ -1,9 +1,8 @@
-use std::borrow::Cow;
 use std::fmt::{Debug, Display, Formatter};
-use crate::macros::{from_impl_for_string_and_str, partial_eq_impl_for_str};
+use crate::macros::make_string_str_like;
 use crate::tree::class::ClassName;
 
-//TODO: consider making a "ModuleVersion" kind of ModuleVersion(Cow<'static, str)) struct, but first figure out
+//TODO: consider making a "ModuleVersion" kind of make_string_str_like! struct, but first figure out
 // if there's a format checked by javac for module versions that could be parsed (like Field/MethodDescriptor)
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,23 +17,20 @@ pub struct Module {
 	pub(crate) provides: Vec<ModuleProvides>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ModuleName(Cow<'static, str>);
+make_string_str_like!(ModuleName, ModuleNameSlice);
 
 impl Display for ModuleName {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.0)
+		Display::fmt(self.as_slice(), f)
+	}
+}
+impl Display for ModuleNameSlice {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.as_str())
 	}
 }
 
-from_impl_for_string_and_str!(ModuleName);
-partial_eq_impl_for_str!(ModuleName);
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct PackageName(Cow<'static, str>);
-
-from_impl_for_string_and_str!(PackageName);
-partial_eq_impl_for_str!(PackageName);
+make_string_str_like!(PackageName, PackageNameSlice);
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct ModuleFlags {

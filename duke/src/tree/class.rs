@@ -1,8 +1,7 @@
-use std::borrow::Cow;
-use anyhow::Result;
 use std::fmt::{Debug, Display, Formatter};
+use anyhow::Result;
 use std::ops::ControlFlow;
-use crate::macros::{from_impl_for_string_and_str, partial_eq_impl_for_str};
+use crate::macros::make_string_str_like;
 use crate::tree::annotation::Annotation;
 use crate::tree::attribute::Attribute;
 use crate::tree::field::Field;
@@ -288,44 +287,54 @@ impl From<ClassAccess> for u16 {
 	}
 }
 
-/// Represents a class name. The class name uses [internal binary names](https://docs.oracle.com/javase/specs/jvms/se22/html/jvms-4.html#jvms-4.2.1),
-/// i.e. with complete path written out and using slashes.
-///
-/// # Examples
-/// The java class `java.lang.Thread` would get:
-/// ```
-/// use duke::tree::class::ClassName;
-/// let java_lang_thread = ClassName::from("java/lang/Thread");
-/// ```
-/// Note that there's an associated constant holding the name of the `java.lang.Object` class:
-/// ```
-/// use duke::tree::class::ClassName;
-/// let java_lang_object = ClassName::JAVA_LANG_OBJECT.clone();
-/// assert_eq!(java_lang_object, ClassName::from("java/lang/Object"));
-/// ```
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct ClassName(Cow<'static, str>);
+// TODO: possibly make a ClassNameSlice<'a> type, that's what &str is to String!
+//  this would remove some allocations of String / some messing around with &str!
+//  for implementing this take a look at OsStr/OsString
+//  ideally we'd put all that in a macro and call it with just "ClassName, ClassNameSlice"
+// TODO: replace uses!
+
+make_string_str_like!(
+	/// Represents a class name. The class name uses [internal binary names](https://docs.oracle.com/javase/specs/jvms/se22/html/jvms-4.html#jvms-4.2.1),
+	/// i.e. with complete path written out and using slashes.
+	///
+	/// # Examples
+	/// The java class `java.lang.Thread` would get:
+	/// ```
+	/// use duke::tree::class::ClassName;
+	/// let java_lang_thread = ClassName::from("java/lang/Thread");
+	/// ```
+	/// Note that there's an associated constant holding the name of the `java.lang.Object` class:
+	/// ```
+	/// use duke::tree::class::ClassName;
+	/// let java_lang_object = ClassName::JAVA_LANG_OBJECT.clone();
+	/// assert_eq!(java_lang_object, ClassName::from("java/lang/Object"));
+	/// ```
+	ClassName,
+	/// A [`ClassName`] slice.
+	ClassNameSlice,
+);
 
 impl ClassName {
 	/// A constant holding the class name of `Object`.
-	pub const JAVA_LANG_OBJECT: &'static ClassName = &ClassName(Cow::Borrowed("java/lang/Object"));
+	pub const JAVA_LANG_OBJECT: &'static ClassNameSlice = ClassNameSlice::from_str("java/lang/Object");
 }
 
 impl Display for ClassName {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.0)
+		Display::fmt(self.as_slice(), f)
+	}
+}
+impl Display for ClassNameSlice {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.as_str())
 	}
 }
 
-from_impl_for_string_and_str!(ClassName);
-partial_eq_impl_for_str!(ClassName);
-
-/// Represents a class signature, from a generic such as `Foo<T extends Bar>`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ClassSignature(Cow<'static, str>);
-
-from_impl_for_string_and_str!(ClassSignature);
-partial_eq_impl_for_str!(ClassSignature);
+make_string_str_like!(
+	/// Represents a class signature, from a generic such as `Foo<T extends Bar>`.
+	ClassSignature,
+	ClassSignatureSlice,
+);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct InnerClass {

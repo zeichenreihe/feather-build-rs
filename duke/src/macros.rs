@@ -1,83 +1,117 @@
 
-/// Assuming a `struct Foo(Cow<'static, str>);`, creates implementations for
-/// - `From<String> for Foo`, `From<&str> for Foo`, and
-/// - `From<Foo> for String`, `From<&'a Foo> for &'a str`, and
-/// - `.as_mut_string(&mut self) -> &mut String`, `.as_str(&self) -> &str` and
-/// - `AsRef<str> for Foo`.
-macro_rules! from_impl_for_string_and_str {
-	($name:ident) => {
-		impl From<String> for $name {
-			fn from(value: String) -> Self {
-				$name(value.into())
+macro_rules! make_string_str_like {
+	(
+		$( #[$owned_doc:meta] )*
+		$owned:ident ,
+		$( #[$borrowed_doc:meta] )*
+		$borrowed:ident $(,)?
+	) => {
+		$( #[$owned_doc] )*
+		#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
+		pub struct $owned(String);
+
+		$( #[$borrowed_doc] )*
+		#[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
+		#[repr(transparent)]
+		pub struct $borrowed(str);
+
+		impl $owned {
+			pub fn as_slice(&self) -> &$borrowed {
+				$borrowed::from_str(&self.0)
 			}
 		}
 
-		impl From<&'static str> for $name {
-			fn from(value: &'static str) -> Self {
-				$name(value.into())
-			}
-		}
-
-		impl From<$name> for String {
-			fn from(value: $name) -> Self {
-				value.0.into_owned()
-			}
-		}
-
-		impl<'a> From<&'a $name> for &'a str {
-			fn from(value: &'a $name) -> Self {
-				&value.0
-			}
-		}
-
-		impl $name {
-			pub fn as_mut_string(&mut self) -> &mut String {
-				self.0.to_mut()
-			}
-
+		impl $borrowed {
 			pub fn as_str(&self) -> &str {
 				&self.0
 			}
+
+			pub const fn from_str<'a>(s: &'a str) -> &'a $borrowed {
+				// SAFETY: &'a $borrowed and &'a str have the same layout.
+				// TODO: give this to other people and ask if it's fine!
+				let s: &'a $borrowed = unsafe { std::mem::transmute(s) };
+				s
+			}
 		}
 
-		impl AsRef<str> for $name {
+		impl AsRef<str> for $borrowed {
 			fn as_ref(&self) -> &str {
 				self.as_str()
 			}
 		}
+
+		impl AsRef<str> for $owned {
+			fn as_ref(&self) -> &str {
+				self.as_str()
+			}
+		}
+
+		impl std::borrow::Borrow<$borrowed> for $owned {
+			fn borrow(&self) -> &$borrowed {
+				self.as_slice()
+			}
+		}
+
+		impl std::ops::Deref for $owned {
+			type Target = $borrowed;
+
+			fn deref(&self) -> &Self::Target {
+				self.as_slice()
+			}
+		}
+
+		impl<'a> From<&'a str> for &'a $borrowed {
+			fn from(value: &'a str) -> Self {
+				$borrowed::from_str(value)
+			}
+		}
+		impl From<String> for $owned {
+			fn from(value: String) -> Self {
+				$owned(value)
+			}
+		}
+		impl From<&str> for $owned {
+			fn from(value: &str) -> Self {
+				$owned(value.to_owned())
+			}
+		}
+
+		impl std::hash::Hash for $owned where $borrowed: std::hash::Hash {
+			fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+				std::hash::Hash::hash(self.as_slice(), state)
+			}
+		}
+
+		// PartialEq between $borrowed and $owned
+		impl PartialEq<$borrowed> for $owned {
+			fn eq(&self, other: &$borrowed) -> bool {
+				self.as_str() == other.as_str()
+			}
+		}
+		impl PartialEq<$owned> for $borrowed {
+			fn eq(&self, other: &$owned) -> bool {
+				self.as_str() == other.as_str()
+			}
+		}
+		impl<'a> PartialEq<&'a $borrowed> for $owned {
+			fn eq(&self, other: &&'a $borrowed) -> bool {
+				self.as_str() == other.as_str()
+			}
+		}
+		impl<'a> PartialEq<$owned> for &'a $borrowed {
+			fn eq(&self, other: &$owned) -> bool {
+				self.as_str() == other.as_str()
+			}
+		}
+
+		impl std::borrow::ToOwned for $borrowed {
+			type Owned = $owned;
+
+			fn to_owned(&self) -> Self::Owned {
+				$owned(self.0.to_owned())
+			}
+		}
 	}
 }
 
-/// Assuming a `struct Foo(Cow<'static, str>);`, creates implementations for
-/// - `PartialEq<&str> for Foo`, `PartialEq<str> for Foo`, and
-/// - `PartialEq<Foo> for &str`, `PartialEq<Foo> for str`.
-macro_rules! partial_eq_impl_for_str {
-	($name:ident) => {
-		impl PartialEq<&str> for $name {
-			fn eq(&self, other: &&str) -> bool {
-				self.0 == *other
-			}
-		}
-
-		impl PartialEq<str> for $name {
-			fn eq(&self, other: &str) -> bool {
-				self.0 == other
-			}
-		}
-
-		impl PartialEq<$name> for &str {
-			fn eq(&self, other: &$name) -> bool {
-				*self == other.0
-			}
-		}
-
-		impl PartialEq<$name> for str {
-			fn eq(&self, other: &$name) -> bool {
-				self == other.0
-			}
-		}
-	}
-}
-
-pub(crate) use from_impl_for_string_and_str;
-pub(crate) use partial_eq_impl_for_str;
+pub(crate) use make_string_str_like;

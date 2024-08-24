@@ -1,10 +1,9 @@
 pub mod code;
 
-use std::borrow::Cow;
 use anyhow::Result;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
-use crate::macros::{from_impl_for_string_and_str, partial_eq_impl_for_str};
+use crate::macros::make_string_str_like;
 use crate::tree::annotation::{Annotation, ElementValue};
 use crate::tree::attribute::Attribute;
 use crate::tree::class::ClassName;
@@ -230,29 +229,22 @@ pub struct MethodNameAndDesc {
 	pub desc: MethodDescriptor,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct MethodName(Cow<'static, str>);
+make_string_str_like!(MethodName, MethodNameSlice);
 
 impl Display for MethodName {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.0)
+		Display::fmt(self.as_slice(), f)
+	}
+}
+impl Display for MethodNameSlice {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.as_str())
 	}
 }
 
-from_impl_for_string_and_str!(MethodName);
-partial_eq_impl_for_str!(MethodName);
+make_string_str_like!(MethodDescriptor, MethodDescriptorSlice);
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct MethodDescriptor(Cow<'static, str>);
-
-from_impl_for_string_and_str!(MethodDescriptor);
-partial_eq_impl_for_str!(MethodDescriptor);
-
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct MethodSignature(Cow<'static, str>);
-
-from_impl_for_string_and_str!(MethodSignature);
-partial_eq_impl_for_str!(MethodSignature);
+make_string_str_like!(MethodSignature, MethodSignatureSlice);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MethodParameter {
@@ -260,11 +252,7 @@ pub struct MethodParameter {
 	pub flags: ParameterFlags,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct ParameterName(Cow<'static, str>);
-
-from_impl_for_string_and_str!(ParameterName);
-partial_eq_impl_for_str!(ParameterName);
+make_string_str_like!(ParameterName, ParameterNameSlice);
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct ParameterFlags {

@@ -210,7 +210,7 @@ impl FieldDescriptor {
 	/// );
 	/// assert_eq!(
 	///     FieldDescriptor::from("Ljava/lang/Object;").parse().unwrap(),
-	///     ParsedFieldDescriptor(Type::Object(ClassName::JAVA_LANG_OBJECT.clone()))
+	///     ParsedFieldDescriptor(Type::Object(ClassName::JAVA_LANG_OBJECT.to_owned()))
 	/// );
 	/// assert_eq!(
 	///     FieldDescriptor::from("[[[D").parse().unwrap(),
@@ -251,7 +251,7 @@ impl ParsedFieldDescriptor {
 	///     FieldDescriptor::from("I")
 	/// );
 	/// assert_eq!(
-	///     ParsedFieldDescriptor(Type::Object(ClassName::JAVA_LANG_OBJECT.clone())).write(),
+	///     ParsedFieldDescriptor(Type::Object(ClassName::JAVA_LANG_OBJECT.to_owned())).write(),
 	///     FieldDescriptor::from("Ljava/lang/Object;")
 	/// );
 	/// assert_eq!(

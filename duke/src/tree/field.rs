@@ -1,8 +1,7 @@
-use std::borrow::Cow;
 use anyhow::Result;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
-use crate::macros::{from_impl_for_string_and_str, partial_eq_impl_for_str};
+use crate::macros::make_string_str_like;
 use crate::tree::annotation::Annotation;
 use crate::tree::attribute::Attribute;
 use crate::tree::class::ClassName;
@@ -187,29 +186,22 @@ pub struct FieldNameAndDesc {
 	pub desc: FieldDescriptor,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct FieldName(Cow<'static, str>);
+make_string_str_like!(FieldName, FieldNameSlice);
 
 impl Display for FieldName {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.0)
+		Display::fmt(self.as_slice(), f)
+	}
+}
+impl Display for FieldNameSlice {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.as_str())
 	}
 }
 
-from_impl_for_string_and_str!(FieldName);
-partial_eq_impl_for_str!(FieldName);
+make_string_str_like!(FieldDescriptor, FieldDescriptorSlice);
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct FieldDescriptor(Cow<'static, str>);
-
-from_impl_for_string_and_str!(FieldDescriptor);
-partial_eq_impl_for_str!(FieldDescriptor);
-
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct FieldSignature(Cow<'static, str>);
-
-from_impl_for_string_and_str!(FieldSignature);
-partial_eq_impl_for_str!(FieldSignature);
+make_string_str_like!(FieldSignature, FieldSignatureSlice);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConstantValue {

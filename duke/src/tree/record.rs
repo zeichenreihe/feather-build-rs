@@ -1,8 +1,7 @@
-use std::borrow::Cow;
 use anyhow::Result;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
-use crate::macros::{from_impl_for_string_and_str, partial_eq_impl_for_str};
+use crate::macros::make_string_str_like;
 use crate::tree::annotation::Annotation;
 use crate::tree::attribute::Attribute;
 use crate::tree::field::{FieldDescriptor, FieldSignature};
@@ -98,16 +97,16 @@ impl RecordComponent {
 	}
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct RecordName(Cow<'static, str>);
+make_string_str_like!(RecordName, RecordNameSlice);
 
 impl Display for RecordName {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.0)
+		Display::fmt(self.as_slice(), f)
 	}
 }
-
-from_impl_for_string_and_str!(RecordName);
-partial_eq_impl_for_str!(RecordName);
-
+impl Display for RecordNameSlice {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.as_str())
+	}
+}
 
