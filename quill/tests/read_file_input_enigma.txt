@@ -1,0 +1,42 @@
+CLASS classA1 classB1
+# this is a comment, the next line should also be ignored
+
+# only name in namespace 1
+CLASS classA2 # comments at line end
+	FIELD name1A I
+# lines without indent
+
+	FIELD name2A I ACC:something
+	FIELD name3A name3B I
+		COMMENT A field comment.
+		COMMENT Second line.
+	FIELD name4A name4B I ACC:again
+
+	# once again that was an empty line and should not error
+
+	# try a tabs/spaces mix
+	METHOD	name1A	()V
+	METHOD	name2A ()V ACC:1234
+	METHOD name3A	name3B ()V
+	METHOD name4A name4B (IFLclassA1;)V ACC:public?
+		# now to parameters, but first an empty line
+
+		ARG 0 argNameB0
+			COMMENT A parameter comment.
+			COMMENT Second
+			COMMENT and third line.
+		ARG 1 argNameB1
+
+		# empty line again
+		COMMENT A method comment!
+	COMMENT A class comment.
+CLASS classA3 ACC:whatever classB3 # ACC: is ignored
+CLASS classA4 classB4 ACC:something
+CLASS classA5 classB5
+	# inner classes are supported...
+	CLASS classA5Inner1 classB5Inner1
+		CLASS classA5Inner1Inner classB5Inner1Inner
+	CLASS classA5Inner2 classB5Inner2
+		# and a final comment
+		CLASS classA5Inner2Inner1 classB5Inner2Inner1
+		CLASS classA5Inner2Inner2 classB5Inner2Inner2

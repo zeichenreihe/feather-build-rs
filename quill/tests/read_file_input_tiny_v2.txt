@@ -1,0 +1,14 @@
+tiny	2	0	namespaceA	namespaceB
+c	classA1	
+c	classA2	classB2
+	f	I	a1	
+	f	I	a2	b2
+		c	A field comment
+	m	()I	a3	
+	m	(III)V	a4	b4
+		p	0	a1	
+		p	1		b2
+		p	2	a3	b3
+			c	A parameter comment
+		c	A method comment
+	c	A class comment

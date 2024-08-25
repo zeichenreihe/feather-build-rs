@@ -1,3 +1,4 @@
+// TODO: module doc
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -18,18 +19,56 @@ const METHOD: &str = "METHOD";
 const PARAMETER: &str = "ARG";
 const COMMENT: &str = "COMMENT";
 
-pub(crate) fn read_file_into(path: impl AsRef<Path>, mappings: &mut Mappings<2>) -> Result<()> {
+/// Reads a enigma `.mapping` file, by opening the file given by the path.
+///
+/// This appends into the mappings.
+///
+/// Since the enigma format doesn't store namespaces, you need to give these to your mappings beforehand.
+///
+/// ```
+/// # use pretty_assertions::assert_eq;
+/// use std::path::Path;
+/// use quill::tree::mappings::Mappings;
+///
+/// let path = Path::new("tests/read_file_input_enigma.txt");
+/// let mut mappings = Mappings::from_namespaces(["namespaceA", "namespaceB"]).unwrap();
+/// quill::enigma_file::read_file_into(path, &mut mappings).unwrap();
+///
+/// assert_eq!(mappings.classes.len(), 10);
+/// ```
+pub fn read_file_into(path: impl AsRef<Path>, mappings: &mut Mappings<2>) -> Result<()> {
 	read_into(File::open(&path)?, mappings)
 		.with_context(|| anyhow!("failed to read mappings file {:?} as enigma file", path.as_ref()))
 }
 
-pub(crate) fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
+#[allow(clippy::tabs_in_doc_comments)]
+/// Reads the enigma format, from the given reader, appending into the mappings.
+///
+/// Since the enigma format doesn't store namespaces, you need to give these to your mappings beforehand.
+///
+/// ```
+/// # use pretty_assertions::assert_eq;
+/// use quill::tree::mappings::Mappings;
+/// let string = "\
+/// CLASS	A	B
+/// 	FIELD a	b
+/// 	METHOD	a	b	(LA;)V
+/// ";
+///
+/// let reader = &mut string.as_bytes();
+/// let mut mappings = Mappings::from_namespaces(["namespaceA", "namespaceB"]).unwrap();
+/// quill::enigma_file::read_into(reader, &mut mappings).unwrap();
+///
+/// assert_eq!(mappings.classes.len(), 1);
+/// ```
+pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
 	let mut lines = BufReader::new(reader)
 		.lines()
 		.enumerate()
-		.map(|(line_number, line)| -> Result<EnigmaLine> {
+		.map(|(line_number, line)| -> Result<Option<EnigmaLine>> {
 			EnigmaLine::new(line_number + 1, &line?)
 		})
+		.filter_map(|x| x.transpose())
 		.peekable();
 
 	WithMoreIdentIter::new(&mut lines).on_every_line(|iter, line| {
@@ -153,7 +192,7 @@ fn insert_comment(javadoc: &mut Option<JavadocMapping>, line: EnigmaLine) -> Res
 	let string = line.fields.join(" ");
 
 	if let Some(javadoc) = javadoc {
-		javadoc.0.push_str("\\n");
+		javadoc.0.push('\n');
 		javadoc.0.push_str(&string);
 	} else {
 		*javadoc = Some(JavadocMapping(string));
@@ -174,7 +213,7 @@ mod enigma_line {
 	}
 
 	impl EnigmaLine {
-		pub(crate) fn new(line_number: usize, line: &str) -> Result<EnigmaLine> {
+		pub(crate) fn new(line_number: usize, line: &str) -> Result<Option<EnigmaLine>> {
 			let idents = line.chars().take_while(|x| *x == '\t').count();
 			// TODO: there was some other code (related to inner classes?) that did this better!
 			//  we may not use the count to index strings!, we must use the char_indices!
@@ -184,10 +223,14 @@ mod enigma_line {
 			let line = if line.starts_with(crate::enigma_file::COMMENT) {
 				line
 			} else if let Some((non_comment, _)) = line.split_once('#') {
-				non_comment
+				non_comment.trim()
 			} else {
-				line
+				line.trim()
 			};
+
+			if line.is_empty() {
+				return Ok(None);
+			}
 
 			const JAVA_WHITESPACE: [char; 6] = [' ', '\t', '\n', '\x0b', '\x0c', '\x0d'];
 			let mut fields = line.split(JAVA_WHITESPACE).map(|x| x.to_owned());
@@ -195,12 +238,12 @@ mod enigma_line {
 			let first_field = fields.next()
 				.with_context(|| anyhow!("no first field in line {line_number}"))?;
 
-			Ok(EnigmaLine {
+			Ok(Some(EnigmaLine {
 				line_number,
 				idents,
 				first_field,
 				fields: fields.collect(),
-			})
+			}))
 		}
 	}
 
@@ -334,23 +377,151 @@ fn figure_out_files(mappings: &Mappings<2>) -> Placement<'_> {
 	Placement { file_map, child_map }
 }
 
-
-pub(crate) fn write_all(mappings: &Mappings<2>, w: &mut impl Write) -> Result<()> {
+#[allow(clippy::tabs_in_doc_comments)]
+/// Writes the complete mappings in the enigma format to the given writer.
+///
+/// Note that the enigma format usually splits the files based on the class names of the second namespace.
+/// For writing them like that see TODO.
+///
+/// This method also adds in a small comment for each file that would've been generated
+/// with the other write.
+///
+/// Note that this sorts the classes, fields, methods and parameters.
+/// ```
+/// # use pretty_assertions::assert_eq;
+/// use quill::tree::mappings::Mappings;
+/// let input = "\
+/// CLASS D E
+/// CLASS A B
+/// 	FIELD bIsAfterA e I
+/// 	FIELD bIsAfterAa d I
+/// 	FIELD bIsAfterA e J
+/// 	FIELD bIsAfterAa d J
+/// 	METHOD methodA methodASecondName ()V
+/// 	FIELD aIsBeforeB c I
+/// 	CLASS C AnInnerClass
+/// 		COMMENT A multiline
+/// 		COMMENT comment.
+/// 	METHOD methodB methodBSecondName ()
+/// 	METHOD methodXa b (I)V
+/// 	METHOD methodXb a (I)V
+/// 	METHOD methodYa a (I)V
+/// 	METHOD methodXa b (J)V
+/// 	METHOD methodXb b (J)V
+/// ";
+///
+/// let reader = &mut input.as_bytes();
+/// let mut mappings = Mappings::from_namespaces(["namespaceA", "namespaceB"]).unwrap();
+/// quill::enigma_file::read_into(reader, &mut mappings).unwrap();
+///
+/// let mut vec = Vec::new();
+/// quill::enigma_file::write_all(&mappings, &mut vec).unwrap();
+/// let written = String::from_utf8(vec).unwrap();
+///
+/// let output = "#\n# B
+/// CLASS A B
+/// 	FIELD aIsBeforeB c I
+/// 	FIELD bIsAfterA e I
+/// 	FIELD bIsAfterA e J
+/// 	FIELD bIsAfterAa d I
+/// 	FIELD bIsAfterAa d J
+/// 	METHOD methodA methodASecondName ()V
+/// 	METHOD methodB methodBSecondName ()
+/// 	METHOD methodXa b (I)V
+/// 	METHOD methodXa b (J)V
+/// 	METHOD methodXb a (I)V
+/// 	METHOD methodXb b (J)V
+/// 	METHOD methodYa a (I)V
+/// 	CLASS C AnInnerClass
+/// 		COMMENT A multiline
+/// 		COMMENT comment.\n#\n# E
+/// CLASS D E
+/// ";
+///
+/// assert_eq!(written, output);
+/// ```
+pub fn write_all(mappings: &Mappings<2>, w: &mut impl Write) -> Result<()> {
 	let f = figure_out_files(mappings);
+	let mut file_map = f.file_map;
+	let child_map = f.child_map;
 
-	for (file_name, &node) in &f.file_map {
-		writeln!(w, "# {file_name}")?; // TODO: not legal...
-		write_one_tree_starting_at(node, &f.child_map, w)?;
+	file_map.sort_unstable_keys();
+
+	for (file_name, node) in file_map {
+		writeln!(w, "#\n# {file_name}")?;
+		write_one_tree_starting_at(node, &child_map, w)?;
 	}
 
 	Ok(())
 }
 
-pub(crate) fn write_one(mappings: &Mappings<2>, class_name: &str, w: &mut impl Write) -> Result<()> {
+#[allow(clippy::tabs_in_doc_comments)]
+/// Writes one class in the enigma format to the given writer.
+///
+/// Note that "one class" includes all the inner classes of that class.
+///
+/// This is the single file version of the multi-file enigma format. The class name you supply is for the
+/// second namespace, and is usually used to build the file names.
+///
+/// Note that this sorts the classes, fields, methods and parameters.
+/// ```
+/// # use pretty_assertions::assert_eq;
+/// use quill::tree::mappings::Mappings;
+/// let input = "\
+/// CLASS D E
+/// CLASS A B
+/// 	FIELD bIsAfterA e I
+/// 	FIELD bIsAfterAa d I
+/// 	FIELD bIsAfterA e J
+/// 	FIELD bIsAfterAa d J
+/// 	METHOD methodA methodASecondName ()V
+/// 	FIELD aIsBeforeB c I
+/// 	CLASS C AnInnerClass
+/// 		COMMENT A multiline
+/// 		COMMENT comment.
+/// 	METHOD methodB methodBSecondName ()
+/// 	METHOD methodXa b (I)V
+/// 	METHOD methodXb a (I)V
+/// 	METHOD methodYa a (I)V
+/// 	METHOD methodXa b (J)V
+/// 	METHOD methodXb b (J)V
+/// ";
+///
+/// let reader = &mut input.as_bytes();
+/// let mut mappings = Mappings::from_namespaces(["namespaceA", "namespaceB"]).unwrap();
+/// quill::enigma_file::read_into(reader, &mut mappings).unwrap();
+///
+/// let mut vec = Vec::new();
+/// quill::enigma_file::write_one(&mappings, "B", &mut vec).unwrap();
+/// let written = String::from_utf8(vec).unwrap();
+///
+/// let output = "\
+/// CLASS A B
+/// 	FIELD aIsBeforeB c I
+/// 	FIELD bIsAfterA e I
+/// 	FIELD bIsAfterA e J
+/// 	FIELD bIsAfterAa d I
+/// 	FIELD bIsAfterAa d J
+/// 	METHOD methodA methodASecondName ()V
+/// 	METHOD methodB methodBSecondName ()
+/// 	METHOD methodXa b (I)V
+/// 	METHOD methodXa b (J)V
+/// 	METHOD methodXb a (I)V
+/// 	METHOD methodXb b (J)V
+/// 	METHOD methodYa a (I)V
+/// 	CLASS C AnInnerClass
+/// 		COMMENT A multiline
+/// 		COMMENT comment.
+/// ";
+///
+/// assert_eq!(written, output);
+/// ```
+/// Note how the [`write_one`] call up there gets `"B"` and not `"A"`.
+pub fn write_one(mappings: &Mappings<2>, dst_class_name: &str, w: &mut impl Write) -> Result<()> {
 	let f = figure_out_files(mappings);
 
-	let Some(&node) = f.file_map.get(class_name) else {
-		bail!("class {class_name:?} (dst name) isn't parent-free");
+	let Some(&node) = f.file_map.get(dst_class_name) else {
+		bail!("class {dst_class_name:?} (dst name) isn't parent-free");
 	};
 
 	write_one_tree_starting_at(node, &f.child_map, w)
@@ -374,5 +545,3 @@ fn write_one_tree_starting_at(
 
 	Ok(())
 }
-
-// TODO: tests

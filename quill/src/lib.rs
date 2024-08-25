@@ -11,7 +11,7 @@ pub mod tiny_v2;
 pub mod tiny_v2_diff;
 
 pub mod enigma_dir;
-mod enigma_file;
+pub mod enigma_file;
 
 pub mod tree;
 mod action;

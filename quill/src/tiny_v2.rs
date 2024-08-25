@@ -31,13 +31,15 @@ use crate::tree::NodeInfo;
 /// See [`Namespaces::check_that`] for more info.
 ///
 /// ```
+/// # use pretty_assertions::assert_eq;
 /// use std::path::Path;
 /// use quill::tree::mappings::Mappings;
 ///
-/// let path = Path::new("tests/remap_input.tiny");
+/// let path = Path::new("tests/read_file_input_tiny_v2.txt");
 /// let mappings: Mappings<2> = quill::tiny_v2::read_file(path).unwrap();
 ///
 /// mappings.info.namespaces.check_that(["namespaceA", "namespaceB"]).unwrap();
+/// assert_eq!(mappings.classes.len(), 2);
 /// ```
 pub fn read_file<const N: usize>(path: impl AsRef<Path>) -> Result<Mappings<N>> {
 	read(File::open(&path)?)
@@ -51,6 +53,7 @@ pub fn read_file<const N: usize>(path: impl AsRef<Path>) -> Result<Mappings<N>> 
 /// See [`Namespaces::check_that`] for more info.
 ///
 /// ```
+/// # use pretty_assertions::assert_eq;
 /// use quill::tree::mappings::Mappings;
 /// let string = "\
 /// tiny	2	0	namespaceA	namespaceB	namespaceC
@@ -63,6 +66,7 @@ pub fn read_file<const N: usize>(path: impl AsRef<Path>) -> Result<Mappings<N>> 
 /// let mappings: Mappings<3> = quill::tiny_v2::read(reader).unwrap();
 ///
 /// mappings.info.namespaces.check_that(["namespaceA", "namespaceB", "namespaceC"]).unwrap();
+/// assert_eq!(mappings.classes.len(), 1);
 /// ```
 pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 	if N < 2 {
@@ -172,85 +176,20 @@ fn add_comment(javadoc: &mut Option<JavadocMapping>, line: TinyLine) -> Result<(
 ///
 /// If the mapping somehow produces invalid UTF-8, then this method fails.
 ///
-/// Note that this currently sorts the classes, fields, methods and parameters.
-///
-/// The example from the [`write`][fn@write] method could look like this:
-/// ```
-/// # use pretty_assertions::assert_eq;
-/// use quill::tree::mappings::Mappings;
-/// let input = "\
-/// tiny	2	0	namespaceA	namespaceB
-/// c	D	E
-/// c	A	B
-/// 	f	I	bIsAfterA	d
-/// 	m	()V	methodB	methodBSecondName
-/// 	f	I	aIsBeforeB	c
-/// 	m	()V	methodA	methodASecondName
-/// ";
-///
-/// let reader = &mut input.as_bytes();
-/// let mappings: Mappings<2> = quill::tiny_v2::read(reader).unwrap();
-///
-/// let written = quill::tiny_v2::write_string(&mappings).unwrap();
-///
-/// let output = "\
-/// tiny	2	0	namespaceA	namespaceB
-/// c	A	B
-/// 	f	I	aIsBeforeB	c
-/// 	f	I	bIsAfterA	d
-/// 	m	()V	methodA	methodASecondName
-/// 	m	()V	methodB	methodBSecondName
-/// c	D	E
-/// ";
-///
-/// assert_eq!(written, output);
-/// ```
+/// This is equivalent to first calling [`write_vec`] and then [`String::from_utf8`].
 ///
 /// This method is of most use in test cases, where you also use the `pretty_assertions` crate for viewing string diffs.
 pub fn write_string<const N: usize>(mappings: &Mappings<N>) -> Result<String> {
 	let vec = write_vec(mappings)?;
-	String::from_utf8(vec).context("failed to convert file to utf8")
+	String::from_utf8(vec).context("failed to convert written mappings to utf8")
 }
 
 #[allow(clippy::tabs_in_doc_comments)]
 /// Writes the given mappings into a `Vec<u8>`, in the tiny v2 format.
 ///
-/// Note that this currently sorts the classes, fields, methods and parameters.
+/// This is equivalent to letting [`write`][fn@write] write into a `Vec<u8>`.
 ///
-/// The example from the [`write`][fn@write] method could look like this:
-/// ```
-/// # use pretty_assertions::assert_eq;
-/// use quill::tree::mappings::Mappings;
-/// let input = "\
-/// tiny	2	0	namespaceA	namespaceB
-/// c	D	E
-/// c	A	B
-/// 	f	I	bIsAfterA	d
-/// 	m	()V	methodB	methodBSecondName
-/// 	f	I	aIsBeforeB	c
-/// 	m	()V	methodA	methodASecondName
-/// ";
-///
-/// let reader = &mut input.as_bytes();
-/// let mappings: Mappings<2> = quill::tiny_v2::read(reader).unwrap();
-///
-/// let buf = quill::tiny_v2::write_vec(&mappings).unwrap();
-/// let written = String::from_utf8(buf).unwrap();
-///
-/// let output = "\
-/// tiny	2	0	namespaceA	namespaceB
-/// c	A	B
-/// 	f	I	aIsBeforeB	c
-/// 	f	I	bIsAfterA	d
-/// 	m	()V	methodA	methodASecondName
-/// 	m	()V	methodB	methodBSecondName
-/// c	D	E
-/// ";
-///
-/// assert_eq!(written, output);
-/// ```
-///
-/// Note that there's also the helper method [`write_string`] that also tries to convert that `Vec<u8>` into a `String`.
+/// Note that there's also the helper method [`write_string`] that also tries to convert the `Vec<u8>` into a `String`.
 pub fn write_vec<const N: usize>(mappings: &Mappings<N>) -> Result<Vec<u8>> {
 	let mut vec = Vec::new();
 	write(mappings, &mut vec)?;
@@ -286,10 +225,18 @@ fn write_names<const N: usize>(w: &mut impl Write, names: &Names<N, impl AsRef<s
 /// tiny	2	0	namespaceA	namespaceB
 /// c	D	E
 /// c	A	B
-/// 	f	I	bIsAfterA	d
+/// 	f	I	bIsAfterA	e
+/// 	f	I	bIsAfterAa	d
+/// 	f	J	bIsAfterA	e
+/// 	f	J	bIsAfterAa	d
 /// 	m	()V	methodB	methodBSecondName
 /// 	f	I	aIsBeforeB	c
 /// 	m	()V	methodA	methodASecondName
+/// 	m	(I)V	methodXb	a
+/// 	m	(I)V	methodXa	b
+/// 	m	(I)V	methodYa	a
+/// 	m	(J)V	methodXb	a
+/// 	m	(J)V	methodXa	b
 /// ";
 ///
 /// let reader = &mut input.as_bytes();
@@ -303,9 +250,17 @@ fn write_names<const N: usize>(w: &mut impl Write, names: &Names<N, impl AsRef<s
 /// tiny	2	0	namespaceA	namespaceB
 /// c	A	B
 /// 	f	I	aIsBeforeB	c
-/// 	f	I	bIsAfterA	d
+/// 	f	I	bIsAfterA	e
+/// 	f	I	bIsAfterAa	d
+/// 	f	J	bIsAfterA	e
+/// 	f	J	bIsAfterAa	d
 /// 	m	()V	methodA	methodASecondName
 /// 	m	()V	methodB	methodBSecondName
+/// 	m	(I)V	methodXa	b
+/// 	m	(I)V	methodXb	a
+/// 	m	(I)V	methodYa	a
+/// 	m	(J)V	methodXa	b
+/// 	m	(J)V	methodXb	a
 /// c	D	E
 /// ";
 ///

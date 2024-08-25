@@ -49,6 +49,11 @@ impl<const N: usize> NodeInfo<MappingInfo<N>> for Mappings<N> {
 }
 
 impl<const N: usize> Mappings<N> {
+	pub fn from_namespaces(namespaces: [&str; N]) -> Result<Mappings<N>> {
+		Namespaces::try_from(namespaces.map(|x| x.to_owned()))
+			.map(|namespaces| Mappings::new(MappingInfo { namespaces }))
+	}
+
 	pub(crate) fn add_class(&mut self, child: ClassNowodeMapping<N>) -> Result<&mut ClassNowodeMapping<N>> {
 		add_child(&mut self.classes, child)
 			.with_context(|| anyhow!("failed to add class to mappings {:?}", self.info))
