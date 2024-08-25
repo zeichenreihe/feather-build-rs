@@ -192,8 +192,9 @@ async fn main() -> Result<()> {
             Ok(())
         },
         Command::Feather { version } => {
-            let java_launcher = dukelaunch::JavaLauncher::from_env_var();
-            let java_launcher = dukelaunch::JavaLauncher::new("/usr/lib/jvm/java-17-openjdk/bin/java".to_owned());
+            let java_launcher = dukelaunch::JavaLauncher::from_env_var()
+                //.unwrap_or_default();
+                .unwrap_or_else(|| dukelaunch::JavaLauncher::new("/usr/lib/jvm/java-17-openjdk/bin/java"));
 
             java_launcher.check_java_version(17)
                 .with_context(|| anyhow!("feathers buildscript requires java 17 or higher"))?;

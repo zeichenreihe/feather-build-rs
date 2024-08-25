@@ -19,26 +19,34 @@ pub struct JavaRunConfig {
 
 #[derive(Debug)]
 pub(crate) struct JavaLauncher {
-	java_command: String,
+	java_command: OsString,
+}
+
+impl Default for JavaLauncher {
+	fn default() -> Self {
+		JavaLauncher { java_command: "java".into() }
+	}
 }
 
 impl JavaLauncher {
-	pub(crate) fn new(java_command: String) -> JavaLauncher {
-		JavaLauncher { java_command }
+	pub(crate) fn new(java_command: &(impl AsRef<OsStr> + ?Sized)) -> JavaLauncher {
+		JavaLauncher { java_command: OsString::from(java_command) }
 	}
 
-	pub(crate) fn from_env_var() -> JavaLauncher {
+	pub(crate) fn from_env_var() -> Option<JavaLauncher> {
 		const JAVA_HOME: &str = "JAVA_HOME";
 
-		let java_command = if let Ok(java_home) = std::env::var(JAVA_HOME) {
-			format!("{java_home}/bin/java")
-		} else {
-			"java".to_owned()
-		};
+		match std::env::var_os(JAVA_HOME) {
+			Some(mut java_home) => {
+				java_home.push("/bin/java");
+				let java_command = java_home;
 
-		trace!("located java as {java_command:?}");
+				trace!("located java via env var as {java_command:?}");
 
-		JavaLauncher { java_command }
+				Some(JavaLauncher { java_command })
+			},
+			None => None,
+		}
 	}
 
 	/// Returns `Err(_)` if the java doesn't satisfy the given version.
