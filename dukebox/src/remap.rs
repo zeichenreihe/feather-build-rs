@@ -66,6 +66,11 @@ impl<T, U> Mappable<Option<U>> for Option<T> where T: Mappable<U> {
 		self.map(|x| x.remap(remapper)).transpose()
 	}
 }
+impl<T, U> MappableWithClassName<Option<U>> for Option<T> where T: MappableWithClassName<U> {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Option<U>> {
+		self.map(|x| x.remap_with_class_name(remapper, this_class)).transpose()
+	}
+}
 
 impl<T, U> Mappable<Vec<U>> for Vec<T> where T: Mappable<U> {
 	fn remap(self, remapper: &impl BRemapper) -> Result<Vec<U>> {
@@ -213,7 +218,7 @@ impl MappableWithClassName for Method {
 			has_deprecated_attribute: self.has_deprecated_attribute,
 			has_synthetic_attribute: self.has_synthetic_attribute,
 
-			code: self.code.remap(remapper)?,
+			code: self.code.remap_with_class_name(remapper, this_class)?,
 			exceptions: self.exceptions.remap(remapper)?,
 			signature: self.signature.remap(remapper)?,
 
@@ -301,13 +306,13 @@ impl Mappable for ElementValue {
 	}
 }
 
-impl Mappable for Code {
-	fn remap(self, remapper: &impl BRemapper) -> Result<Self> {
+impl MappableWithClassName for Code {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Self> {
 		Ok(Code {
 			max_stack: self.max_stack,
 			max_locals: self.max_locals,
 
-			instructions: self.instructions.remap(remapper)?,
+			instructions: self.instructions.remap_with_class_name(remapper, this_class)?,
 			exception_table: self.exception_table.remap(remapper)?,
 			last_label: self.last_label,
 
@@ -322,12 +327,12 @@ impl Mappable for Code {
 	}
 }
 
-impl Mappable for InstructionListEntry {
-	fn remap(self, remapper: &impl BRemapper) -> Result<Self> {
+impl MappableWithClassName for InstructionListEntry {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Self> {
 		Ok(InstructionListEntry {
 			label: self.label,
 			frame: self.frame.remap(remapper)?,
-			instruction: self.instruction.remap(remapper)?,
+			instruction: self.instruction.remap_with_class_name(remapper, this_class)?,
 		})
 	}
 }
@@ -369,8 +374,8 @@ impl Mappable for VerificationTypeInfo {
 	}
 }
 
-impl Mappable for Instruction {
-	fn remap(self, remapper: &impl BRemapper) -> Result<Self> {
+impl MappableWithClassName for Instruction {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Self> {
 		use Instruction::*;
 		Ok(match self {
 			Nop |
@@ -381,7 +386,7 @@ impl Mappable for Instruction {
 			DConst0 | DConst1 |
 			BiPush(_) |
 			SiPush(_) => self,
-			Ldc(loadable) => Ldc(loadable.remap(remapper)?),
+			Ldc(loadable) => Ldc(loadable.remap_with_class_name(remapper, this_class)?),
 			ILoad(_) | LLoad(_) | FLoad(_) | DLoad(_) | ALoad(_) |
 			IALoad | LALoad | FALoad | DALoad | AALoad | BALoad | CALoad | SALoad |
 			IStore(_) | LStore(_) | FStore(_) | DStore(_) | AStore(_) |
@@ -429,10 +434,11 @@ impl Mappable for Instruction {
 			InvokeSpecial(method_ref, is_interface) => InvokeSpecial(method_ref.remap(remapper)?, is_interface),
 			InvokeStatic(method_ref, is_interface) => InvokeStatic(method_ref.remap(remapper)?, is_interface),
 			InvokeInterface(method_ref) => InvokeInterface(method_ref.remap(remapper)?),
-			InvokeDynamic(invoke_dynamic) => InvokeDynamic(invoke_dynamic.remap(remapper)?),
+			InvokeDynamic(invoke_dynamic) => InvokeDynamic(invoke_dynamic.remap_with_class_name(remapper, this_class)?),
 			New(class_name) => New(class_name.remap(remapper)?),
 			NewArray(_) => self,
 			// TODO: the array operations need some checking -> possibly new method for remapping array class names?
+			//  explanation: array "class names" are weird and start with [ and are like descriptors...
 			ANewArray(class_name) => ANewArray(class_name.remap(remapper)?),
 			ArrayLength |
 			AThrow => self,
@@ -445,8 +451,8 @@ impl Mappable for Instruction {
 	}
 }
 
-impl Mappable for Loadable {
-	fn remap(self, remapper: &impl BRemapper) -> Result<Self> {
+impl MappableWithClassName for Loadable {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Self> {
 		use Loadable::*;
 		Ok(match self {
 			Integer(_) | Float(_) | Long(_) | Double(_) => self,
@@ -454,29 +460,47 @@ impl Mappable for Loadable {
 			String(string) => String(string),
 			MethodHandle(handle) => MethodHandle(handle.remap(remapper)?),
 			MethodType(desc) => MethodType(desc.remap(remapper)?),
-			Dynamic(constant_dynamic) => Dynamic(constant_dynamic.remap(remapper)?),
+			Dynamic(constant_dynamic) => Dynamic(constant_dynamic.remap_with_class_name(remapper, this_class)?),
 		})
 	}
 }
 
-// TODO: I think some of these need the current class name to be properly remapped...
-//  so convert them to the MappableWithClassName trait
-
 impl Mappable for Handle {
 	fn remap(self, remapper: &impl BRemapper) -> Result<Self> {
-		todo!()
+		use Handle::*;
+		Ok(match self {
+			GetField(field_ref) => GetField(field_ref.remap(remapper)?),
+			GetStatic(field_ref) => GetStatic(field_ref.remap(remapper)?),
+			PutField(field_ref) => PutField(field_ref.remap(remapper)?),
+			PutStatic(field_ref) => PutStatic(field_ref.remap(remapper)?),
+			InvokeVirtual(method_ref) => InvokeVirtual(method_ref.remap(remapper)?),
+			InvokeStatic(method_ref, is_interface) => InvokeStatic(method_ref.remap(remapper)?, is_interface),
+			InvokeSpecial(method_ref, is_interface) => InvokeSpecial(method_ref.remap(remapper)?, is_interface),
+			NewInvokeSpecial(method_ref) => NewInvokeSpecial(method_ref.remap(remapper)?),
+			InvokeInterface(method_ref) => InvokeInterface(method_ref.remap(remapper)?),
+		})
 	}
 }
 
-impl Mappable for ConstantDynamic {
-	fn remap(self, remapper: &impl BRemapper) -> Result<Self> {
-		todo!()
+impl MappableWithClassName for ConstantDynamic {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Self> {
+		Ok(ConstantDynamic {
+			name: self.name, // TODO: remap
+			descriptor: self.descriptor, // TODO: remap
+			handle: self.handle.remap(remapper)?,
+			arguments: self.arguments.remap_with_class_name(remapper, this_class)?,
+		})
 	}
 }
 
-impl Mappable for InvokeDynamic {
-	fn remap(self, remapper: &impl BRemapper) -> Result<Self> {
-		todo!()
+impl MappableWithClassName for InvokeDynamic {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Self> {
+		Ok(InvokeDynamic {
+			name: self.name, // TODO: remap
+			descriptor: self.descriptor, // TODO: remap
+			handle: self.handle.remap(remapper)?,
+			arguments: self.arguments.remap_with_class_name(remapper, this_class)?,
+		})
 	}
 }
 
