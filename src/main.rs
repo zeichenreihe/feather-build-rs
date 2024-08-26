@@ -89,7 +89,8 @@ async fn main() -> Result<()> {
 
     let working_mappings_dir = |working_mappings_base_dir: Option<PathBuf>, version: &Version| -> PathBuf {
         // TODO: better default
-        let mut x = working_mappings_base_dir.unwrap_or_else(|| "mappings/run/".into());
+        //let mut x = working_mappings_base_dir.unwrap_or_else(|| "mappings/run/".into());
+        let mut x = working_mappings_base_dir.unwrap_or_else(|| "/tmp/mappings_run/".into());
         x.push(version.as_str());
         x
     };
@@ -299,11 +300,7 @@ async fn main() -> Result<()> {
 
                 let mappings = mappings.remove_dummy("named")?;
 
-                fn f() -> PathBuf {
-                    // quill::enigma_dir::write(&working_mappings_dir, mappings)?;
-                    todo!("write mappings to a path")
-                }
-                f();
+                quill::enigma_dir::write(&mappings, &working_mappings_dir)?;
 
                 working_mappings_dir
             };
