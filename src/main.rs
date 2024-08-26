@@ -11,8 +11,7 @@ use dukenest::{NesterOptions, Nests};
 use maven_dependency_resolver::coord::MavenCoord;
 use maven_dependency_resolver::{DependencyScope, FoundDependency};
 use maven_dependency_resolver::resolver::Resolver;
-use quill::remapper::NoSuperClassProvider;
-use quill::tree::mappings::{Mappings};
+use quill::tree::mappings::Mappings;
 use quill::tree::mappings_diff::MappingsDiff;
 use crate::download::Downloader;
 use crate::dukelaunch::JavaRunConfig;
@@ -412,8 +411,9 @@ async fn map_calamus_jar(downloader: &Downloader, version: &Version) -> Result<P
 
     let calamus = downloader.calamus_v2(version).await?;
 
-    let inheritance = NoSuperClassProvider::new();
-    let out_jar = dukebox::remap::remap(main_jar, calamus.remapper_b_first_to_second(inheritance)?)?;
+    // TODO: should probably also add in the libraries here...
+    let inheritance = main_jar.get_super_classes_provider()?;
+    let out_jar = dukebox::remap::remap(main_jar, calamus.remapper_b_first_to_second(&inheritance)?)?;
 
     println!("remapping done!");
 
