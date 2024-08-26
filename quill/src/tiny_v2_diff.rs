@@ -7,6 +7,7 @@ use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc};
 use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc};
 use crate::lines::tiny_line::TinyLine;
 use crate::lines::{Line, WithMoreIdentIter};
+use crate::tiny_v2::unescape;
 use crate::tree::mappings::{JavadocMapping, ParameterKey};
 use crate::tree::mappings_diff::{Action, ClassNowodeDiff, FieldNowodeDiff, MappingsDiff, MethodNowodeDiff, ParameterNowodeDiff};
 use crate::tree::NodeInfo;
@@ -113,7 +114,13 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 }
 
 fn add_comment(javadoc: &mut Option<Action<JavadocMapping>>, line: TinyLine) -> Result<()> {
-	let action = line.action()?;
+	let action: Action<String> = line.action()?;
+	let action = match action {
+		Action::Add(b) => Action::Add(JavadocMapping(unescape(b))),
+		Action::Remove(a) => Action::Remove(JavadocMapping(unescape(a))),
+		Action::Edit(a, b) => Action::Edit(JavadocMapping(unescape(a)), JavadocMapping(unescape(b))),
+		Action::None => Action::None,
+	};
 	if let Some(javadoc) = javadoc {
 		bail!("only one comment diff is allowed, got {javadoc:?} and {action:?}");
 	} else {

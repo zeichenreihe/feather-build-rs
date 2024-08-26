@@ -60,6 +60,7 @@ pub fn read_file<const N: usize>(path: impl AsRef<Path>) -> Result<Mappings<N>> 
 /// c	A	B	C
 /// 	f	LA;	a	b	c
 /// 	m	(LA;)V	a	b	c
+/// 	c	A multiline\\ncomment.
 /// ";
 ///
 /// let reader = &mut string.as_bytes();
@@ -67,6 +68,13 @@ pub fn read_file<const N: usize>(path: impl AsRef<Path>) -> Result<Mappings<N>> 
 ///
 /// mappings.info.namespaces.check_that(["namespaceA", "namespaceB", "namespaceC"]).unwrap();
 /// assert_eq!(mappings.classes.len(), 1);
+///
+/// use duke::tree::class::ClassNameSlice;
+/// assert_eq!(
+///     mappings.classes.get(ClassNameSlice::from_str("A")).unwrap()
+///         .javadoc.as_ref().map(|x| x.0.as_str()),
+///     Some("A multiline\ncomment.")
+/// );
 /// ```
 pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 	if N < 2 {
@@ -161,8 +169,15 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 	Ok(mappings)
 }
 
+pub(crate) fn unescape(s: String) -> String {
+	s.replace("\\n", "\n")
+}
+pub(crate) fn escape(s: &str) -> String {
+	s.replace('\n', "\\n")
+}
+
 fn add_comment(javadoc: &mut Option<JavadocMapping>, line: TinyLine) -> Result<()> {
-	let comment = JavadocMapping(line.end()?);
+	let comment = JavadocMapping(unescape(line.end()?));
 	if let Some(javadoc) = javadoc {
 		bail!("only one comment is allowed, got {javadoc:?} and {comment:?}")
 	} else {
@@ -224,6 +239,7 @@ fn write_names<const N: usize>(w: &mut impl Write, names: &Names<N, impl AsRef<s
 /// let input = "\
 /// tiny	2	0	namespaceA	namespaceB
 /// c	D	E
+/// 	c	A multiline\\ncomment.
 /// c	A	B
 /// 	f	I	bIsAfterA	e
 /// 	f	I	bIsAfterAa	d
@@ -262,6 +278,7 @@ fn write_names<const N: usize>(w: &mut impl Write, names: &Names<N, impl AsRef<s
 /// 	m	(J)V	methodXa	b
 /// 	m	(J)V	methodXb	a
 /// c	D	E
+/// 	c	A multiline\\ncomment.
 /// ";
 ///
 /// assert_eq!(written, output);
@@ -278,7 +295,7 @@ pub fn write<const N: usize>(mappings: &Mappings<N>, w: &mut impl Write) -> Resu
 	write_namespaces(w, &mappings.info.namespaces)?;
 
 	if let Some(ref comment) = mappings.javadoc {
-		writeln!(w, "\tc\t{}", comment.0)?;
+		writeln!(w, "\tc\t{}", escape(&comment.0))?;
 	}
 
 	let mut classes: Vec<_> = mappings.classes.values().collect();
@@ -288,7 +305,7 @@ pub fn write<const N: usize>(mappings: &Mappings<N>, w: &mut impl Write) -> Resu
 		write_names(w, &class.info.names)?;
 
 		if let Some(ref comment) = class.javadoc {
-			writeln!(w, "\tc\t{}", comment.0)?;
+			writeln!(w, "\tc\t{}", escape(&comment.0))?;
 		}
 
 		let mut fields: Vec<_> = class.fields.values().collect();
@@ -298,7 +315,7 @@ pub fn write<const N: usize>(mappings: &Mappings<N>, w: &mut impl Write) -> Resu
 			write_names(w, &field.info.names)?;
 
 			if let Some(ref comment) = field.javadoc {
-				writeln!(w, "\t\tc\t{}", comment.0)?;
+				writeln!(w, "\t\tc\t{}", escape(&comment.0))?;
 			}
 		}
 
@@ -309,7 +326,7 @@ pub fn write<const N: usize>(mappings: &Mappings<N>, w: &mut impl Write) -> Resu
 			write_names(w, &method.info.names)?;
 
 			if let Some(ref comment) = method.javadoc {
-				writeln!(w, "\t\tc\t{}", comment.0)?;
+				writeln!(w, "\t\tc\t{}", escape(&comment.0))?;
 			}
 
 			let mut parameters: Vec<_> = method.parameters.values().collect();
@@ -319,7 +336,7 @@ pub fn write<const N: usize>(mappings: &Mappings<N>, w: &mut impl Write) -> Resu
 				write_names(w, &parameter.info.names)?;
 
 				if let Some(ref comment) = parameter.javadoc {
-					writeln!(w, "\t\t\tc\t{}", comment.0)?;
+					writeln!(w, "\t\t\tc\t{}", escape(&comment.0))?;
 				}
 			}
 		}
