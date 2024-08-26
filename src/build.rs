@@ -13,8 +13,7 @@ use crate::download::versions_manifest::VersionsManifest;
 use dukebox::zip::mem::NamedMemJar;
 use quill::tree::mappings::Mappings;
 use quill::tree::names::{Names, Namespace};
-use crate::{Environment, specialized_methods, Version};
-use crate::version_graph::VersionGraph;
+use crate::version_graph::{Environment, Version, VersionGraph};
 
 
 fn inspect<const N: usize>(mappings: &Mappings<N>, path: &str) -> Result<()> {
@@ -110,7 +109,7 @@ async fn build_inner(downloader: &Downloader, version_graph: &VersionGraph, vers
 	let calamus_v2 = downloader.calamus_v2(version).await?;
 	let libraries = downloader.mc_libs(versions_manifest, version).await?;
 
-	let build_feather_tiny = specialized_methods::add_specialized_methods_to_mappings(main_jar, &calamus_v2, &libraries, &mappings)
+	let build_feather_tiny = crate::specialized_methods::add_specialized_methods_to_mappings(main_jar, &calamus_v2, &libraries, &mappings)
 		.context("failed to add specialized methods to mappings")?;
 
 	// merge w.r.t. "intermediary", and then reorder from "intermediary -> official, named" to "official -> intermediary, named"

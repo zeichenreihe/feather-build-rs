@@ -1,5 +1,4 @@
 use anyhow::{anyhow, bail, Context, Result};
-use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
@@ -16,9 +15,8 @@ use quill::remapper::NoSuperClassProvider;
 use quill::tree::mappings::{Mappings};
 use quill::tree::mappings_diff::MappingsDiff;
 use crate::download::Downloader;
-use crate::download::versions_manifest::MinecraftVersion;
 use crate::dukelaunch::JavaRunConfig;
-use crate::version_graph::VersionGraph;
+use crate::version_graph::{Version, VersionGraph};
 
 mod version_graph;
 mod download;
@@ -29,46 +27,6 @@ mod build;
 mod sus;
 
 mod dukelaunch;
-
-#[derive(Debug, Clone, PartialEq, Hash, Eq)]
-/// The version id used in the mappings diffs and mappings files.
-/// This can end in `-client` and `-server`, or not have any suffix at all.
-pub(crate) struct Version(String);
-
-impl Display for Version {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl Version {
-    fn get_environment(&self) -> Environment {
-        if self.0.ends_with("-client") {
-            Environment::Client
-        } else if self.0.ends_with("-server") {
-            Environment::Server
-        } else {
-            Environment::Merged
-        }
-    }
-
-    fn get_minecraft_version(&self) -> MinecraftVersion {
-        if let Some(without) = self.0.strip_suffix("-client") {
-            MinecraftVersion(without.to_owned())
-        } else if let Some(without) = self.0.strip_suffix("-server") {
-            MinecraftVersion(without.to_owned())
-        } else {
-            MinecraftVersion(self.0.to_owned())
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-enum Environment {
-    Merged,
-    Client,
-    Server,
-}
 
 /*
 TODO: publish

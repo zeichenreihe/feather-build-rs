@@ -9,11 +9,10 @@ use quill::tree::mappings::{Mappings, MethodMapping, MethodNowodeMapping};
 use quill::tree::names::Names;
 use quill::tree::{NodeInfo, ToKey};
 use crate::download::Downloader;
-use crate::{Environment, Version};
 use dukebox::Jar;
 use crate::download::versions_manifest::VersionsManifest;
 use crate::specialized_methods::GetSpecializedMethods;
-use crate::version_graph::VersionGraph;
+use crate::version_graph::{Environment, Version, VersionGraph};
 
 pub(crate) async fn report_sus(mappings_dir: PathBuf, downloader: Downloader) -> Result<SusResult> {
 	let start = Instant::now();

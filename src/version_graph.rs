@@ -1,12 +1,56 @@
 use std::collections::VecDeque;
 use anyhow::{anyhow, bail, Context, Result};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter, Write};
 use std::path::{Path, PathBuf};
 use indexmap::IndexMap;
 use petgraph::{Direction, Graph};
 use petgraph::graph::NodeIndex;
 use quill::tree::mappings::Mappings;
-use crate::Version;
+use crate::download::versions_manifest::MinecraftVersion;
+
+/// The version id used in the mappings diffs and mappings files.
+/// This can end in `-client` and `-server`, or not have any suffix at all.
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub(crate) struct Version(String);
+
+impl Display for Version {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		f.write_str(&self.0)
+	}
+}
+
+impl Version {
+	pub(crate) fn as_str(&self) -> &str {
+		&self.0
+	}
+
+	pub(crate) fn get_environment(&self) -> Environment {
+		if self.0.ends_with("-client") {
+			Environment::Client
+		} else if self.0.ends_with("-server") {
+			Environment::Server
+		} else {
+			Environment::Merged
+		}
+	}
+
+	pub(crate) fn get_minecraft_version(&self) -> MinecraftVersion {
+		if let Some(without) = self.0.strip_suffix("-client") {
+			MinecraftVersion(without.to_owned())
+		} else if let Some(without) = self.0.strip_suffix("-server") {
+			MinecraftVersion(without.to_owned())
+		} else {
+			MinecraftVersion(self.0.to_owned())
+		}
+	}
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) enum Environment {
+	Merged,
+	Client,
+	Server,
+}
 
 const MAPPINGS_EXTENSION: &str = ".tiny";
 const DIFF_EXTENSION: &str = ".tinydiff";

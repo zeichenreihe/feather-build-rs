@@ -12,13 +12,13 @@ use zip::ZipArchive;
 use crate::download::version_details::VersionDetails;
 use crate::download::version_manifest::VersionManifest;
 use crate::download::versions_manifest::VersionsManifest;
-use crate::Environment;
 use crate::download::maven_metadata::MavenMetadata;
 use quill::tree::mappings::Mappings;
 use dukebox::zip::file::FileJar;
 use dukenest::Nests;
 use maven_dependency_resolver::maven_pom::MavenPom;
 use crate::Version;
+use crate::version_graph::Environment;
 
 pub(crate) mod versions_manifest;
 pub(crate) mod version_manifest;
