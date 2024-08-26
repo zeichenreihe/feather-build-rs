@@ -6,6 +6,7 @@ use std::path::Path;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use duke::tree::class::ClassNameSlice;
+use duke::tree::method::MethodName;
 use crate::action::extend_inner_class_names::ClassNameSliceExt;
 use crate::enigma_file::enigma_line::EnigmaLine;
 use crate::lines::WithMoreIdentIter;
@@ -53,6 +54,8 @@ pub fn read_file_into(path: impl AsRef<Path>, mappings: &mut Mappings<2>) -> Res
 /// CLASS	A	B
 /// 	FIELD a	b
 /// 	METHOD	a	b	(LA;)V
+/// 	COMMENT A multiline
+/// 	COMMENT comment.
 /// ";
 ///
 /// let reader = &mut string.as_bytes();
@@ -60,6 +63,13 @@ pub fn read_file_into(path: impl AsRef<Path>, mappings: &mut Mappings<2>) -> Res
 /// quill::enigma_file::read_into(reader, &mut mappings).unwrap();
 ///
 /// assert_eq!(mappings.classes.len(), 1);
+///
+/// use duke::tree::class::ClassNameSlice;
+/// assert_eq!(
+///     mappings.classes.get(ClassNameSlice::from_str("A")).unwrap()
+///         .javadoc.as_ref().map(|x| x.0.as_str()),
+///     Some("A multiline\ncomment.")
+/// );
 /// ```
 pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
 	let mut lines = BufReader::new(reader)
@@ -79,7 +89,7 @@ pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
 					mappings: &mut Mappings<2>,
 					iter: &mut WithMoreIdentIter<impl Iterator<Item=Result<EnigmaLine>>>,
 					line: EnigmaLine,
-					parent: Option<&String>
+					parent: Option<(&String, &String)>
 				) -> Result<()> {
 					let (src, dst) = match line.fields.as_slice() {
 						[src] => (src, None),
@@ -89,19 +99,20 @@ pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
 						slice => bail!("illegal number of arguments ({}) for class mapping, expected 1-3, got {slice:?}", slice.len()),
 					};
 
-					let src = if let Some(parent) = parent {
-						format!("{parent}${src}")
+					let (src, dst) = if let Some((parent_src, parent_dst)) = parent {
+						(format!("{parent_src}${src}"), dst.map(|dst| format!("{parent_dst}${dst}")))
 					} else {
-						src.clone()
+						(src.clone(), dst.cloned())
 					};
-					let parent = src.clone();
+					let parent_src = src.clone();
+					let parent_dst = dst.clone().unwrap_or_else(|| parent_src.clone());
 					let mut class = ClassNowodeMapping::new(ClassMapping {
 						names: Names::try_from([Some(src.into()), dst.map(|x| x.clone().into())])?,
 					});
 
 					iter.next_level().on_every_line(|iter, line| {
 						match line.first_field.as_str() {
-							CLASS => parse_class(mappings, iter, line, Some(&parent)),
+							CLASS => parse_class(mappings, iter, line, Some((&parent_src, &parent_dst))),
 							FIELD => {
 								let (src, dst, desc) = match line.fields.as_slice() {
 									[src, desc] => (src, None, desc),
@@ -263,6 +274,9 @@ fn write_class(class_key: &ClassNameSlice, class: &ClassNowodeMapping<2>, w: &mu
 	let [_, dst] = class.info.names.names();
 	// get to only the part after $ if it exists
 	let src = class_key.get_inner_class_name().unwrap_or(class_key);
+	// the dst name also stores only the inner class name
+	let dst = dst.as_ref()
+		.map(|dst| dst.get_inner_class_name().unwrap_or(dst));
 
 	write!(w, "{indent}CLASS {src}")?;
 	if let Some(dst) = dst {
@@ -298,7 +312,7 @@ fn write_class(class_key: &ClassNameSlice, class: &ClassNowodeMapping<2>, w: &mu
 	for (key, method) in methods {
 		write!(w, "{indent}\tMETHOD {}", key.name)?;
 		let [_, dst] = method.info.names.names();
-		if let Some(dst) = dst {
+		if let Some(dst) = dst.as_ref().filter(|&dst| dst != MethodName::INIT) {
 			write!(w, " {dst}")?;
 		}
 		writeln!(w, " {}", key.desc.as_str())?;
@@ -444,6 +458,32 @@ fn figure_out_files(mappings: &Mappings<2>) -> Placement<'_> {
 /// 		COMMENT A multiline
 /// 		COMMENT comment.\n#\n# E
 /// CLASS D E
+/// ";
+///
+/// assert_eq!(written, output);
+///
+/// // the equivalent .tiny would look like this
+///
+/// let written = quill::tiny_v2::write_string(&mappings).unwrap();
+///
+/// let output = "\
+/// tiny	2	0	namespaceA	namespaceB
+/// c	A	B
+/// 	f	I	aIsBeforeB	c
+/// 	f	I	bIsAfterA	e
+/// 	f	I	bIsAfterAa	d
+/// 	f	J	bIsAfterA	e
+/// 	f	J	bIsAfterAa	d
+/// 	m	()	methodB	methodBSecondName
+/// 	m	()V	methodA	methodASecondName
+/// 	m	(I)V	methodXa	b
+/// 	m	(I)V	methodXb	a
+/// 	m	(I)V	methodYa	a
+/// 	m	(J)V	methodXa	b
+/// 	m	(J)V	methodXb	b
+/// c	A$C	B$AnInnerClass
+/// 	c	A multiline\\ncomment.
+/// c	D	E
 /// ";
 ///
 /// assert_eq!(written, output);
