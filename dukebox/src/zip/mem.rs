@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use std::fmt::{Debug, Formatter};
 use std::io::Cursor;
+use std::path::Path;
 use zip::ZipArchive;
 use crate::Jar;
 
@@ -32,6 +33,12 @@ impl Jar for NamedMemJar {
 		ZipArchive::new(Cursor::new(&self.data))
 			.with_context(|| anyhow!("failed to read zip archive from {self:?}"))
 	}
+
+	fn put_to_file<'a>(&'a self, suggested: &'a Path) -> Result<&'a Path> {
+		std::fs::write(suggested, &self.data)
+			.with_context(|| anyhow!("failed to write named ({:?}) in-memory jar to {suggested:?}", self.name))?;
+		Ok(suggested)
+	}
 }
 
 
@@ -60,5 +67,11 @@ impl Jar for UnnamedMemJar {
 	fn open(&self) -> Result<Self::Opened<'_>> {
 		ZipArchive::new(Cursor::new(&self.data))
 			.with_context(|| anyhow!("failed to read zip archive from {self:?}"))
+	}
+
+	fn put_to_file<'a>(&'a self, suggested: &'a Path) -> Result<&'a Path> {
+		std::fs::write(suggested, &self.data)
+			.with_context(|| anyhow!("failed to write unnamed in-memory jar to {suggested:?}"))?;
+		Ok(suggested)
 	}
 }

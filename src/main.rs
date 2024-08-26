@@ -274,14 +274,17 @@ async fn main() -> Result<()> {
 
             let nested_jar = nest_jar(&downloader, version, &calamus_jar).await?;
 
-            fn write(x: impl Jar) -> Result<PathBuf> {
-                todo!("put jar into some place on disk")
+            fn write(x: &impl Jar) -> Result<&Path> {
+                // TODO: make this an argument?
+                let jar_cache_path = Path::new("/tmp/enigma_run_jar_cache.jar");
+
+                x.put_to_file(jar_cache_path)
             }
 
-            let jar_path = if let Some(nested_jar) = nested_jar {
+            let jar_path = if let Some(nested_jar) = &nested_jar {
                 write(nested_jar)?
             } else {
-                write(calamus_jar)?
+                write(&calamus_jar)?
             };
 
             let working_mappings = {
@@ -312,7 +315,7 @@ async fn main() -> Result<()> {
                     "-Xmx2048m".into(),
                 ],
                 args: vec![
-                    "-jar".into(), jar_path.into_os_string(),
+                    "-jar".into(), jar_path.as_os_str().to_owned(),
                     "-mappings".into(), working_mappings.into_os_string(),
                     "-profile".into(), "enigma_profile.json".into(), // TODO: this should be specified by abs. path, with the mappings dir somehow...
                 ],

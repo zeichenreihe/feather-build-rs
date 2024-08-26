@@ -55,14 +55,14 @@ impl ClassRepr {
 		}
 	}
 
-	pub(crate) fn write(self) -> Result<Vec<u8>> {
+	pub(crate) fn write(&self) -> Result<Cow<'_, [u8]>> {
 		match self {
 			ClassRepr::Parsed { class } => {
 				let mut buf = Vec::new();
-				duke::write_class(&mut buf, &class)?;
-				Ok(buf)
+				duke::write_class(&mut buf, class)?;
+				Ok(Cow::Owned(buf))
 			},
-			ClassRepr::Vec { data } => Ok(data),
+			ClassRepr::Vec { data } => Ok(Cow::Borrowed(data)),
 		}
 	}
 

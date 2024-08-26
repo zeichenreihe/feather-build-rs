@@ -1,5 +1,7 @@
+use std::fs::File;
 use std::io::{Cursor, Seek, Write};
 use std::ops::Range;
+use std::path::Path;
 use anyhow::{anyhow, Context, Result};
 use indexmap::IndexMap;
 use zip::write::FileOptions;
@@ -19,6 +21,16 @@ impl Jar for ParsedJar {
 
 	fn open(&self) -> Result<Self::Opened<'_>> {
 		Ok(self)
+	}
+
+	fn put_to_file<'a>(&'a self, suggested: &'a Path) -> Result<&'a Path> {
+		let writer = File::create(suggested)
+			.with_context(|| anyhow!("failed to open {suggested:?} for writing \"parsed\" jar"))?;
+
+		self.write(writer)
+			.with_context(|| anyhow!("failed to write \"parsed\" jar to {suggested:?}"))?;
+
+		Ok(suggested)
 	}
 }
 
@@ -78,10 +90,11 @@ impl ParsedJar {
 		Ok(())
 	}
 
-	pub fn to_mem(self) -> Result<UnnamedMemJar> {
-		let mut zip_out = ZipWriter::new(Cursor::new(Vec::new()));
+	fn write<W: Write + Seek>(&self, writer: W) -> Result<W> {
+		let mut zip_out = ZipWriter::new(writer);
 
-		for (name, entry) in self.entries {
+		for (name, entry) in &self.entries {
+			let name = name.as_str();
 			match entry {
 				ParsedJarEntry::Class { attr, class } => {
 					let data = class.write()?;
@@ -91,7 +104,7 @@ impl ParsedJar {
 				},
 				ParsedJarEntry::Other { attr, data } => {
 					zip_out.start_file(name, attr.to_file_options())?;
-					zip_out.write_all(&data)?;
+					zip_out.write_all(data)?;
 				},
 				ParsedJarEntry::Dir { attr } => {
 					zip_out.add_directory(name, attr.to_file_options())?;
@@ -99,7 +112,12 @@ impl ParsedJar {
 			}
 		}
 
-		let vec = zip_out.finish()?.into_inner();
+		Ok(zip_out.finish()?)
+	}
+
+	pub fn to_mem(self) -> Result<UnnamedMemJar> {
+		let vec = self.write(Cursor::new(Vec::new()))?
+			.into_inner();
 
 		Ok(UnnamedMemJar::new(vec))
 	}
@@ -140,9 +158,9 @@ impl JarEntry for (&String, &ParsedJarEntry) {
 
 	fn attrs(&self) -> BasicFileAttributes {
 		match self.1 {
-			ParsedJarEntry::Class { attr, .. } => attr.clone(),
-			ParsedJarEntry::Other { attr, .. } => attr.clone(),
-			ParsedJarEntry::Dir { attr, .. } => attr.clone(),
+			ParsedJarEntry::Class { attr, .. } => *attr,
+			ParsedJarEntry::Other { attr, .. } => *attr,
+			ParsedJarEntry::Dir { attr, .. } => *attr,
 		}
 	}
 

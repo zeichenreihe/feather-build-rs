@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 use std::fmt::Debug;
 use std::ops::ControlFlow;
+use std::path::Path;
 use anyhow::{Result};
 use indexmap::{IndexMap, IndexSet};
 use ::zip::{DateTime, ExtraField};
@@ -21,6 +22,8 @@ pub trait Jar {
 	type Opened<'a>: OpenedJar where Self: 'a;
 
 	fn open(&self) -> Result<Self::Opened<'_>>;
+
+	fn put_to_file<'a>(&'a self, suggested: &'a Path) -> Result<&'a Path>;
 
 	fn get_super_classes_provider(&self) -> Result<JarSuperProv> {
 		self.open()?.get_super_classes_provider()
@@ -99,7 +102,7 @@ pub trait JarEntry {
 	fn to_parsed_jar_entry(self) -> Result<ParsedJarEntry>;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct BasicFileAttributes {
 	last_modified: Option<DateTime>,
 	mtime: Option<u32>,
