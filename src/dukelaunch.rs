@@ -36,17 +36,16 @@ impl JavaLauncher {
 	pub(crate) fn from_env_var() -> Option<JavaLauncher> {
 		const JAVA_HOME: &str = "JAVA_HOME";
 
-		match std::env::var_os(JAVA_HOME) {
-			Some(mut java_home) => {
+		std::env::var_os(JAVA_HOME)
+			.map(|mut java_home| {
+
 				java_home.push("/bin/java");
 				let java_command = java_home;
 
 				trace!("located java via env var as {java_command:?}");
 
-				Some(JavaLauncher { java_command })
-			},
-			None => None,
-		}
+				JavaLauncher { java_command }
+			})
 	}
 
 	/// Returns `Err(_)` if the java doesn't satisfy the given version.
@@ -94,8 +93,6 @@ impl JavaLauncher {
 			.args(&config.args);
 
 		trace!("run: {} {}", command.get_program().to_string_lossy(), command.get_args().map(|x| x.to_string_lossy()).collect::<Vec<_>>().join(" "));
-
-		return Ok(()); // TODO: remove this to allow launching java
 
 		let x = command.spawn()?.wait()?;
 
