@@ -374,6 +374,14 @@ fn figure_out_files(mappings: &Mappings<2>) -> Placement<'_> {
 		file_map.insert(file_name, Node { src, class });
 	}
 
+	// maps can only contain one key each, not two equal keys
+	file_map.sort_unstable_keys();
+	child_map.sort_unstable_keys();
+
+	// unstable sorting is fine, each .src only exists once
+	child_map.values_mut()
+		.for_each(|x| x.sort_unstable_by_key(|x| x.src));
+
 	Placement { file_map, child_map }
 }
 
@@ -442,14 +450,30 @@ fn figure_out_files(mappings: &Mappings<2>) -> Placement<'_> {
 /// ```
 pub fn write_all(mappings: &Mappings<2>, w: &mut impl Write) -> Result<()> {
 	let f = figure_out_files(mappings);
-	let mut file_map = f.file_map;
-	let child_map = f.child_map;
 
-	file_map.sort_unstable_keys();
-
-	for (file_name, node) in file_map {
+	for (file_name, node) in f.file_map {
 		writeln!(w, "#\n# {file_name}")?;
-		write_one_tree_starting_at(node, &child_map, w)?;
+		write_one_tree_starting_at(node, &f.child_map, w)?;
+	}
+
+	Ok(())
+}
+
+pub(crate) fn write_all_for_each<W>(
+	mappings: &Mappings<2>,
+	mut make_writer: impl FnMut(&str) -> Result<W>,
+) -> Result<()>
+where
+	W: Write,
+{
+	let f = figure_out_files(mappings);
+
+	for (file_name, node) in f.file_map {
+		let mut writer = make_writer(file_name)
+			.with_context(|| anyhow!("failed to create writer for {file_name} (dst name)"))?;
+
+		write_one_tree_starting_at(node, &f.child_map, &mut writer)
+			.with_context(|| anyhow!("failed to write mappings to {file_name} (dst name)"))?;
 	}
 
 	Ok(())

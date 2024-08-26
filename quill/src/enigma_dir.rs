@@ -7,8 +7,9 @@
 // TODO: doc
 
 use std::collections::VecDeque;
+use std::fs::File;
 use std::path::{Path, PathBuf};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use crate::tree::mappings::{MappingInfo, Mappings};
 use crate::tree::names::Namespaces;
 use crate::tree::NodeInfo;
@@ -55,6 +56,33 @@ pub fn read(path: impl AsRef<Path>, namespaces: Namespaces<2>) -> Result<Mapping
 	}
 
 	Ok(mappings)
+}
+
+// TODO: doc
+pub fn write(mappings: &Mappings<2>, path: impl AsRef<Path>) -> Result<()> {
+	let path = path.as_ref();
+
+	crate::enigma_file::write_all_for_each(mappings, |file_name| {
+		if file_name.contains('.') {
+			bail!("class name (dst) {file_name:?} contains '.'");
+		}
+		let file_name = Path::new(file_name);
+		if file_name.is_absolute() {
+			bail!("path relative to target write path {path:?} is absolute: {file_name:?}");
+		}
+
+		let mut target = path.join(file_name);
+		target.set_extension(MAPPING_EXTENSION);
+
+		if let Some(parent) = target.parent() {
+			std::fs::create_dir_all(parent)
+				.with_context(|| anyhow!("failed to create parent directories for mapping file {target:?}"))?;
+		}
+
+		File::create(&target)
+			.with_context(|| anyhow!("failed to create mappings file {target:?}"))
+	})
+		.with_context(|| anyhow!("failed to write mappings to directory {path:?}"))
 }
 
 
