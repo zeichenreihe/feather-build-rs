@@ -156,7 +156,7 @@ async fn main() -> Result<()> {
 
             Ok(())
         },
-        Command::Feather { working_mappings_base_dir, version } => {
+        Command::Feather { working_mappings_base_dir, enigma_prepared_jar, enigma_profile, version } => {
             let java_launcher = dukelaunch::JavaLauncher::from_env_var()
                 //.unwrap_or_default();
                 .unwrap_or_else(|| dukelaunch::JavaLauncher::new("/usr/lib/jvm/java-17-openjdk/bin/java"));
@@ -274,18 +274,18 @@ async fn main() -> Result<()> {
 
             let nested_jar = nest_jar(&downloader, version, &calamus_jar).await?;
 
-            fn write(x: &impl Jar) -> Result<&Path> {
-                // TODO: make this an argument?
-                let jar_cache_path = Path::new("/tmp/enigma_run_jar_cache.jar");
+            let jar_path = enigma_prepared_jar.as_deref()
+                // TODO: better default
+                .unwrap_or(Path::new("/tmp/enigma_run_jar_cache.jar"));
 
-                x.put_to_file(jar_cache_path)
-            }
+            nested_jar.as_ref()
+                .unwrap_or(&calamus_jar)
+                .put_to_file(jar_path)?;
 
-            let jar_path = if let Some(nested_jar) = &nested_jar {
-                write(nested_jar)?
-            } else {
-                write(&calamus_jar)?
-            };
+            let profile_json_path = enigma_profile
+                //.unwrap_or_else(|| PathBuf::from("enigma_profile.json"));
+                // TODO: default should be in mappings dir?
+                .unwrap_or_else(|| PathBuf::from("mappings/enigma_profile.json"));
 
             let working_mappings = {
                 let mappings = version_graph.apply_diffs(version)? // calamus -> named
@@ -313,7 +313,7 @@ async fn main() -> Result<()> {
                 args: vec![
                     "-jar".into(), jar_path.as_os_str().to_owned(),
                     "-mappings".into(), working_mappings.into_os_string(),
-                    "-profile".into(), "enigma_profile.json".into(), // TODO: this should be specified by abs. path, with the mappings dir somehow...
+                    "-profile".into(), profile_json_path.into_os_string(),
                 ],
             };
 
@@ -507,6 +507,16 @@ enum Command {
         /// Inside that are then the packages with enigmas '.mapping' files.
         #[arg(short = 'w', long = "working-mappings-dir")]
         working_mappings_base_dir: Option<PathBuf>,
+
+        // TODO: document default
+        /// The path to store the prepared jar for enigma to
+        #[arg(long = "enigma-prepared-jar")]
+        enigma_prepared_jar: Option<PathBuf>,
+
+        // TODO: document default
+        /// Path to the 'profile.json' for enigma
+        #[arg(long = "enigma-profile")]
+        enigma_profile: Option<PathBuf>,
 
         /// The version to edit the mappings of
         version: String,
