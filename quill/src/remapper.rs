@@ -282,7 +282,7 @@ impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 
 			bail!("expected owner name to not be empty: {owner_name:?}");
 		}
 		if owner_name.as_str().starts_with('[') {
-			bail!("expected owner name to not start with '[': {owner_name:?}, most likely this is a bug");
+			bail!("expected owner name to not start with '[': {owner_name:?} {field_name:?} {field_desc:?}, most likely this is a bug");
 		}
 
 		if let Some(class) = self.classes.get(owner_name) {
@@ -310,8 +310,16 @@ impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 
 		if owner_name.as_str().is_empty() {
 			bail!("expected owner name to not be empty: {owner_name:?}");
 		}
+		// You can call [Ljava/lang/Object; . clone . ()Ljava/lang/Object;
+		// since that is completely fine, instead do the following:
+		// This is valid because arrays are considered to implement Cloneable and Serializable by default.
+		//if owner_name.as_str().starts_with('[') {
+		//	bail!("expected owner name to not start with '[': {owner_name:?} {method_name:?} {method_desc:?}, most likely this is a bug");
+		//}
+		// TODO: remapper tests should probably test against [L...; . clone . ()Ljava/lang/Object;
+		//  and also against other methods from Object
 		if owner_name.as_str().starts_with('[') {
-			bail!("expected owner name to not start with '[': {owner_name:?}, most likely this is a bug");
+			return Ok(None);
 		}
 		if method_name.as_str().is_empty() {
 			bail!("expected method name to not be empty: {method_name:?}");
