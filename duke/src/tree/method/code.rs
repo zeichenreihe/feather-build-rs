@@ -28,13 +28,13 @@ pub struct Code {
 	pub exception_table: Vec<Exception>,
 	pub last_label: Option<Label>,
 
-	pub(crate) line_numbers: Option<Vec<(Label, u16)>>,
-	pub(crate) local_variables: Option<Vec<Lv>>,
+	pub line_numbers: Option<Vec<(Label, u16)>>,
+	pub local_variables: Option<Vec<Lv>>,
 
-	pub(crate) runtime_visible_type_annotations: Vec<TypeAnnotation<TargetInfoCode>>,
-	pub(crate) runtime_invisible_type_annotations: Vec<TypeAnnotation<TargetInfoCode>>,
+	pub runtime_visible_type_annotations: Vec<TypeAnnotation<TargetInfoCode>>,
+	pub runtime_invisible_type_annotations: Vec<TypeAnnotation<TargetInfoCode>>,
 
-	pub(crate) attributes: Vec<Attribute>,
+	pub attributes: Vec<Attribute>,
 }
 
 impl Code {
@@ -131,11 +131,11 @@ pub struct LvIndex {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lv {
-	pub(crate) range: LabelRange,
-	pub(crate) name: LocalVariableName,
-	pub(crate) descriptor: Option<FieldDescriptor>,
-	pub(crate) signature: Option<FieldSignature>,
-	pub(crate) index: LvIndex,
+	pub range: LabelRange,
+	pub name: LocalVariableName,
+	pub descriptor: Option<FieldDescriptor>,
+	pub signature: Option<FieldSignature>,
+	pub index: LvIndex,
 }
 
 /// Represents a bytecode offset of an opcode using a method-local id.
@@ -265,8 +265,7 @@ pub enum Instruction {
 	InstanceOf(ClassName),
 	MonitorEnter, MonitorExit,
 	MultiANewArray(ClassName, u8),
-	IfNull(Label),
-	IfNonNull(Label),
+	IfNull(Label), IfNonNull(Label),
 }
 
 #[derive(Debug, Clone, PartialEq)]

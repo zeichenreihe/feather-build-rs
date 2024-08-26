@@ -177,9 +177,9 @@ pub struct TypePath {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeAnnotation<T> {
-	pub(crate) type_reference: T,
-	pub(crate) type_path: TypePath,
-	pub(crate) annotation: Annotation,
+	pub type_reference: T,
+	pub type_path: TypePath,
+	pub annotation: Annotation,
 }
 
 impl<T> TypeAnnotation<T> {

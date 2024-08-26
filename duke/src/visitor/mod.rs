@@ -11,7 +11,7 @@ pub mod simple;
 pub mod class;
 pub(crate) mod attribute;
 pub(crate) mod field;
-pub(crate) mod method;
+pub mod method;
 pub mod annotation;
 pub(crate) mod record;
 
