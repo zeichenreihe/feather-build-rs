@@ -2,7 +2,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
-use clap::{ArgAction, Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand, ValueEnum};
 use log::{info, trace};
 use tokio::task::JoinSet;
 use dukebox::Jar;
@@ -87,6 +87,13 @@ async fn main() -> Result<()> {
         //mappings_dir.unwrap_or_else(|| "mappings".into())
         cli.mappings_dir.unwrap_or_else(|| "mappings/mappings".into());
 
+    let working_mappings_dir = |working_mappings_base_dir: Option<PathBuf>, version: &Version| -> PathBuf {
+        // TODO: better default
+        let mut x = working_mappings_base_dir.unwrap_or_else(|| "mappings/run/".into());
+        x.push(version.as_str());
+        x
+    };
+
     let downloader = Downloader::new(cli.no_cache, cli.offline);
 
     let project_enigma_version = "1.9.0";
@@ -149,7 +156,7 @@ async fn main() -> Result<()> {
 
             Ok(())
         },
-        Command::Feather { version } => {
+        Command::Feather { working_mappings_base_dir, version } => {
             let java_launcher = dukelaunch::JavaLauncher::from_env_var()
                 //.unwrap_or_default();
                 .unwrap_or_else(|| dukelaunch::JavaLauncher::new("/usr/lib/jvm/java-17-openjdk/bin/java"));
@@ -157,8 +164,12 @@ async fn main() -> Result<()> {
             java_launcher.check_java_version(17)
                 .with_context(|| anyhow!("feathers buildscript requires java 17 or higher"))?;
 
-            async fn make_classpath(downloader: &Downloader, resolvers: &[Resolver<'_>], dependencies: &[(MavenCoord, DependencyScope)],
-                    cache: Option<&[&str]>) -> Result<Vec<PathBuf>> {
+            async fn make_classpath(
+                downloader: &Downloader,
+                resolvers: &[Resolver<'_>],
+                dependencies: &[(MavenCoord, DependencyScope)],
+                cache: Option<&[&str]>
+            ) -> Result<Vec<PathBuf>> {
                 let dependencies: Vec<FoundDependency> = if let Some(cached) = cache {
                     cached.iter().map(|&x| FoundDependency::try_from(x)).collect::<Result<_>>()?
                 } else {
@@ -256,6 +267,8 @@ async fn main() -> Result<()> {
             let version_graph = VersionGraph::resolve(mappings_dir)?;
             let version = version_graph.get(&version)?;
 
+            let working_mappings_dir = working_mappings_dir(working_mappings_base_dir, version);
+
             // this is the "mainJar" remapped to calamus mappings
             let calamus_jar = map_calamus_jar(&downloader, version).await?;
 
@@ -271,11 +284,11 @@ async fn main() -> Result<()> {
                 write(calamus_jar)?
             };
 
-            async fn separate_mappings(downloader: &Downloader, version_graph: &VersionGraph, version: &Version) -> Result<PathBuf> {
+            let working_mappings = {
                 let mappings = version_graph.apply_diffs(version)? // calamus -> named
                     .extend_inner_class_names("named")?;
 
-                let mappings = if let Some(nests) = patch_nests(downloader, version).await? {
+                let mappings = if let Some(nests) = patch_nests(&downloader, version).await? {
                     MappingUtils::apply_nests(mappings, nests)?
                 } else {
                     mappings
@@ -283,12 +296,14 @@ async fn main() -> Result<()> {
 
                 let mappings = mappings.remove_dummy("named")?;
 
-                // let working_mappings = todo!("figure this out");
-                // quill::enigma_dir::write(&working_mappings_dir, mappings)?;
-                // Ok(working_mappings)
-                todo!("write mappings to a path")
-            }
-            let working_mappings = separate_mappings(&downloader, &version_graph, version).await?;
+                fn f() -> PathBuf {
+                    // quill::enigma_dir::write(&working_mappings_dir, mappings)?;
+                    todo!("write mappings to a path")
+                }
+                f();
+
+                working_mappings_dir
+            };
 
             let arg = JavaRunConfig {
                 main_class: "cuchaz.enigma.gui.Main".into(),
@@ -305,87 +320,57 @@ async fn main() -> Result<()> {
 
             java_launcher.launch(&arg)
         },
-        Command::InsertMappings {} => {
-            let version = Version(String::from("1.12.2"));
+        Command::PropagateMappings { working_mappings_base_dir, keep_directory, direction, version } => {
+            let version_graph = VersionGraph::resolve(mappings_dir)?;
+
+            let version = version_graph.get(&version)?;
+
+            let working_mappings_dir = working_mappings_dir(working_mappings_base_dir, version);
 
             info!("saving mappings for {version}");
 
-            insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::None).await
-        }
-        Command::PropagateMappings {} => {
-            let version = Version(String::from("1.12.2"));
+            let separated_mappings = version_graph.apply_diffs(version)? // calamus -> named
+                .extend_inner_class_names("named")?;
 
-            info!("saving mappings for {version}");
+            let start = Instant::now();
 
-            insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::Both).await
-        },
-        Command::PropagateMappingsUp {} => {
-            let version = Version(String::from("1.12.2"));
+            let namespaces = separated_mappings.info.namespaces.clone();
+            let working_mappings = quill::enigma_dir::read(&working_mappings_dir, namespaces)
+                .context("enigma dir read!")?; // TODO: msg
 
-            info!("saving mappings for {version}");
+            dbg!("reading enigma mappings took: {}", start.elapsed());
 
-            insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::Up).await
-        },
-        Command::PropagateMappingsDown {} => {
-            let version = Version(String::from("1.12.2"));
+            let calamus_nests_file = patch_nests(&downloader, version).await?;
 
-            info!("saving mappings for {version}");
+            let working_mappings = if let Some(nests) = calamus_nests_file {
+                MappingUtils::undo_nests(working_mappings, nests)?
+            } else {
+                working_mappings
+            };
 
-            insert_mappings(mappings_dir, &downloader, &version, PropagationDirection::Down).await
+            let changes = MappingsDiff::diff(&separated_mappings, &working_mappings)?;
+
+            // TODO: (comment): this is the INSERT_DUMMY validator
+            let changes = changes.insert_dummy_and_contract_inner_names()?;
+
+            let options = PropagationOptions {
+                direction,
+                lenient: true,
+            };
+            MappingUtils::insert_mappings(options, &version_graph, changes, version)?;
+
+            if !keep_directory {
+                FileUtils::delete(&working_mappings_dir)?;
+            }
+
+            Ok(())
         },
     }
-}
-
-enum PropagationDirection {
-    None,
-    Both,
-    Up,
-    Down,
 }
 
 struct PropagationOptions {
     direction: PropagationDirection,
     lenient: bool,
-}
-
-async fn insert_mappings(mappings_dir: PathBuf, downloader: &Downloader, version: &Version, direction: PropagationDirection) -> Result<()> {
-    // TODO: this is input...
-    let working_mappings_dir = Path::new("mappings/run/1.12.2"); // TODO: from `working_mappings` (see enigma launch code above!)
-
-    let version_graph = VersionGraph::resolve(mappings_dir)?;
-
-    let separated_mappings = version_graph.apply_diffs(version)? // calamus -> named
-        .extend_inner_class_names("named")?;
-
-    let start = Instant::now();
-
-    let namespaces = separated_mappings.info.namespaces.clone();
-    let working_mappings = quill::enigma_dir::read(working_mappings_dir, namespaces).context("enigma dir read!")?;
-
-    dbg!("reading enigma mappings took: {}", start.elapsed());
-
-    let calamus_nests_file = patch_nests(downloader, version).await?;
-
-    let working_mappings = if let Some(nests) = calamus_nests_file {
-        MappingUtils::undo_nests(working_mappings, nests)?
-    } else {
-        working_mappings
-    };
-
-    let changes = MappingsDiff::diff(&separated_mappings, &working_mappings)?;
-
-    // TODO: (comment): this is the INSERT_DUMMY validator
-    let changes = changes.insert_dummy_and_contract_inner_names()?;
-
-    let options = PropagationOptions {
-        direction,
-        lenient: true,
-    };
-    MappingUtils::insert_mappings(options, version_graph, changes, version)?;
-
-    FileUtils::delete(working_mappings_dir)?;
-
-    Ok(())
 }
 
 // TODO: implement these
@@ -397,7 +382,7 @@ impl MappingUtils {
     fn undo_nests(working_mappings: Mappings<2>, nests: Nests) -> Result<Mappings<2>> {
         todo!()
     }
-    fn insert_mappings(options: PropagationOptions, version_graph: VersionGraph, changes: MappingsDiff, version: &Version) -> Result<()> {
+    fn insert_mappings(options: PropagationOptions, version_graph: &VersionGraph, changes: MappingsDiff, version: &Version) -> Result<()> {
         todo!()
     }
 }
@@ -418,6 +403,7 @@ async fn map_calamus_jar(downloader: &Downloader, version: &Version) -> Result<P
     let client = downloader.get_jar(&version_details.downloads.client.url).await?;
     let server = downloader.get_jar(&version_details.downloads.server.url).await?;
 
+    // TODO: but don't merge for split versions
     let start = Instant::now();
 
     let main_jar = dukebox::merge::merge(client, server).with_context(|| anyhow!("failed to merge jars for version {version}"))?;
@@ -514,15 +500,49 @@ enum Command {
     },
     /// Open Enigma to edit the mappings of a version
     Feather {
+        /// The working mappings base directory, default is a temporary one
+        ///
+        /// This directory will contain a directory with the version name.
+        ///
+        /// Inside that are then the packages with enigmas '.mapping' files.
+        #[arg(short = 'w', long = "working-mappings-dir")]
+        working_mappings_base_dir: Option<PathBuf>,
+
         /// The version to edit the mappings of
         version: String,
     },
-    // TODO: doc
-    InsertMappings,
-    // TODO: doc
-    PropagateMappings,
-    // TODO: doc
-    PropagateMappingsUp,
-    // TODO: doc
-    PropagateMappingsDown,
+
+    // insert-mappings -> propagate-mappings none
+    // propagate-mappings -> propagate-mappings both
+    // propagate-mappings-up -> propagate-mappings up
+    // propagate-mappings-down -> propagate-mappings down
+    PropagateMappings {
+        /// The working mappings base directory to take the mappings from.
+        ///
+        /// This directory will contain a directory with the version name.
+        ///
+        /// Inside that are then the packages with enigmas '.mapping' files.
+        #[arg(short = 'w', long = "working-mappings-dir")]
+        working_mappings_base_dir: Option<PathBuf>,
+
+        /// Keep the working mappings directory
+        ///
+        /// Without this flag, deletes the working mappings directory.
+        #[arg(long = "keep")]
+        keep_directory: bool,
+
+        #[arg(value_enum)]
+        direction: PropagationDirection,
+
+        version: String,
+    },
+}
+
+#[derive(Debug, Copy, Clone, ValueEnum)]
+enum PropagationDirection {
+    // TODO: default?, doc!
+    None,
+    Both,
+    Up,
+    Down,
 }
