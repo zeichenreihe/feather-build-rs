@@ -1,22 +1,22 @@
 use std::convert::Infallible;
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 use std::ops::ControlFlow;
 use std::path::Path;
 use anyhow::{Result};
 use indexmap::{IndexMap, IndexSet};
 use ::zip::{DateTime, ExtraField};
 use ::zip::write::{ExtendedFileOptions, FileOptions};
-use duke::tree::class::{ClassAccess, ClassName};
+use duke::tree::class::{ClassAccess, ClassFile, ClassName};
 use duke::tree::version::Version;
 use duke::visitor::MultiClassVisitor;
 use quill::remapper::JarSuperProv;
-use crate::parsed::ParsedJarEntry;
+use crate::lazy_duke::ClassRepr;
 
 pub mod merge;
 pub mod remap;
 pub mod parsed;
 pub mod zip;
-mod lazy_duke;
+pub mod lazy_duke;
 
 pub trait Jar {
 	type Opened<'a>: OpenedJar where Self: 'a;
@@ -31,28 +31,25 @@ pub trait Jar {
 }
 
 pub trait OpenedJar {
+	type EntryKey: Copy;
+
 	type Entry<'a>: JarEntry where Self: 'a;
 
-	type EntryKey: Copy;
-	type EntryKeyIter: Iterator<Item=Self::EntryKey>;
-
-	fn entry_keys(&self) -> Self::EntryKeyIter;
+	fn entry_keys(&self) -> impl Iterator<Item=Self::EntryKey> + 'static;
 
 	fn by_entry_key(&mut self, key: Self::EntryKey) -> Result<Self::Entry<'_>>;
 
-	type NameIter<'a>: Iterator<Item=(&'a str, Self::EntryKey)> where Self: 'a;
+	fn names(&self) -> impl Iterator<Item=(Self::EntryKey, &'_ str)>;
 
-	fn names(&self) -> Self::NameIter<'_>;
 	fn by_name(&mut self, name: &str) -> Result<Option<Self::Entry<'_>>>;
-
 
 	fn read_classes_into<V: MultiClassVisitor>(&mut self, mut visitor: V) -> Result<V> {
 		let keys = self.entry_keys();
 		for key in keys {
 			let entry = self.by_entry_key(key)?;
 
-			if entry.is_class() {
-				visitor = entry.visit_as_class(visitor)?;
+			if let JarEntryEnum::Class(class) = entry.to_jar_entry_enum()? {
+				visitor = class.visit(visitor)?;
 			}
 		}
 
@@ -89,17 +86,96 @@ pub trait OpenedJar {
 }
 
 pub trait JarEntry {
-	fn is_dir(&self) -> bool;
 	fn name(&self) -> &str;
-
-	fn is_class(&self) -> bool {
-		!self.is_dir() && self.name().ends_with(".class")
-	}
-	fn visit_as_class<V: MultiClassVisitor>(self, visitor: V) -> Result<V>;
 
 	fn attrs(&self) -> BasicFileAttributes;
 
-	fn to_parsed_jar_entry(self) -> Result<ParsedJarEntry>;
+	type Class: IsClass;
+	type Other: IsOther;
+	fn to_jar_entry_enum(self) -> Result<JarEntryEnum<Self::Class, Self::Other>>;
+}
+
+pub enum JarEntryEnum<Class, Other> {
+	Dir,
+	Class(Class),
+	Other(Other),
+}
+
+impl<Class, Other> JarEntryEnum<Class, Other> {
+	pub(crate) fn map_both<NewClass, NewOther>(
+		self,
+		class_f: impl FnOnce(Class) -> NewClass,
+		other_f: impl FnOnce(Other) -> NewOther,
+	) -> JarEntryEnum<NewClass, NewOther> {
+		use JarEntryEnum::*;
+		match self {
+			Dir => Dir,
+			Class(class) => Class(class_f(class)),
+			Other(other) => Other(other_f(other)),
+		}
+	}
+
+	pub(crate) fn try_map_both<NewClass, NewOther>(
+		self,
+		class_f: impl FnOnce(Class) -> Result<NewClass>,
+		other_f: impl FnOnce(Other) -> Result<NewOther>,
+	) -> Result<JarEntryEnum<NewClass, NewOther>> {
+		use JarEntryEnum::*;
+		Ok(match self {
+			Dir => Dir,
+			Class(class) => Class(class_f(class)?),
+			Other(other) => Other(other_f(other)?),
+		})
+	}
+}
+
+impl<Class, Other> Debug for JarEntryEnum<Class, Other> {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		use JarEntryEnum::*;
+		match self {
+			Dir => write!(f, "Dir"),
+			Class(_) => write!(f, "Class"),
+			Other(_) => write!(f, "Other"),
+		}
+	}
+}
+
+pub trait IsClass {
+	fn read(self) -> Result<ClassFile>;
+
+	fn visit<M: MultiClassVisitor>(self, visitor: M) -> Result<M>;
+
+	type Written<'a>: AsRef<[u8]> where Self: 'a;
+	fn write(&self) -> Result<Self::Written<'_>>;
+
+	// TODO: remove?
+	fn into_class_repr(self) -> ClassRepr;
+}
+
+impl IsClass for ClassFile {
+	fn read(self) -> Result<ClassFile> {
+		Ok(self)
+	}
+
+	fn visit<M: MultiClassVisitor>(self, visitor: M) -> Result<M> {
+		self.accept(visitor)
+	}
+
+	type Written<'a> = Vec<u8> where Self: 'a;
+	fn write(&self) -> Result<Self::Written<'_>> {
+		let mut buf = Vec::new();
+		duke::write_class(&mut buf, self)?;
+		Ok(buf)
+	}
+
+	fn into_class_repr(self) -> ClassRepr {
+		ClassRepr::Parsed { class: self }
+	}
+}
+
+pub trait IsOther {
+	fn get_data(&self) -> &[u8];
+	fn get_data_owned(self) -> Vec<u8>;
 }
 
 #[derive(Clone, Copy, Debug)]

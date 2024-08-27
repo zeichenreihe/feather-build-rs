@@ -3,7 +3,8 @@ use anyhow::{Context, Result};
 use indexmap::{IndexMap, IndexSet};
 use duke::tree::class::{ClassAccess, ClassFile, ClassName, ClassNameSlice, EnclosingMethod, InnerClass, InnerClassFlags};
 use duke::tree::method::MethodNameAndDesc;
-use dukebox::{BasicFileAttributes, Jar, JarEntry, OpenedJar};
+use dukebox::{BasicFileAttributes, IsClass, IsOther, Jar, JarEntry, JarEntryEnum, OpenedJar};
+use dukebox::lazy_duke::ClassRepr;
 use dukebox::parsed::{ParsedJar, ParsedJarEntry};
 use quill::remapper::{ARemapper, ARemapperAsBRemapper, BRemapper, NoSuperClassProvider};
 use quill::tree::mappings::Mappings;
@@ -78,7 +79,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 
 		// TODO: the original code reads this with a reader that SKIP_{FRAMES,CODE,DEBUG}
 		//  my guess is that we could do even better by providing our own ClassVisitor impl here...
-		if let ParsedJarEntry::Class { class, .. } = entry.to_parsed_jar_entry()? {
+		if let JarEntryEnum::Class(class) = entry.to_jar_entry_enum()? {
 			let class_node = class.read()?;
 
 			if class_version.is_none() || class_version.is_some_and(|class_version| class_node.version < class_version) {
@@ -185,17 +186,22 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 		let class_node = do_nested_class_attribute_class_visitor(&this_nests, new_class);
 
 		let entry_attr = BasicFileAttributes::new_empty();
-		let entry = ParsedJarEntry::Class { attr: entry_attr, class: class_node.into() };
 
+		let (name, class_node) = if options.remap {
+			let name = dukebox::remap::remap_jar_entry_name(&name, &remapper)?;
+			let class_node = dukebox::remap::remap_class(&remapper, class_node)?;
 
-		if options.remap {
-			let name = dukebox::remap::remap_jar_entry_name(name, &remapper)?;
-			let entry = dukebox::remap::remap_jar_entry(entry, &remapper)?;
-
-			dst_resulting_entries.insert(name, entry);
+			(name, class_node)
 		} else {
-			dst_resulting_entries.insert(name, entry);
-		}
+			(name, class_node)
+		};
+
+		let entry = ParsedJarEntry {
+			attr: entry_attr,
+			content: JarEntryEnum::Class(ClassRepr::Parsed { class: class_node }),
+		};
+
+		dst_resulting_entries.insert(name, entry);
 	}
 
 
@@ -203,28 +209,37 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 		let entry = opened_src.by_entry_key(key)?;
 
 		let name = entry.name().to_owned();
+		let attr = entry.attrs();
 
-		match entry.to_parsed_jar_entry()? {
-			ParsedJarEntry::Class { attr, class } => {
+		use JarEntryEnum::*;
+		let (name, content) = match entry.to_jar_entry_enum()? {
+			Dir => (name, Dir),
+			Class(class) => {
 				let class_node = class.read()?;
 
 				let class_node = do_nested_class_attribute_class_visitor(&this_nests, class_node);
 
-				let entry = ParsedJarEntry::Class { attr, class: class_node.into() };
+				let (name, class_node) = if options.remap {
+					let name = dukebox::remap::remap_jar_entry_name(&name, &remapper)?;
+					let class_node = dukebox::remap::remap_class(&remapper, class_node)?;
 
-				if options.remap {
-					let name = dukebox::remap::remap_jar_entry_name(name, &remapper)?;
-					let entry = dukebox::remap::remap_jar_entry(entry, &remapper)?;
-
-					dst_resulting_entries.insert(name, entry);
+					(name, class_node)
 				} else {
-					dst_resulting_entries.insert(name, entry);
-				}
+					(name, class_node)
+				};
+				let content = Class(ClassRepr::Parsed { class: class_node });
+
+				(name, content)
 			},
-			entry => {
-				dst_resulting_entries.insert(name, entry);
-			},
-		}
+			Other(other) => (name, Other(other.get_data_owned())),
+		};
+
+		let entry = ParsedJarEntry {
+			attr,
+			content,
+		};
+
+		dst_resulting_entries.insert(name, entry);
 	}
 
 	// TODO: use log::_? also do we really need this?

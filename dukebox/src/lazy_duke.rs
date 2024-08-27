@@ -4,6 +4,7 @@ use std::io::Cursor;
 use anyhow::Result;
 use duke::tree::class::ClassFile;
 use duke::visitor::MultiClassVisitor;
+use crate::IsClass;
 
 /// A lazily read [`ClassFile`].
 #[derive(Clone)]
@@ -25,26 +26,23 @@ impl Debug for ClassRepr {
 	}
 }
 
-impl ClassRepr {
-	pub(crate) fn visit_as_class<V: MultiClassVisitor>(self, visitor: V) -> Result<V> {
+impl IsClass for &ClassRepr {
+	fn read(self) -> Result<ClassFile> {
 		match self {
-			ClassRepr::Parsed { class } => {
-				class.accept(visitor)
-			},
-			ClassRepr::Vec { data } => {
-				duke::read_class_multi(&mut Cursor::new(data), visitor)
-			},
-		}
-	}
-
-	pub fn read(self) -> Result<ClassFile> {
-		match self {
-			ClassRepr::Parsed { class } => Ok(class),
+			ClassRepr::Parsed { class } => Ok(class.clone()),
 			ClassRepr::Vec { data } => duke::read_class(&mut Cursor::new(data)),
 		}
 	}
 
-	pub(crate) fn write_from_ref(&self) -> Result<Cow<[u8]>> {
+	fn visit<M: MultiClassVisitor>(self, visitor: M) -> Result<M> {
+		match self {
+			ClassRepr::Parsed { class } => class.clone().accept(visitor),
+			ClassRepr::Vec { data } => duke::read_class_multi(&mut Cursor::new(data), visitor),
+		}
+	}
+
+	type Written<'a> = Cow<'a, [u8]> where Self: 'a;
+	fn write(&self) -> Result<Self::Written<'_>> {
 		match self {
 			ClassRepr::Parsed { class } => {
 				let mut buf = Vec::new();
@@ -55,39 +53,7 @@ impl ClassRepr {
 		}
 	}
 
-	pub(crate) fn write(&self) -> Result<Cow<'_, [u8]>> {
-		match self {
-			ClassRepr::Parsed { class } => {
-				let mut buf = Vec::new();
-				duke::write_class(&mut buf, class)?;
-				Ok(Cow::Owned(buf))
-			},
-			ClassRepr::Vec { data } => Ok(Cow::Borrowed(data)),
-		}
-	}
-
-	pub(crate) fn action(self, f: impl FnOnce(ClassFile) -> Result<ClassFile>) -> Result<ClassRepr> {
-		let class = self.read()?;
-		let class = f(class)?;
-		Ok(ClassRepr::Parsed { class })
-	}
-
-	pub(crate) fn edit(self, f: impl FnOnce(&mut ClassFile)) -> Result<ClassRepr> {
-		self.action(|mut class| {
-			f(&mut class);
-			Ok(class)
-		})
-	}
-}
-
-impl From<ClassFile> for ClassRepr {
-	fn from(class: ClassFile) -> Self {
-		ClassRepr::Parsed { class }
-	}
-}
-
-impl From<Vec<u8>> for ClassRepr {
-	fn from(data: Vec<u8>) -> Self {
-		ClassRepr::Vec { data }
+	fn into_class_repr(self) -> ClassRepr {
+		self.clone()
 	}
 }

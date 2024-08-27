@@ -8,7 +8,8 @@ use duke::tree::method::code::{Code, ConstantDynamic, Exception, Handle, Instruc
 use duke::tree::type_annotation::TypeAnnotation;
 use duke::visitor::method::code::{StackMapData, VerificationTypeInfo};
 use quill::remapper::BRemapper;
-use crate::{Jar, JarEntry, OpenedJar};
+use crate::{IsClass, IsOther, Jar, JarEntry, OpenedJar};
+use crate::lazy_duke::ClassRepr;
 use crate::parsed::{ParsedJar, ParsedJarEntry};
 
 
@@ -21,9 +22,17 @@ pub fn remap(jar: impl Jar, remapper: impl BRemapper) -> Result<ParsedJar> {
 	for key in opened.entry_keys() {
 		let entry = opened.by_entry_key(key)?;
 
-		let name = remap_jar_entry_name(entry.name().to_owned(), &remapper)?;
+		let name = remap_jar_entry_name(entry.name(), &remapper)?;
 
-		let entry = remap_jar_entry(entry.to_parsed_jar_entry()?, &remapper)?;
+		let entry = ParsedJarEntry {
+			attr: entry.attrs(),
+			content: entry.to_jar_entry_enum()?
+// TODO: don't do any directories and only after remapping figure out the directories for the classes
+				.try_map_both(
+					|class| Ok(ClassRepr::Parsed { class: remap_class(&remapper, class)? }),
+					|other| remap_other(&remapper, other)
+				)?,
+		};
 
 		resulting_entries.insert(name, entry);
 	}
@@ -31,24 +40,25 @@ pub fn remap(jar: impl Jar, remapper: impl BRemapper) -> Result<ParsedJar> {
 	Ok(ParsedJar { entries: resulting_entries })
 }
 
-pub fn remap_jar_entry_name(name: String, remapper: &impl BRemapper) -> Result<String> {
+pub fn remap_jar_entry_name(name: &str, remapper: &impl BRemapper) -> Result<String> {
 	if let Some(name_without_class) = name.strip_suffix(".class") {
 		let name = remapper.map_class(ClassNameSlice::from_str(name_without_class))?;
 		Ok(format!("{name}.class"))
 	} else {
-		Ok(name)
+		// TODO: also deal with directory names...
+		eprintln!("remap jar entry name: unknown for {name:?}");
+		Ok(name.to_owned())
 	}
 }
 
-pub fn remap_jar_entry(entry: ParsedJarEntry, remapper: &impl BRemapper) -> Result<ParsedJarEntry> {
-	Ok(match entry {
-		ParsedJarEntry::Class { attr, class } => {
-			let class = class.read()?.remap(remapper)?.into();
-			ParsedJarEntry::Class { attr, class }
-		},
-		e @ ParsedJarEntry::Other { .. } => e,
-		e @ ParsedJarEntry::Dir { .. } => e,
-	})
+pub fn remap_class(remapper: &impl BRemapper, class: impl IsClass) -> Result<ClassFile> {
+	class.read()?.remap(remapper)
+}
+
+pub fn remap_other(remapper: &impl BRemapper, other: impl IsOther) -> Result<Vec<u8>> {
+	let data = other.get_data_owned();
+	// TODO: at least warn about it
+	Ok(data)
 }
 
 trait Mappable<Output = Self>: Sized {
@@ -136,9 +146,9 @@ impl Mappable for ClassFile {
 			module_packages: None, // TODO
 			module_main_class: None, // TODO
 
-			nest_host_class: None, // TODO
-			nest_members: None, // TODO
-			permitted_subclasses: None, // TODO
+			nest_host_class: self.nest_host_class.remap(remapper)?,
+			nest_members: self.nest_members.remap(remapper)?,
+			permitted_subclasses: self.permitted_subclasses.remap(remapper)?,
 
 			record_components: Vec::new(), // TODO (takes in self.name as well)
 
@@ -302,7 +312,11 @@ impl Mappable for ElementValue {
 		use ElementValue::*;
 		Ok(match self {
 			Object(x) => Object(x),
-			Enum { type_name, const_name } => Enum { type_name, const_name }, // TODO: these two need remapping!
+			Enum { type_name, const_name } => Enum {
+				type_name: type_name.remap(remapper)?,
+			// TODO: this one needs remapping!
+				const_name,
+			},
 			Class(class_name) => Class(remapper.map_desc(&class_name)?), // this is enough for the return descriptor
 			AnnotationInterface(annotation) => AnnotationInterface(annotation.remap(remapper)?),
 			ArrayType(vec) => ArrayType(vec.remap(remapper)?),

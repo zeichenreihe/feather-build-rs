@@ -1,23 +1,22 @@
 use anyhow::{anyhow, Context, Result};
 use std::io::{Cursor, Read, Seek};
-use std::ops::Range;
 use zip::read::ZipFile;
 use zip::result::ZipError;
 use zip::ZipArchive;
+use duke::tree::class::ClassFile;
 use duke::visitor::MultiClassVisitor;
-use crate::{BasicFileAttributes, JarEntry, OpenedJar};
-use crate::parsed::ParsedJarEntry;
+use crate::{BasicFileAttributes, IsClass, IsOther, JarEntry, JarEntryEnum, OpenedJar};
+use crate::lazy_duke::ClassRepr;
 
 pub mod mem;
 pub mod file;
 
 impl<R: Read + Seek> OpenedJar for ZipArchive<R> {
+	type EntryKey = usize;
+
 	type Entry<'a> = ZipFile<'a> where Self: 'a;
 
-	type EntryKey = usize;
-	type EntryKeyIter = Range<usize>;
-
-	fn entry_keys(&self) -> Self::EntryKeyIter {
+	fn entry_keys(&self) -> impl Iterator<Item=Self::EntryKey> + 'static {
 		0..self.len()
 	}
 
@@ -25,12 +24,13 @@ impl<R: Read + Seek> OpenedJar for ZipArchive<R> {
 		self.by_index(key).context("")
 	}
 
-	type NameIter<'a> = std::vec::IntoIter<(&'a str, usize)> where Self: 'a;
-
-	fn names(&self) -> Self::NameIter<'_> {
+	fn names(&self) -> impl Iterator<Item=(Self::EntryKey, &'_ str)> {
 		//TODO: suggest to `zip` crate to expose the `files` map of the `ZipArchive`, because I want to have both the names and the
 		// zip file indices to improve performance (as then I don't need to get with a string from a map!)
-		(0..self.len()).map(|x| (self.name_for_index(x).unwrap(), x)).collect::<Vec<_>>().into_iter()
+
+		// This unwrap is fine, as all the indices are within bounds
+		#[allow(clippy::unwrap_used)]
+		(0..self.len()).map(|x| (x, self.name_for_index(x).unwrap()))
 	}
 
 	fn by_name(&mut self, name: &str) -> Result<Option<Self::Entry<'_>>> {
@@ -45,41 +45,64 @@ impl<R: Read + Seek> OpenedJar for ZipArchive<R> {
 }
 
 impl JarEntry for ZipFile<'_> {
-	fn is_dir(&self) -> bool {
-		ZipFile::is_dir(self)
-	}
-
 	fn name(&self) -> &str {
 		ZipFile::name(self)
-	}
-
-	fn visit_as_class<V: MultiClassVisitor>(mut self, visitor: V) -> Result<V> {
-		let mut vec = Vec::new();
-		self.read_to_end(&mut vec)?;
-
-		let mut reader = Cursor::new(vec);
-
-		duke::read_class_multi(&mut reader, visitor)
 	}
 
 	fn attrs(&self) -> BasicFileAttributes {
 		BasicFileAttributes::new(self.last_modified(), self.extra_data_fields())
 	}
 
-	fn to_parsed_jar_entry(mut self) -> Result<ParsedJarEntry> {
-		let attr = self.attrs();
-
+	type Class = FromZipClass;
+	type Other = FromZipOther;
+	fn to_jar_entry_enum(mut self) -> Result<JarEntryEnum<Self::Class, Self::Other>> {
 		Ok(if self.is_dir() {
-			ParsedJarEntry::Dir { attr }
+			JarEntryEnum::Dir
 		} else {
 			let mut data = Vec::new();
 			self.read_to_end(&mut data)?;
 
-			if self.is_class() {
-				ParsedJarEntry::Class { attr, class: data.into() }
+			if !self.is_dir() && self.name().ends_with(".class") {
+				JarEntryEnum::Class(FromZipClass { inner: data })
 			} else {
-				ParsedJarEntry::Other { attr, data }
+				JarEntryEnum::Other(FromZipOther { inner: data })
 			}
 		})
+	}
+}
+
+pub struct FromZipClass {
+	inner: Vec<u8>,
+}
+
+impl IsClass for FromZipClass {
+	fn read(self) -> Result<ClassFile> {
+		duke::read_class(&mut Cursor::new(self.inner))
+	}
+
+	fn visit<M: MultiClassVisitor>(self, visitor: M) -> Result<M> {
+		duke::read_class_multi(&mut Cursor::new(self.inner), visitor)
+	}
+
+	type Written<'a> = &'a [u8] where Self: 'a;
+	fn write(&self) -> Result<Self::Written<'_>> {
+		Ok(&self.inner)
+	}
+
+	fn into_class_repr(self) -> ClassRepr {
+		ClassRepr::Vec { data: self.inner }
+	}
+}
+
+pub struct FromZipOther {
+	inner: Vec<u8>,
+}
+
+impl IsOther for FromZipOther {
+	fn get_data(&self) -> &[u8] {
+		&self.inner
+	}
+	fn get_data_owned(self) -> Vec<u8> {
+		self.inner
 	}
 }
