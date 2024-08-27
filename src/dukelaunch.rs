@@ -10,11 +10,11 @@ const FILE_SEPARATOR: &str = ":";
 const FILE_SEPARATOR: &str = ";";
 
 #[derive(Debug)]
-pub struct JavaRunConfig {
+pub struct JavaRunConfig<'a> {
 	pub main_class: OsString,
 	pub classpath: Vec<OsString>,
 	pub jvm_args: Vec<OsString>,
-	pub args: Vec<OsString>,
+	pub args: Vec<&'a OsStr>,
 }
 
 #[derive(Debug)]
@@ -151,19 +151,18 @@ fn java_dash_version_output_to_version(stderr: &str) -> Result<u16> {
 		.and_then(|x| x.strip_suffix('\"'))
 		.with_context(|| anyhow!("expected version string to start with \" and end with \", got {quoted_version:?}"))?;
 
-	if let Some(rest) = version_string.strip_prefix("1.") {
+	let number = if let Some(rest) = version_string.strip_prefix("1.") {
 		// Old format (Java 8 and below)
-		if let Some((major, _)) = rest.split_once('.') {
-			major.parse().with_context(|| anyhow!("failed to parse {major:?} of java version {version_string:?}"))
-		} else {
-			rest.parse().with_context(|| anyhow!("failed to parse {rest:?} of java version {version_string:?}"))
-		}
+		rest.split_once('.').map_or(rest, |(major, _)| major)
 	} else if let Some((major, _)) = version_string.split_once('.') {
 		// New format (Java 9 and higher)
-		major.parse().with_context(|| anyhow!("failed to parse {major} of java version {version_string:?}"))
+		major
 	} else {
-		version_string.parse().with_context(|| anyhow!("failed to parse {version_string:?} of java version {version_string:?}"))
-	}
+		version_string
+	};
+
+	number.parse()
+		.with_context(|| anyhow!("failed to parse {number:?} of java version {version_string:?}"))
 }
 
 #[cfg(test)]

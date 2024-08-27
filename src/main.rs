@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use anyhow::{anyhow, bail, Context, Result};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -82,14 +83,21 @@ async fn main() -> Result<()> {
     //    .check_java_version(17)
     //    .with_context(|| anyhow!("feathers buildscript requires java 17 or higher"))?;
 
-    let mappings_dir =
-        //mappings_dir.unwrap_or_else(|| "mappings".into())
-        cli.mappings_dir.unwrap_or_else(|| "mappings/mappings".into());
+    // TODO: better default (at least second and third)
+    let default_mappings_dir = "mappings/mappings"; // TODO: switch back to "mappings"
+    let default_working_mappings_base_dir = Path::new("/tmp/mappings_run"); // TODO: switch back to "mappings/run";
+    let default_enigma_prepared_jar = Path::new("/tmp/enigma_run_jar_cache.jar");
+
+    // TODO: orignally "enigma_profile.json"
+    let default_enigma_profile_json = Path::new("mappings/enigma_profile.json"); // TODO: default should be in mappings dir?
+
+
+    let mappings_dir = cli.mappings_dir
+        .unwrap_or_else(|| default_mappings_dir.into());
 
     let working_mappings_dir = |working_mappings_base_dir: Option<PathBuf>, version: &Version| -> PathBuf {
-        // TODO: better default
-        //let mut x = working_mappings_base_dir.unwrap_or_else(|| "mappings/run/".into());
-        let mut x = working_mappings_base_dir.unwrap_or_else(|| "/tmp/mappings_run/".into());
+        let mut x = working_mappings_base_dir
+            .unwrap_or_else(|| default_working_mappings_base_dir.to_owned());
         x.push(version.as_str());
         x
     };
@@ -275,34 +283,27 @@ async fn main() -> Result<()> {
             let nested_jar = nest_jar(&downloader, version, &calamus_jar).await?;
 
             let jar_path = enigma_prepared_jar.as_deref()
-                // TODO: better default
-                .unwrap_or(Path::new("/tmp/enigma_run_jar_cache.jar"));
+                .unwrap_or(default_enigma_prepared_jar);
 
             nested_jar.as_ref()
                 .unwrap_or(&calamus_jar)
                 .put_to_file(jar_path)?;
 
-            let profile_json_path = enigma_profile
-                //.unwrap_or_else(|| PathBuf::from("enigma_profile.json"));
-                // TODO: default should be in mappings dir?
-                .unwrap_or_else(|| PathBuf::from("mappings/enigma_profile.json"));
+            let profile_json_path = enigma_profile.as_deref()
+                .unwrap_or(default_enigma_profile_json);
 
-            let working_mappings = {
-                let mappings = version_graph.apply_diffs(version)? // calamus -> named
-                    .extend_inner_class_names("named")?;
+            let mappings = version_graph.apply_diffs(version)? // calamus -> named
+                .extend_inner_class_names("named")?;
 
-                let mappings = if let Some(nests) = patch_nests(&downloader, version).await? {
-                    MappingUtils::apply_nests(mappings, nests)?
-                } else {
-                    mappings
-                };
-
-                let mappings = mappings.remove_dummy("named")?;
-
-                quill::enigma_dir::write(&mappings, &working_mappings_dir)?;
-
-                working_mappings_dir
+            let mappings = if let Some(nests) = patch_nests(&downloader, version).await? {
+                MappingUtils::apply_nests(mappings, nests)?
+            } else {
+                mappings
             };
+
+            let mappings = mappings.remove_dummy("named")?;
+
+            quill::enigma_dir::write(&mappings, &working_mappings_dir)?;
 
             let arg = JavaRunConfig {
                 main_class: "cuchaz.enigma.gui.Main".into(),
@@ -311,9 +312,9 @@ async fn main() -> Result<()> {
                     "-Xmx2048m".into(),
                 ],
                 args: vec![
-                    "-jar".into(), jar_path.as_os_str().to_owned(),
-                    "-mappings".into(), working_mappings.into_os_string(),
-                    "-profile".into(), profile_json_path.into_os_string(),
+                    OsStr::new("-jar"), jar_path.as_os_str(),
+                    OsStr::new("-mappings"), working_mappings_dir.as_os_str(),
+                    OsStr::new("-profile"), profile_json_path.as_os_str(),
                 ],
             };
 
@@ -367,6 +368,7 @@ async fn main() -> Result<()> {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 struct PropagationOptions {
     direction: PropagationDirection,
     lenient: bool,
@@ -442,7 +444,8 @@ async fn nest_jar(downloader: &Downloader, version: &Version, calamus_jar: &impl
 
 // note: `calamusNestsFile` is result of the `patchNests` task
 async fn patch_nests(downloader: &Downloader, version: &Version) -> Result<Option<Nests>> {
-    if let Some(nests) = downloader.download_nests(version).await? {
+    // TODO: for running offline... and 1.12.2 doesn't have nests
+    if let Some(nests) = /* downloader.download_nests(version).await? */ None {
         let calamus = downloader.calamus_v2(version).await?;
 
         let dst = dukenest::map_nests(&calamus, nests)?;
