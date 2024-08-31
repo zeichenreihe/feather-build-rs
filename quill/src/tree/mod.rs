@@ -10,6 +10,11 @@ pub trait NodeInfo<I> {
 	fn new(info: I) -> Self;
 }
 
+pub trait NodeJavadocInfo<I> {
+	fn get_node_javadoc_info(&self) -> &Option<I>;
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<I>;
+}
+
 pub trait ToKey<K> {
 	fn get_key(&self) -> Result<K>;
 }

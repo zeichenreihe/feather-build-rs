@@ -3,18 +3,18 @@ use anyhow::{anyhow, bail, Context, Result};
 use indexmap::{IndexMap, IndexSet};
 use crate::tree::mappings::Mappings;
 use crate::tree::mappings_diff::{Action, ClassNowodeDiff, FieldNowodeDiff, MappingsDiff, MethodNowodeDiff, ParameterNowodeDiff};
-use crate::tree::{GetNames, NodeInfo};
+use crate::tree::{GetNames, NodeInfo, NodeJavadocInfo};
 use crate::tree::names::Namespace;
 
-fn gen_diff_option<T, V>(
-	f: impl Fn(&T) -> &Option<V>,
-	a: &Option<T>,
-	b: &Option<T>
+fn gen_diff_javadoc<T, V>(
+	a: Option<&T>,
+	b: Option<&T>,
 ) -> Option<Action<V>>
 	where
+		T: NodeJavadocInfo<V>,
 		V: Clone,
 {
-	match (a.as_ref().map(&f), b.as_ref().map(f)) {
+	match (a.map(NodeJavadocInfo::get_node_javadoc_info), b.map(NodeJavadocInfo::get_node_javadoc_info)) {
 		(None, None) => unreachable!(),
 		(None, Some(b)) => b.as_ref().map(|b| Action::Add(b.clone())),
 		(Some(a), None) => a.as_ref().map(|a| Action::Remove(a.clone())),
@@ -109,7 +109,7 @@ impl MappingsDiff {
 						a.map(|x| &x.fields), b.map(|x| &x.fields),
 						|a, b| Ok(FieldNowodeDiff {
 							info: gen_diff_names(a, b)?,
-							javadoc: gen_diff_option(|x| &x.javadoc, &a, &b),
+							javadoc: gen_diff_javadoc(a, b),
 						})
 					)?,
 					methods: gen_diff_map(
@@ -120,16 +120,16 @@ impl MappingsDiff {
 								a.map(|x| &x.parameters), b.map(|x| &x.parameters),
 								|a, b| Ok(ParameterNowodeDiff {
 									info: gen_diff_names(a, b)?,
-									javadoc: gen_diff_option(|x| &x.javadoc, &a, &b),
+									javadoc: gen_diff_javadoc(a, b),
 								})
 							)?,
-							javadoc: gen_diff_option(|x| &x.javadoc, &a, &b),
+							javadoc: gen_diff_javadoc(a, b),
 						})
 					)?,
-					javadoc: gen_diff_option(|x| &x.javadoc, &a, &b),
+					javadoc: gen_diff_javadoc(a, b),
 				})
 			)?,
-			javadoc: gen_diff_option(|x| x, &Some(&a.javadoc), &Some(&b.javadoc)),
+			javadoc: gen_diff_javadoc(Some(a), Some(b)),
 		})
 	}
 }

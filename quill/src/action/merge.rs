@@ -4,17 +4,17 @@ use anyhow::{bail, Context, Error, Result};
 use indexmap::{IndexMap, IndexSet};
 use crate::tree::names::Namespaces;
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, FieldNowodeMapping, MappingInfo, Mappings, MethodMapping, MethodNowodeMapping, ParameterMapping, ParameterNowodeMapping};
-use crate::tree::NodeInfo;
+use crate::tree::{NodeInfo, NodeJavadocInfo};
 
-fn merge_option<T, V>(
-	f: impl Fn(&T) -> &Option<V>,
-	a: &Option<T>,
-	b: &Option<T>
+fn merge_javadoc<T, V>(
+	a: Option<&T>,
+	b: Option<&T>
 ) -> Result<Option<V>>
 where
+	T: NodeJavadocInfo<V>,
 	V: Clone + Debug + PartialEq,
 {
-	Ok(match (a.as_ref().map(&f), b.as_ref().map(f)) {
+	Ok(match (a.map(NodeJavadocInfo::get_node_javadoc_info), b.map(NodeJavadocInfo::get_node_javadoc_info)) {
 		(None, None) => unreachable!(),
 		(None, Some(b)) => b.clone(),
 		(Some(a), None) => a.clone(),
@@ -116,14 +116,14 @@ impl Mappings<2> {
 			info: MappingInfo {
 				namespaces: merge_namespaces(&a.info.namespaces, &b.info.namespaces).context("failed to merge namespaces")?,
 			},
-			javadoc: merge_option(|x| x, &Some(&a.javadoc), &Some(&b.javadoc))?,
+			javadoc: merge_javadoc(Some(a), Some(b))?,
 			classes: merge_map(
 				Some(&a.classes), Some(&b.classes),
 				|a, b| Ok(ClassNowodeMapping {
 					info: ClassMapping {
 						names: merge_names(|x| &x.names, a, b)?,
 					},
-					javadoc: merge_option(|x| &x.javadoc, &a, &b)?,
+					javadoc: merge_javadoc(a, b)?,
 					fields: merge_map(
 						a.map(|x| &x.fields), b.map(|x| &x.fields),
 						|a, b| Ok(FieldNowodeMapping {
@@ -131,7 +131,7 @@ impl Mappings<2> {
 								desc: merge_equal(|x| &x.info.desc, &a, &b).context("cannot merge field descriptors")?,
 								names: merge_names(|x| &x.names, a, b)?,
 							},
-							javadoc: merge_option(|x| &x.javadoc, &a, &b)?,
+							javadoc: merge_javadoc(a, b)?,
 						})
 					)?,
 					methods: merge_map(
@@ -141,7 +141,7 @@ impl Mappings<2> {
 								desc: merge_equal(|x| &x.info.desc, &a, &b).context("cannot merge method descriptors")?,
 								names: merge_names(|x| &x.names, a, b)?,
 							},
-							javadoc: merge_option(|x| &x.javadoc, &a, &b)?,
+							javadoc: merge_javadoc(a, b)?,
 							parameters: merge_map(
 								a.map(|x| &x.parameters), b.map(|x| &x.parameters),
 								|a, b| Ok(ParameterNowodeMapping {
@@ -149,7 +149,7 @@ impl Mappings<2> {
 										index: merge_equal(|x| &x.info.index, &a, &b).context("cannot merge parameter indices")?,
 										names: merge_names(|x| &x.names, a, b)?,
 									},
-									javadoc: merge_option(|x| &x.javadoc, &a, &b)?,
+									javadoc: merge_javadoc(a, b)?,
 								})
 							)?,
 						})

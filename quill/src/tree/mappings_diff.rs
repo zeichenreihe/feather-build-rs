@@ -7,7 +7,7 @@ use duke::tree::class::ClassName;
 use duke::tree::field::{FieldName, FieldNameAndDesc};
 use duke::tree::method::{MethodName, MethodNameAndDesc, ParameterName};
 use crate::tree::mappings::{JavadocMapping, ParameterKey};
-use crate::tree::NodeInfo;
+use crate::tree::{NodeInfo, NodeJavadocInfo};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) enum Action<T> {
@@ -65,6 +65,16 @@ impl NodeInfo<Action<String>> for MappingsDiff {
 	}
 }
 
+impl NodeJavadocInfo<Action<JavadocMapping>> for MappingsDiff {
+	fn get_node_javadoc_info(&self) -> &Option<Action<JavadocMapping>> {
+		&self.javadoc
+	}
+
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<Action<JavadocMapping>> {
+		&mut self.javadoc
+	}
+}
+
 impl MappingsDiff {
 	pub(crate) fn add_class(&mut self, key: ClassName, child: ClassNowodeDiff) -> Result<&mut ClassNowodeDiff> {
 		add_child(&mut self.classes, key, child)
@@ -96,6 +106,16 @@ impl NodeInfo<Action<ClassName>> for ClassNowodeDiff {
 			methods: IndexMap::new(),
 			javadoc: None,
 		}
+	}
+}
+
+impl NodeJavadocInfo<Action<JavadocMapping>> for ClassNowodeDiff {
+	fn get_node_javadoc_info(&self) -> &Option<Action<JavadocMapping>> {
+		&self.javadoc
+	}
+
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<Action<JavadocMapping>> {
+		&mut self.javadoc
 	}
 }
 
@@ -134,6 +154,16 @@ impl NodeInfo<Action<FieldName>> for FieldNowodeDiff {
 	}
 }
 
+impl NodeJavadocInfo<Action<JavadocMapping>> for FieldNowodeDiff {
+	fn get_node_javadoc_info(&self) -> &Option<Action<JavadocMapping>> {
+		&self.javadoc
+	}
+
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<Action<JavadocMapping>> {
+		&mut self.javadoc
+	}
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct MethodNowodeDiff {
 	pub(crate) info: Action<MethodName>,
@@ -156,6 +186,16 @@ impl NodeInfo<Action<MethodName>> for MethodNowodeDiff {
 			parameters: IndexMap::new(),
 			javadoc: None,
 		}
+	}
+}
+
+impl NodeJavadocInfo<Action<JavadocMapping>> for MethodNowodeDiff {
+	fn get_node_javadoc_info(&self) -> &Option<Action<JavadocMapping>> {
+		&self.javadoc
+	}
+
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<Action<JavadocMapping>> {
+		&mut self.javadoc
 	}
 }
 
@@ -186,5 +226,15 @@ impl NodeInfo<Action<ParameterName>> for ParameterNowodeDiff {
 			info,
 			javadoc: None,
 		}
+	}
+}
+
+impl NodeJavadocInfo<Action<JavadocMapping>> for ParameterNowodeDiff {
+	fn get_node_javadoc_info(&self) -> &Option<Action<JavadocMapping>> {
+		&self.javadoc
+	}
+
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<Action<JavadocMapping>> {
+		&mut self.javadoc
 	}
 }

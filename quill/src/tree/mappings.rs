@@ -7,7 +7,7 @@ use duke::tree::class::{ClassName, ClassNameSlice};
 use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc};
 use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, ParameterName};
 use crate::tree::names::{Names, Namespace, Namespaces};
-use crate::tree::{FromKey, GetNames, NodeInfo, ToKey};
+use crate::tree::{FromKey, GetNames, NodeInfo, NodeJavadocInfo, ToKey};
 
 fn add_child<Key, Node, Info>(map: &mut IndexMap<Key, Node>, child: Node) -> Result<&mut Node>
 where
@@ -45,6 +45,16 @@ impl<const N: usize> NodeInfo<MappingInfo<N>> for Mappings<N> {
 			classes: IndexMap::new(),
 			javadoc: None,
 		}
+	}
+}
+
+impl<const N: usize> NodeJavadocInfo<JavadocMapping> for Mappings<N> {
+	fn get_node_javadoc_info(&self) -> &Option<JavadocMapping> {
+		&self.javadoc
+	}
+
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<JavadocMapping> {
+		&mut self.javadoc
 	}
 }
 
@@ -96,6 +106,16 @@ impl<const N: usize> NodeInfo<ClassMapping<N>> for ClassNowodeMapping<N> {
 	}
 }
 
+impl<const N: usize> NodeJavadocInfo<JavadocMapping> for ClassNowodeMapping<N> {
+	fn get_node_javadoc_info(&self) -> &Option<JavadocMapping> {
+		&self.javadoc
+	}
+
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<JavadocMapping> {
+		&mut self.javadoc
+	}
+}
+
 impl<const N: usize> ClassNowodeMapping<N> {
 	pub(crate) fn add_field(&mut self, child: FieldNowodeMapping<N>) -> Result<&mut FieldNowodeMapping<N>> {
 		add_child(&mut self.fields, child)
@@ -131,6 +151,16 @@ impl<const N: usize> NodeInfo<FieldMapping<N>> for FieldNowodeMapping<N> {
 	}
 }
 
+impl<const N: usize> NodeJavadocInfo<JavadocMapping> for FieldNowodeMapping<N> {
+	fn get_node_javadoc_info(&self) -> &Option<JavadocMapping> {
+		&self.javadoc
+	}
+
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<JavadocMapping> {
+		&mut self.javadoc
+	}
+}
+
 #[derive(Debug, Clone)]
 pub struct MethodNowodeMapping<const N: usize> {
 	pub info: MethodMapping<N>,
@@ -153,6 +183,16 @@ impl<const N: usize> NodeInfo<MethodMapping<N>> for MethodNowodeMapping<N> {
 			parameters: IndexMap::new(),
 			javadoc: None,
 		}
+	}
+}
+
+impl<const N: usize> NodeJavadocInfo<JavadocMapping> for MethodNowodeMapping<N> {
+	fn get_node_javadoc_info(&self) -> &Option<JavadocMapping> {
+		&self.javadoc
+	}
+
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<JavadocMapping> {
+		&mut self.javadoc
 	}
 }
 
@@ -183,6 +223,16 @@ impl<const N: usize> NodeInfo<ParameterMapping<N>> for ParameterNowodeMapping<N>
 			info,
 			javadoc: None,
 		}
+	}
+}
+
+impl<const N: usize> NodeJavadocInfo<JavadocMapping> for ParameterNowodeMapping<N> {
+	fn get_node_javadoc_info(&self) -> &Option<JavadocMapping> {
+		&self.javadoc
+	}
+
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<JavadocMapping> {
+		&mut self.javadoc
 	}
 }
 

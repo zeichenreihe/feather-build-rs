@@ -16,11 +16,6 @@ impl MappingsDiff {
 	///   `<init>` or `<clinit>`, and it doesn't have any members, i.e. javadoc or parameter mappings.
 	/// - a parameter mapping is removed if its name starts with `p_` and it doesn't have any javadoc.
 	pub fn insert_dummy_and_contract_inner_names(mut self) -> Result<Self> {
-
-		fn javadoc_is_diff<T: PartialEq>(action: &Option<Action<T>>) -> bool {
-			action.as_ref().is_some_and(|action| action.is_diff())
-		}
-
 		self.classes.retain(|k, v| {
 			v.fields.retain(|k, v| {
 
@@ -43,7 +38,7 @@ impl MappingsDiff {
 
 				validator_check && (
 					v.info.is_diff() ||
-						javadoc_is_diff(&v.javadoc)
+						v.javadoc.as_ref().is_some_and(Action::is_diff)
 				)
 			});
 			v.methods.retain(|k, v| {
@@ -68,7 +63,7 @@ impl MappingsDiff {
 
 					validator_check && (
 						v.info.is_diff() ||
-							javadoc_is_diff(&v.javadoc)
+							v.javadoc.as_ref().is_some_and(Action::is_diff)
 					)
 				});
 
@@ -92,7 +87,7 @@ impl MappingsDiff {
 				(
 					validator_check && (
 						v.info.is_diff() ||
-							javadoc_is_diff(&v.javadoc)
+							v.javadoc.as_ref().is_some_and(Action::is_diff)
 					)
 				)
 					|| !v.parameters.is_empty()
@@ -123,7 +118,7 @@ impl MappingsDiff {
 			(
 				validator_check && (
 					v.info.is_diff() ||
-						javadoc_is_diff(&v.javadoc)
+						v.javadoc.as_ref().is_some_and(Action::is_diff)
 				)
 			)
 				|| !v.fields.is_empty()
