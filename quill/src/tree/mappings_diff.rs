@@ -10,7 +10,7 @@ use crate::tree::mappings::{JavadocMapping, ParameterKey};
 use crate::tree::{NodeInfo, NodeJavadocInfo};
 
 #[derive(Debug, Clone, Default)]
-pub(crate) enum Action<T> {
+pub enum Action<T> {
 	Add(T),
 	Remove(T),
 	Edit(T, T),
@@ -19,7 +19,7 @@ pub(crate) enum Action<T> {
 }
 
 impl<T: PartialEq> Action<T> {
-	pub(crate) fn is_diff(&self) -> bool {
+	pub fn is_diff(&self) -> bool {
 		match self {
 			Action::Add(_) => true,
 			Action::Remove(_) => true,
@@ -42,9 +42,9 @@ fn add_child<Key, Node, Info>(map: &mut IndexMap<Key, Node>, key: Key, child: No
 
 #[derive(Debug, Clone)]
 pub struct MappingsDiff {
-	pub(crate) info: Action<String>,
-	pub(crate) classes: IndexMap<ClassName, ClassNowodeDiff>,
-	pub(crate) javadoc: Option<Action<JavadocMapping>>,
+	pub info: Action<String>,
+	pub classes: IndexMap<ClassName, ClassNowodeDiff>,
+	pub javadoc: Option<Action<JavadocMapping>>,
 }
 
 impl NodeInfo<Action<String>> for MappingsDiff {
@@ -83,11 +83,11 @@ impl MappingsDiff {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ClassNowodeDiff {
-	pub(crate) info: Action<ClassName>,
-	pub(crate) fields: IndexMap<FieldNameAndDesc, FieldNowodeDiff>,
-	pub(crate) methods: IndexMap<MethodNameAndDesc, MethodNowodeDiff>,
-	pub(crate) javadoc: Option<Action<JavadocMapping>>,
+pub struct ClassNowodeDiff {
+	pub info: Action<ClassName>,
+	pub fields: IndexMap<FieldNameAndDesc, FieldNowodeDiff>,
+	pub methods: IndexMap<MethodNameAndDesc, MethodNowodeDiff>,
+	pub javadoc: Option<Action<JavadocMapping>>,
 }
 
 impl NodeInfo<Action<ClassName>> for ClassNowodeDiff {
@@ -132,9 +132,9 @@ impl ClassNowodeDiff {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct FieldNowodeDiff {
-	pub(crate) info: Action<FieldName>,
-	pub(crate) javadoc: Option<Action<JavadocMapping>>,
+pub struct FieldNowodeDiff {
+	pub info: Action<FieldName>,
+	pub javadoc: Option<Action<JavadocMapping>>,
 }
 
 impl NodeInfo<Action<FieldName>> for FieldNowodeDiff {
@@ -165,10 +165,10 @@ impl NodeJavadocInfo<Action<JavadocMapping>> for FieldNowodeDiff {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct MethodNowodeDiff {
-	pub(crate) info: Action<MethodName>,
-	pub(crate) parameters: IndexMap<ParameterKey, ParameterNowodeDiff>,
-	pub(crate) javadoc: Option<Action<JavadocMapping>>,
+pub struct MethodNowodeDiff {
+	pub info: Action<MethodName>,
+	pub parameters: IndexMap<ParameterKey, ParameterNowodeDiff>,
+	pub javadoc: Option<Action<JavadocMapping>>,
 }
 
 impl NodeInfo<Action<MethodName>> for MethodNowodeDiff {
@@ -207,9 +207,9 @@ impl MethodNowodeDiff {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ParameterNowodeDiff {
-	pub(crate) info: Action<ParameterName>,
-	pub(crate) javadoc: Option<Action<JavadocMapping>>,
+pub struct ParameterNowodeDiff {
+	pub info: Action<ParameterName>,
+	pub javadoc: Option<Action<JavadocMapping>>,
 }
 
 impl NodeInfo<Action<ParameterName>> for ParameterNowodeDiff {

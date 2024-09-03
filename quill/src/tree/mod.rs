@@ -19,11 +19,11 @@ pub trait ToKey<K> {
 	fn get_key(&self) -> Result<K>;
 }
 
-pub(crate) trait FromKey<K> {
+pub trait FromKey<K> {
 	fn from_key(key: K) -> Self;
 }
 
-pub(crate) trait GetNames<const N: usize, T> {
+pub trait GetNames<const N: usize, T> {
 	fn get_names(&self) -> &Names<N, T>;
 	fn get_names_mut(&mut self) -> &mut Names<N, T>;
 }
@@ -41,7 +41,7 @@ pub mod names {
 	pub struct Namespace<const N: usize>(pub(super) usize);
 
 	impl<const N: usize> Namespace<N> {
-		pub(crate) fn new(id: usize) -> Result<Namespace<N>> {
+		pub fn new(id: usize) -> Result<Namespace<N>> { // TODO: was pub(crate), not sure if this should be public api...
 			if id >= N {
 				bail!("cannot create namespace with id larger or equal to number of namespaces: {id} >= {N}");
 			}
@@ -215,10 +215,15 @@ pub mod names {
 			Ok(Names { names })
 		}
 
-		pub(crate) fn change_name(&mut self, namespace: Namespace<N>, from: Option<&T>, to: Option<&T>) -> Result<Option<T>>
+		// TODO: doc
+		/// Returns the old name. The return value is equivalent to `from.cloned()`.
+		pub fn change_name(&mut self, namespace: Namespace<N>, from: Option<&T>, to: Option<&T>) -> Result<Option<T>>
 			where
 				T: Debug + Clone + PartialEq,
 		{
+			if namespace.0 == 0 {
+				bail!("cannot edit the first namespace, as it needs to be kept in sync with the keys")
+			}
 			if self[namespace].as_ref() != from {
 				bail!("can't change name in namespace {namespace:?} from {from:?} to {to:?}: old name doesn't match: {self:?}");
 			}
