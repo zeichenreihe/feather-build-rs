@@ -358,10 +358,12 @@ async fn main() -> Result<()> {
                 direction,
                 lenient: true,
             };
-            MappingUtils::insert_mappings(options, &version_graph, changes, version)?;
+
+            insert_mappings::insert_mappings(options, &version_graph, changes, version)?;
 
             if !keep_directory {
-                FileUtils::delete(&working_mappings_dir)?;
+                std::fs::remove_dir_all(&working_mappings_dir)
+                    .with_context(|| anyhow!("failed to delete working mappings directory {working_mappings_dir:?}"))?;
             }
 
             Ok(())
@@ -382,15 +384,6 @@ impl MappingUtils {
         todo!()
     }
     fn undo_nests(working_mappings: Mappings<2>, nests: Nests) -> Result<Mappings<2>> {
-        todo!()
-    }
-    fn insert_mappings(options: PropagationOptions, version_graph: &VersionGraph, changes: MappingsDiff, version: &Version) -> Result<()> {
-        insert_mappings::insert_mappings(options, version_graph, changes, version)
-    }
-}
-struct FileUtils;
-impl FileUtils {
-    fn delete(dir: &Path) -> Result<()> {
         todo!()
     }
 }
