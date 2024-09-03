@@ -317,6 +317,13 @@ make_string_str_like!(
 impl ClassName {
 	/// A constant holding the class name of `Object`.
 	pub const JAVA_LANG_OBJECT: &'static ClassNameSlice = ClassNameSlice::from_str("java/lang/Object");
+
+	// TODO: doc, check with JVM spec
+	pub fn get_simple_name(&self) -> &str {
+		let s = self.as_str();
+		s.rsplit_once('/')
+			.map_or(s, |(_, simple)| simple)
+	}
 }
 
 impl Display for ClassName {
