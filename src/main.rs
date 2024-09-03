@@ -445,8 +445,7 @@ async fn nest_jar(downloader: &Downloader, version: &Version, calamus_jar: &impl
 
 // note: `calamusNestsFile` is result of the `patchNests` task
 async fn patch_nests(downloader: &Downloader, version: &Version) -> Result<Option<Nests>> {
-    // TODO: for running offline... and 1.12.2 doesn't have nests
-    if let Some(nests) = /* downloader.download_nests(version).await? */ None {
+    if let Some(nests) = downloader.download_nests(version).await? {
         let calamus = downloader.calamus_v2(version).await?;
 
         let dst = dukenest::map_nests(&calamus, nests)?;
