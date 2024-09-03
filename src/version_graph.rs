@@ -2,10 +2,11 @@ use std::collections::VecDeque;
 use anyhow::{anyhow, bail, Context, Result};
 use std::fmt::{Debug, Display, Formatter, Write};
 use std::path::{Path, PathBuf};
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use petgraph::{Direction, Graph};
 use petgraph::graph::NodeIndex;
 use quill::tree::mappings::Mappings;
+use quill::tree::mappings_diff::MappingsDiff;
 use crate::download::versions_manifest::MinecraftVersion;
 
 /// The version id used in the mappings diffs and mappings files.
@@ -120,19 +121,81 @@ fn map_shortcut(version: &str) -> &str {
 const MAPPINGS_EXTENSION: &str = ".tiny";
 const DIFF_EXTENSION: &str = ".tinydiff";
 
-#[derive(Debug)]
 pub(crate) struct VersionGraph {
 	root: NodeIndex,
 	root_mapping: Mappings<2>,
 
 	versions: IndexMap<Version, NodeIndex>,
 
-	graph: Graph<Version, PathBuf>,
+	graph: Graph<VersionEntry, PathBuf>,
 }
 
 impl VersionGraph {
+	pub(crate) fn is_root_then_get_mappings(&self, version: &Version) -> Option<&Mappings<2>> {
+		if *self.versions.get(version).unwrap() == self.root {
+			Some(&self.root_mapping)
+		} else {
+			None
+		}
+	}
+
+	pub(crate) fn get_diff(&self, parent: &Version, version: &Version) -> Result<Option<MappingsDiff>> {
+		let a = *self.versions.get(parent).unwrap();
+		let b = *self.versions.get(version).unwrap();
+
+		let Some(edge) = self.graph.find_edge(a, b) else {
+			return Ok(None);
+		};
+
+		let path = &self.graph[edge];
+
+		quill::tiny_v2_diff::read_file(path)
+			.with_context(|| anyhow!("failed to parse version diff from {path:?}"))
+			.map(Some)
+	}
+
+	pub(crate) fn get_depth(&self, version: &Version) -> usize {
+		self.graph[*self.versions.get(version).unwrap()].depth.unwrap()
+	}
+
+	pub(crate) fn write(&self) {
+		for v in &self.versions {
+			// TODO: call write_mappings or write_diffs depending on root/not root
+		}
+	}
+}
+
+struct VersionEntry {
+	version: Version,
+
+	depth: Option<usize>,
+	parents: IndexSet<NodeIndex>,
+	children: IndexSet<NodeIndex>,
+}
+
+impl VersionEntry {
+	fn new(version: &Version) -> VersionEntry {
+		VersionEntry {
+			version: version.clone(),
+
+			depth: None,
+			parents: IndexSet::new(),
+			children: IndexSet::new(),
+		}
+	}
+}
+
+impl VersionGraph {
+	pub(crate) fn parents(&self, version: &Version) -> impl Iterator<Item=&Version> {
+		let node = self.versions.get(version).unwrap();
+		self.graph[*node].parents.iter().map(|node| &self.graph[*node].version)
+	}
+	pub(crate) fn children(&self, version: &Version) -> impl Iterator<Item=&Version> {
+		let node = self.versions.get(version).unwrap();
+		self.graph[*node].children.iter().map(|node| &self.graph[*node].version)
+	}
 	pub(crate) fn resolve(dir: impl AsRef<Path>) -> Result<VersionGraph> {
-		let mut graph: Graph<Version, PathBuf> = Graph::new();
+		let mut graph: Graph<VersionEntry, PathBuf> = Graph::new();
 
 		let mut root: Option<(NodeIndex, PathBuf)> = None;
 
@@ -148,14 +211,14 @@ impl VersionGraph {
 			let file_name = file.file_name().into_string()
 				.map_err(|file_name| anyhow!("failed to turn file name {file_name:?} into a string"))?;
 
-			let mut add_node = |version: &str| *versions.entry(Version(version.to_owned()))
-				.or_insert_with_key(|k| graph.add_node(k.clone()));
+			if let Some(version_str) = file_name.strip_suffix(MAPPINGS_EXTENSION) {
+				let version = Version(version_str.to_owned());
 
-			if let Some(version) = file_name.strip_suffix(MAPPINGS_EXTENSION) {
-				let v = add_node(version);
+				let v = *versions.entry(version)
+					.or_insert_with_key(|k| graph.add_node(VersionEntry::new(k)));
 
 				if let Some((old_root, ref old_path)) = root {
-					bail!("multiple roots present: {old_version:?} ({old_path:?}) and {version} ({path:?})", old_version = &graph[old_root]);
+					bail!("multiple roots present: {old_version} ({old_path:?}) and {version_str} ({path:?})", old_version = &graph[old_root].version);
 				}
 				root = Some((v, path));
 			} else if let Some(raw_versions) = file_name.strip_suffix(DIFF_EXTENSION) {
@@ -163,10 +226,15 @@ impl VersionGraph {
 					bail!("expected there to be exactly one `#` in the diff file name {file_name:?}");
 				};
 
-				let v = add_node(version);
-				let p = add_node(parent);
+				let v = *versions.entry(Version(version.to_owned()))
+					.or_insert_with_key(|k| graph.add_node(VersionEntry::new(k)));
+				let p = *versions.entry(Version(parent.to_owned()))
+					.or_insert_with_key(|k| graph.add_node(VersionEntry::new(k)));
 
 				graph.add_edge(p, v, path);
+
+				graph[p].children.insert(v);
+				graph[v].parents.insert(p);
 			}
 		}
 
@@ -177,6 +245,13 @@ impl VersionGraph {
 
 		let mut walkers: VecDeque<_> = [ (Vec::new(), root) ].into();
 		while let Some((path, head)) = walkers.pop_front() {
+			if let Some(depth) = graph[head].depth.replace(path.len()) {
+				bail!("cannot set depth for node {:?} ({head:?}) twice: had {depth:?}, set new {:?}", graph[head].version, path.len());
+			}
+			// unstable sorting is fine, as this is a set
+			graph[head].parents.sort_unstable();
+			graph[head].children.sort_unstable();
+
 			for v in graph.neighbors_directed(head, Direction::Outgoing) {
 				if path.contains(&v) {
 					bail!("found a loop in the version graph: {:?}", v);
@@ -201,7 +276,7 @@ impl VersionGraph {
 		let version = Version(string.to_owned());
 		self.versions.get(&version)
 			.copied()
-			.map(|node| &self.graph[node])
+			.map(|node| &self.graph[node].version)
 			.with_context(|| anyhow!("unknown version {string:?}"))
 	}
 
@@ -215,8 +290,8 @@ impl VersionGraph {
 			.try_fold(self.root_mapping.clone(), |m, x| {
 				let (a, b) = (x[0], x[1]);
 
-				let from = &self.graph[a];
-				let to = &self.graph[b];
+				let from = &self.graph[a].version;
+				let to = &self.graph[b].version;
 
 				let edge = self.graph.find_edge(a, b)
 					.ok_or_else(|| anyhow!("there is no edge between {a:?} ({from:?}) and {b:?} ({to:?})"))?;
