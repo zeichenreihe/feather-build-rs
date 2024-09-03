@@ -27,6 +27,7 @@ mod build;
 mod sus;
 
 mod dukelaunch;
+mod insert_mappings;
 
 /*
 TODO: publish
@@ -384,7 +385,7 @@ impl MappingUtils {
         todo!()
     }
     fn insert_mappings(options: PropagationOptions, version_graph: &VersionGraph, changes: MappingsDiff, version: &Version) -> Result<()> {
-        todo!()
+        insert_mappings::insert_mappings(options, version_graph, changes, version)
     }
 }
 struct FileUtils;
