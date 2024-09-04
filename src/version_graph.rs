@@ -246,9 +246,14 @@ impl VersionGraph {
 	pub(crate) fn get(&self, string: &str) -> Result<VersionEntry<'_>> {
 		let without_shortcut = map_shortcut(string);
 		self.versions.get(without_shortcut)
-			.copied()
-			.map(|index| VersionEntry::create(index, &self.graph[index]))
+			.map(|&index| VersionEntry::create(index, &self.graph[index]))
 			.with_context(|| anyhow!("unknown version {without_shortcut:?} (aka {string:?})"))
+	}
+
+	pub(crate) fn get_all(&self, iter: impl IntoIterator<Item=impl AsRef<str>>) -> Result<Vec<VersionEntry<'_>>> {
+		iter.into_iter()
+			.map(|string| self.get(string.as_ref()))
+			.collect()
 	}
 
 	pub(crate) fn apply_diffs(&self, target_version: VersionEntry<'_>) -> Result<Mappings<2>> {

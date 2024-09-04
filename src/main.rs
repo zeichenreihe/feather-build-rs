@@ -115,14 +115,10 @@ async fn main() -> Result<()> {
             let v = VersionGraph::resolve(mappings_dir)?;
             let v = Arc::new(v);
 
-            //TODO: consider the version_shortcuts in feather.py
-            // (more generally: do everything feather.py does as well)
             let versions: Vec<VersionEntry<'_>> = if all {
                 v.versions().collect()
             } else {
-                versions.into_iter()
-                    .map(|version| v.get(&version))
-                    .collect::<Result<_>>()?
+                v.get_all(versions)?
             };
 
             println!("graph took {:?}", start.elapsed());
