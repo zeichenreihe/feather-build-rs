@@ -1,5 +1,6 @@
 use anyhow::Result;
 use std::fmt::{Debug, Formatter};
+use crate::tree::descriptor::ReturnDescriptor;
 use crate::tree::field::FieldDescriptor;
 use crate::visitor::annotation::{AnnotationsVisitor, NamedElementValuesVisitor, UnnamedElementValuesVisitor, UnnamedElementValueVisitor};
 
@@ -116,7 +117,7 @@ pub enum ElementValue {
 		type_name: FieldDescriptor,
 		const_name: String /* TODO: name of the constant */,
 	},
-	Class(/* TODO: return descriptor */ String),
+	Class(ReturnDescriptor),
 	AnnotationInterface(Annotation),
 	ArrayType(Vec<ElementValue>),
 }

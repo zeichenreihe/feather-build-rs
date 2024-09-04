@@ -1321,7 +1321,7 @@ fn write_element_value_unnamed<'a: 'b, 'b>(writer: &mut impl ClassWrite, pool: &
 		},
 		ElementValue::Class(class) => {
 			writer.write_u8(b'c')?;
-			writer.write_u16(pool.put_utf8(class)?)
+			writer.write_u16(pool.put_utf8(class.as_str())?)
 		},
 		ElementValue::AnnotationInterface(annotation) => {
 			writer.write_u8(b'@')?;

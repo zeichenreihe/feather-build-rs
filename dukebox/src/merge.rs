@@ -5,6 +5,7 @@ use indexmap::IndexMap;
 use indexmap::map::Entry;
 use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
 use duke::tree::class::{ClassFile, ClassName};
+use duke::tree::descriptor::ReturnDescriptor;
 use duke::tree::field::{Field, FieldDescriptor};
 use duke::tree::method::Method;
 use crate::{IsClass, IsOther, Jar, JarEntry, JarEntryEnum, OpenedJar};
@@ -234,9 +235,9 @@ fn class_merger_merge(client: ClassFile, server: ClassFile) -> Result<ClassFile>
 								s.push('L');
 								s.push_str(i.as_str());
 								s.push(';');
-								s
+								ReturnDescriptor::from(s)
 							})
-						}
+						},
 					],
 				})
 			}

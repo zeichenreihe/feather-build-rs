@@ -19,6 +19,7 @@ use std::hash::{Hash, Hasher};
 use anyhow::{bail, Result};
 use indexmap::{IndexMap, IndexSet};
 use duke::tree::class::{ClassName, ClassNameSlice};
+use duke::tree::descriptor::{ReturnDescriptor, ReturnDescriptorSlice};
 use duke::tree::field::{FieldDescriptor, FieldDescriptorSlice, FieldNameAndDesc, FieldNameSlice, FieldRef};
 use duke::tree::method::{MethodDescriptor, MethodDescriptorSlice, MethodNameAndDesc, MethodNameSlice, MethodRef};
 use crate::tree::mappings::Mappings;
@@ -44,7 +45,7 @@ pub trait ARemapper {
 	///
 	/// Do not implement this yourself.
 	fn map_field_desc(&self, desc: &FieldDescriptorSlice) -> Result<FieldDescriptor> {
-		Ok(self.map_desc(desc.as_str())?.into())
+		self.map_desc(desc.as_str()).map(Into::into)
 	}
 
 	/// Maps a method descriptor to a new one.
@@ -53,7 +54,16 @@ pub trait ARemapper {
 	///
 	/// Do not implement this yourself.
 	fn map_method_desc(&self, desc: &MethodDescriptorSlice) -> Result<MethodDescriptor> {
-		Ok(self.map_desc(desc.as_str())?.into())
+		self.map_desc(desc.as_str()).map(Into::into)
+	}
+
+	/// Maps a return descriptor to a new one.
+	///
+	/// Note that this relies on the fact that for non-existing class mappings class names are just copied over.
+	///
+	/// Do not implement this yourself.
+	fn map_return_desc(&self, desc: &ReturnDescriptorSlice) -> Result<ReturnDescriptor> {
+		self.map_desc(desc.as_str()).map(Into::into)
 	}
 
 	/// Maps a descriptor to a new one.
@@ -61,10 +71,9 @@ pub trait ARemapper {
 	/// This is what [`ARemapper::map_field_desc`] and [`ARemapper::map_method_desc`] use internally. Most likely you want
 	/// to call one of these methods instead.
 	///
-	/// However, calling this method is perfectly fine if you're dealing with a return descriptor.
-	// TODO: return descriptors should just get their own Field/MethodDescriptor like struct...
-	///
 	/// Do not implement this yourself.
+	// TODO: what about returning Cow<'a, str> ('a on the &'a str)? would return `desc` if no remapping
+	//  was done, and a String if it was
 	fn map_desc(&self, desc: &str) -> Result<String> {
 		let mut s = String::new();
 
@@ -85,6 +94,7 @@ pub trait ARemapper {
 					bail!("descriptor {desc:?} has a missing semicolon somewhere");
 				}
 
+				// String to ClassName doesn't allocate new memory, so it's fine
 				let old_class_name = ClassName::from(class_name);
 				let new_class_name = self.map_class(&old_class_name)?;
 
@@ -104,6 +114,8 @@ pub struct ARemapperImpl<'a, const N: usize> {
 
 impl<'a, const N: usize> ARemapper for ARemapperImpl<'a, N> {
 	fn map_class_fail(&self, class: &ClassNameSlice) -> Result<Option<ClassName>> {
+		// TODO: asserts/if-bail constructs for checking for a class name starting with [...
+		//  then also add a method for remapping these specifically (they're like descriptors)
 		match self.classes.get(class) {
 			None => Ok(None),
 			Some(&class) => Ok(Some(class.to_owned())),

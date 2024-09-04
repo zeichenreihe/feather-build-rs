@@ -4,6 +4,7 @@ use std::ops::ControlFlow;
 use anyhow::Result;
 use crate::tree::annotation::Object;
 use crate::tree::class::{ClassAccess, ClassName, ClassSignature, EnclosingMethod, InnerClass};
+use crate::tree::descriptor::ReturnDescriptor;
 use crate::tree::field::{ConstantValue, FieldAccess, FieldDescriptor, FieldName, FieldSignature};
 use crate::tree::method::{MethodAccess, MethodDescriptor, MethodName, MethodParameter, MethodSignature};
 use crate::tree::method::code::{Exception, Label, Lv};
@@ -189,7 +190,7 @@ impl NamedElementValueVisitor for Infallible {
 		unreachable!()
 	}
 
-	fn visit_class(&mut self, _name: String, _class: String) -> Result<()> {
+	fn visit_class(&mut self, _name: String, _class: ReturnDescriptor) -> Result<()> {
 		unreachable!()
 	}
 
@@ -226,7 +227,7 @@ impl UnnamedElementValueVisitor for Infallible {
 		unreachable!()
 	}
 
-	fn visit_class(&mut self, _class: String) -> Result<()> {
+	fn visit_class(&mut self, _class: ReturnDescriptor) -> Result<()> {
 		unreachable!()
 	}
 

@@ -287,12 +287,6 @@ impl From<ClassAccess> for u16 {
 	}
 }
 
-// TODO: possibly make a ClassNameSlice<'a> type, that's what &str is to String!
-//  this would remove some allocations of String / some messing around with &str!
-//  for implementing this take a look at OsStr/OsString
-//  ideally we'd put all that in a macro and call it with just "ClassName, ClassNameSlice"
-// TODO: replace uses!
-
 make_string_str_like!(
 	/// Represents a class name. The class name uses [internal binary names](https://docs.oracle.com/javase/specs/jvms/se22/html/jvms-4.html#jvms-4.2.1),
 	/// i.e. with complete path written out and using slashes.

@@ -5,6 +5,7 @@ use crate::class_reader::pool::PoolRead;
 use crate::tree::annotation::{Annotation, ElementValue, ElementValuePair, Object};
 use crate::tree::attribute::Attribute;
 use crate::tree::class::{ClassAccess, ClassFile, ClassName, ClassSignature, EnclosingMethod, InnerClass};
+use crate::tree::descriptor::ReturnDescriptor;
 use crate::tree::field::{ConstantValue, Field, FieldAccess, FieldDescriptor, FieldName, FieldSignature};
 use crate::tree::method::{Method, MethodAccess, MethodDescriptor, MethodName, MethodParameter, MethodSignature};
 use crate::tree::method::code::{Code, Exception, Instruction, InstructionListEntry, Label, Lv};
@@ -251,7 +252,7 @@ impl NamedElementValueVisitor for Annotation {
 		Ok(())
 	}
 
-	fn visit_class(&mut self, name: String, class: String) -> Result<()> {
+	fn visit_class(&mut self, name: String, class: ReturnDescriptor) -> Result<()> {
 		self.element_value_pairs.push(ElementValuePair {
 			name,
 			value: ElementValue::Class(class),
@@ -305,7 +306,7 @@ impl UnnamedElementValueVisitor for Vec<ElementValue> {
 		Ok(())
 	}
 
-	fn visit_class(&mut self, class: String) -> Result<()> {
+	fn visit_class(&mut self, class: ReturnDescriptor) -> Result<()> {
 		self.push(ElementValue::Class(class));
 		Ok(())
 	}

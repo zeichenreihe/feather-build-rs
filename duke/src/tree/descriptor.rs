@@ -1,6 +1,7 @@
 use std::iter::Peekable;
 use std::str::Chars;
 use anyhow::{anyhow, bail, Context, Result};
+use crate::macros::make_string_str_like;
 use crate::tree::class::ClassName;
 use crate::tree::field::FieldDescriptor;
 use crate::tree::method::MethodDescriptor;
@@ -368,6 +369,14 @@ impl ParsedMethodDescriptor {
 		MethodDescriptor::from(s)
 	}
 }
+
+make_string_str_like!(
+	ReturnDescriptor,
+	ReturnDescriptorSlice,
+);
+
+// TODO: impl parsing for return desc
+// TODO: write tests for return desc
 
 #[cfg(test)]
 mod testing {

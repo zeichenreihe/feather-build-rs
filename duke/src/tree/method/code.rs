@@ -253,7 +253,8 @@ pub enum Instruction {
 	InvokeSpecial(MethodRef, bool),
 	/// The bool is `true` iff it's on an interface, so if it referenced an `InterfaceMethodRef` constant pool entry.
 	InvokeStatic(MethodRef, bool),
-	// TODO: document that it must be InterfaceMethodRef (+ better docs here in general)
+	/// `invokeinterface` also uses an `InterfaceMethodRef` constant pool entry.
+	// TODO: better docs here in general
 	InvokeInterface(MethodRef),
 	InvokeDynamic(InvokeDynamic),
 	New(ClassName),

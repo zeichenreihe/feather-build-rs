@@ -5,7 +5,7 @@ use crate::{ClassRead, jstring};
 use crate::class_constants::pool::method_handle_reference;
 use crate::tree::class::ClassName;
 use crate::tree::field::{ConstantValue, FieldRef};
-use crate::tree::method::{MethodDescriptor, MethodRef};
+use crate::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, MethodRef};
 use crate::tree::method::code::{ConstantDynamic, Handle, InvokeDynamic, Loadable};
 use crate::tree::module::{ModuleName, PackageName};
 
@@ -430,8 +430,18 @@ impl PoolRead {
 		self.get(index)?.as_module(self).pool_context(index)
 	}
 
-	pub(crate) fn get_name_and_type<A: From<String>, B: From<String>>(&self, index: u16) -> Result<(A, B)> {
-		self.get(index)?.as_name_and_type(self).pool_context(index).map(|(a, b)| (A::from(a.clone()), B::from(b.clone())))
+	// TODO: deprecate this in favour of the one below
+	fn get_name_and_type<A: From<String>, B: From<String>>(&self, index: u16) -> Result<(A, B)> {
+		self.get(index)?.as_name_and_type(self).pool_context(index)
+			.map(|(a, b)| (A::from(a.clone()), B::from(b.clone())))
+	}
+
+	pub(crate) fn get_method_name_and_type(&self, index: u16) -> Result<MethodNameAndDesc> {
+		self.get(index)?.as_name_and_type(self).pool_context(index)
+			.map(|(name, desc)| MethodNameAndDesc {
+				name: MethodName::from(name.clone()),
+				desc: MethodDescriptor::from(desc.clone()),
+			})
 	}
 
 	fn get_name_and_type_ref(&self, index: u16) -> Result<(&String, &String)> {

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use crate::tree::annotation::Object;
+use crate::tree::descriptor::ReturnDescriptor;
 use crate::tree::field::FieldDescriptor;
 use crate::tree::type_annotation::TypePath;
 
@@ -52,7 +53,7 @@ where
 		const_name: String,
 	) -> Result<()>;
 
-	fn visit_class(&mut self, name: String, class: String) -> Result<()>;
+	fn visit_class(&mut self, name: String, class: ReturnDescriptor) -> Result<()>;
 
 	fn visit_annotation(self, name: String, annotation_type: FieldDescriptor) -> Result<(Self::AnnotationResidual, Self::AnnotationVisitor)>;
 	fn finish_annotation(this: Self::AnnotationResidual, annotation_visitor: Self::AnnotationVisitor) -> Result<Self>;
@@ -83,7 +84,7 @@ where
 		const_name: String,
 	) -> Result<()>;
 
-	fn visit_class(&mut self, class: String) -> Result<()>;
+	fn visit_class(&mut self, class: ReturnDescriptor) -> Result<()>;
 
 	fn visit_annotation(self, annotation_type: FieldDescriptor) -> Result<(Self::AnnotationResidual, Self::AnnotationVisitor)>;
 	fn finish_annotation(this: Self::AnnotationResidual, annotation_visitor: Self::AnnotationVisitor) -> Result<Self>;

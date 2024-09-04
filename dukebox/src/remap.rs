@@ -317,7 +317,7 @@ impl Mappable for ElementValue {
 			// TODO: this one needs remapping!
 				const_name,
 			},
-			Class(class_name) => Class(remapper.map_desc(&class_name)?), // this is enough for the return descriptor
+			Class(class_name) => Class(remapper.map_return_desc(&class_name)?),
 			AnnotationInterface(annotation) => AnnotationInterface(annotation.remap(remapper)?),
 			ArrayType(vec) => ArrayType(vec.remap(remapper)?),
 		})

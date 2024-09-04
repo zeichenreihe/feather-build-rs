@@ -4,6 +4,7 @@ use crate::class_reader::pool::PoolRead;
 use crate::tree::annotation::Object;
 use crate::tree::attribute::Attribute;
 use crate::tree::class::{ClassAccess, ClassName, ClassSignature, EnclosingMethod, InnerClass};
+use crate::tree::descriptor::ReturnDescriptor;
 use crate::tree::field::{ConstantValue, FieldAccess, FieldDescriptor, FieldName, FieldSignature};
 use crate::tree::method::{MethodAccess, MethodDescriptor, MethodName, MethodParameter, MethodSignature};
 use crate::tree::method::code::{Exception, Label, Lv};
@@ -191,7 +192,7 @@ impl NamedElementValueVisitor for () {
 		Ok(())
 	}
 
-	fn visit_class(&mut self, _name: String, _class: String) -> Result<()> {
+	fn visit_class(&mut self, _name: String, _class: ReturnDescriptor) -> Result<()> {
 		Ok(())
 	}
 
@@ -228,7 +229,7 @@ impl UnnamedElementValueVisitor for () {
 		Ok(())
 	}
 
-	fn visit_class(&mut self, _class: String) -> Result<()> {
+	fn visit_class(&mut self, _class: ReturnDescriptor) -> Result<()> {
 		Ok(())
 	}
 

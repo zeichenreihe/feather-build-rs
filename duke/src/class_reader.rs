@@ -7,8 +7,9 @@ use crate::class_reader::pool::{BootstrapMethodRead, PoolRead};
 use crate::{class_constants, ClassRead, jstring, OptionExpansion};
 use crate::tree::annotation::Object;
 use crate::tree::class::{ClassAccess, ClassSignature, EnclosingMethod, InnerClass};
+use crate::tree::descriptor::ReturnDescriptor;
 use crate::tree::field::{FieldAccess, FieldDescriptor, FieldName, FieldSignature};
-use crate::tree::method::{MethodAccess, MethodDescriptor, MethodName, MethodNameAndDesc, MethodParameter, MethodSignature, ParameterFlags};
+use crate::tree::method::{MethodAccess, MethodDescriptor, MethodName, MethodParameter, MethodSignature, ParameterFlags};
 use crate::tree::method::code::{ArrayType, Exception, Instruction, LocalVariableName, Lv, LvIndex};
 use crate::tree::module::{Module, ModuleExports, ModuleOpens, ModuleProvides, ModuleRequires};
 use crate::tree::record::RecordName;
@@ -107,6 +108,8 @@ pub(crate) fn read<V: MultiClassVisitor>(reader: &mut impl ClassRead, visitor: V
 
 			let mut bootstrap_methods = None;
 
+			let mut had_record_attribute = false;
+
 			let attributes_count = reader.read_u16()?;
 			for _ in 0..attributes_count {
 				let attribute_name = pool.get_utf8_ref(reader.read_u16()?)?;
@@ -137,10 +140,7 @@ pub(crate) fn read<V: MultiClassVisitor>(reader: &mut impl ClassRead, visitor: V
 					attribute::ENCLOSING_METHOD if !interests.enclosing_method => reader.skip(length as i64)?,
 					attribute::ENCLOSING_METHOD => {
 						let class = pool.get_class(reader.read_u16()?)?;
-						let method = pool.get_optional(reader.read_u16()?, PoolRead::get_name_and_type)?
-							.map(|(name, desc)| MethodNameAndDesc { name, desc });
-						// TODO: consider moving this .map into PoolRead::get_name_and_type
-
+						let method = pool.get_optional(reader.read_u16()?, PoolRead::get_method_name_and_type)?;
 						let enclosing_method = EnclosingMethod { class, method };
 
 						class_visitor.visit_enclosing_method(enclosing_method)?;
@@ -225,7 +225,11 @@ pub(crate) fn read<V: MultiClassVisitor>(reader: &mut impl ClassRead, visitor: V
 					},
 					attribute::RECORD if !interests.record => reader.skip(length as i64)?,
 					attribute::RECORD => {
-						// TODO: .context("only one Record attribute is allowed")
+						if had_record_attribute {
+							bail!("only one Record attribute is allowed");
+						}
+						had_record_attribute = true;
+
 						let components_length = reader.read_u16()?;
 						for _ in 0..components_length {
 							class_visitor = read_record_component(reader, class_visitor, pool)?;
@@ -1305,9 +1309,8 @@ fn read_element_values_named<A: NamedElementValuesVisitor>(reader: &mut impl Cla
 				outer.visit_enum(name, type_name, const_name)?;
 			},
 			b'c' => {
-				let class_info_index = reader.read_u16()?;
-				let string = pool.get_utf8(class_info_index)?; // TODO: is actually a return descriptor
-				outer.visit_class(name, string)?;
+				let class = ReturnDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+				outer.visit_class(name, class)?;
 			},
 			b'@' => {
 				let annotation_descriptor = FieldDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
@@ -1388,9 +1391,8 @@ fn read_element_value_unnamed<A: UnnamedElementValueVisitor>(reader: &mut impl C
 			outer.visit_enum(type_name, const_name)?;
 		},
 		b'c' => {
-			let class_info_index = reader.read_u16()?;
-			let string = pool.get_utf8(class_info_index)?; // TODO: is actually a return descriptor
-			outer.visit_class(string)?;
+			let class = ReturnDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+			outer.visit_class(class)?;
 		},
 		b'@' => {
 			let annotation_descriptor = FieldDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
