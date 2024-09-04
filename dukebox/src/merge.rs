@@ -230,13 +230,7 @@ fn class_merger_merge(client: ClassFile, server: ClassFile) -> Result<ClassFile>
 						},
 						ElementValuePair {
 							name: "itf".to_owned(),
-							value: ElementValue::Class({
-								let mut s = String::new();
-								s.push('L');
-								s.push_str(i.as_str());
-								s.push(';');
-								ReturnDescriptor::from(s)
-							})
+							value: ElementValue::Class(ReturnDescriptor::from_class(i))
 						},
 					],
 				})

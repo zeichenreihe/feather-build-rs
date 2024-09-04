@@ -287,6 +287,9 @@ impl From<ClassAccess> for u16 {
 	}
 }
 
+// TODO: make it an error to construct a class name containing "illegal" (see jvm spec) chars, like `;`
+// TODO: same goes for the other Name/Desc types
+//  (this means removal of the From impls and instead making TryFrom methods...)
 make_string_str_like!(
 	/// Represents a class name. The class name uses [internal binary names](https://docs.oracle.com/javase/specs/jvms/se22/html/jvms-4.html#jvms-4.2.1),
 	/// i.e. with complete path written out and using slashes.

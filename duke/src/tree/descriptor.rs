@@ -2,7 +2,7 @@ use std::iter::Peekable;
 use std::str::Chars;
 use anyhow::{anyhow, bail, Context, Result};
 use crate::macros::make_string_str_like;
-use crate::tree::class::ClassName;
+use crate::tree::class::{ClassName, ClassNameSlice};
 use crate::tree::field::FieldDescriptor;
 use crate::tree::method::MethodDescriptor;
 
@@ -374,6 +374,48 @@ make_string_str_like!(
 	ReturnDescriptor,
 	ReturnDescriptorSlice,
 );
+
+impl From<FieldDescriptor> for ReturnDescriptor {
+	/// Converts a field descriptor into a return descriptor.
+	///
+	/// Field descriptors are a subset of return descriptors.
+	///
+	/// The only value not represented by a field descriptor is `V`.
+	fn from(value: FieldDescriptor) -> Self {
+		ReturnDescriptor(value.into())
+	}
+}
+
+// TODO: consider moving this to FieldDescriptor because there's a similar use case...
+impl ReturnDescriptor {
+	/// Creates a return descriptor of the class name given.
+	///
+	/// This is equivalent to something like `"L" + class_name + ";"`, but performs more checks:
+	/// ```
+	/// # use pretty_assertions::assert_eq;
+	/// use duke::tree::class::ClassName;
+	/// use duke::tree::descriptor::ReturnDescriptor;
+	/// let a = ReturnDescriptor::from("Ljava/lang/Object;");
+	/// let b = ReturnDescriptor::from_class(ClassName::JAVA_LANG_OBJECT);
+	/// assert_eq!(a, b);
+	// TODO: test cases, also one that fails, with array class name?
+	/// ```
+	pub fn from_class(class_name: &ClassNameSlice) -> ReturnDescriptor {
+		let class_name = class_name.as_str();
+		assert!(!class_name.starts_with('[')); // TODO: remove this? more generally: decide about array classes
+
+		if class_name.starts_with('[') {
+			// for array classes, the class name is just a descriptor already
+			ReturnDescriptor(class_name.to_owned())
+		} else {
+			// otherwise, build a descriptor by L...;-ing the class name
+			let desc = String::with_capacity(2 + class_name.len())
+				+ "L" + class_name + ";";
+
+			ReturnDescriptor(desc)
+		}
+	}
+}
 
 // TODO: impl parsing for return desc
 // TODO: write tests for return desc
