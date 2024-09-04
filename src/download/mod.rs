@@ -220,7 +220,7 @@ impl Downloader {
 			.parse_as_json().context("versions manifest")
 	}
 
-	async fn wanted_version_manifest(&self, versions_manifest: &VersionsManifest, version: &Version) -> Result<VersionManifest> {
+	async fn wanted_version_manifest(&self, versions_manifest: &VersionsManifest, version: Version<'_>) -> Result<VersionManifest> {
 		let minecraft_version = version.get_minecraft_version();
 
 		let manifest_version = versions_manifest.versions.iter()
@@ -231,7 +231,7 @@ impl Downloader {
 			.parse_as_json().with_context(|| anyhow!("version manifest for version {version:?}"))
 	}
 
-	pub(crate) async fn version_details(&self, versions_manifest: &VersionsManifest, version: &Version, environment: &Environment) -> Result<VersionDetails> {
+	pub(crate) async fn version_details(&self, versions_manifest: &VersionsManifest, version: Version<'_>, environment: &Environment) -> Result<VersionDetails> {
 		let minecraft_version = version.get_minecraft_version();
 
 		let manifest_version = versions_manifest.versions.iter()
@@ -266,7 +266,7 @@ impl Downloader {
 	/// Downloads the feather intermediary, calamus, for a given version.
 	///
 	/// The namespaces are `official` to `intermediary` (aka `calamus`) here.
-	pub(crate) async fn calamus_v2(&self, version: &Version) -> Result<Mappings<2>> {
+	pub(crate) async fn calamus_v2(&self, version: Version<'_>) -> Result<Mappings<2>> {
 		let url = format!("https://maven.ornithemc.net/releases/net/ornithemc/calamus-intermediary/{version}/calamus-intermediary-{version}-v2.jar");
 
 		let mappings = self.download(&url).await?.mappings_from_zip_file()?;
@@ -276,7 +276,7 @@ impl Downloader {
 		Ok(mappings)
 	}
 
-	pub(crate) async fn mc_libs(&self, versions_manifest: &VersionsManifest, version: &Version) -> Result<Vec<FileJar>> {
+	pub(crate) async fn mc_libs(&self, versions_manifest: &VersionsManifest, version: Version<'_>) -> Result<Vec<FileJar>> {
 		let version_file = self.wanted_version_manifest(versions_manifest, version).await?;
 
 		let mut libs = Vec::new();
@@ -292,7 +292,7 @@ impl Downloader {
 		Ok(libs)
 	}
 
-	pub(crate) async fn download_nests(&self, version: &Version) -> Result<Option<Nests>> {
+	pub(crate) async fn download_nests(&self, version: Version<'_>) -> Result<Option<Nests>> {
 		let url = format!("https://github.com/OrnitheMC/nests/raw/main/nests/{version}.nest");
 
 		if let Some(nests) = self.download_with_special_404(&url, true).await? {

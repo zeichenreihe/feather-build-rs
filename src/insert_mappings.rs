@@ -13,7 +13,7 @@ use quill::tree::mappings::{ClassMapping, ClassNowodeMapping, Mappings, MethodMa
 use quill::tree::mappings_diff::{Action, ClassNowodeDiff, FieldNowodeDiff, MappingsDiff, MethodNowodeDiff, ParameterNowodeDiff};
 use quill::tree::{FromKey, GetNames, NodeInfo, NodeJavadocInfo};
 use quill::tree::names::Namespace;
-use crate::version_graph::{Version, VersionGraph};
+use crate::version_graph::{VersionEntry, VersionGraph};
 
 
 #[derive(Clone, Copy)]
@@ -44,8 +44,12 @@ impl DiffSide {
 }
 
 
-pub(crate) fn insert_mappings<'version>(options: PropagationOptions, version_graph: &'version VersionGraph, changes: MappingsDiff, version: &'version Version)
-		-> Result<()> {
+pub(crate) fn insert_mappings<'version>(
+	options: PropagationOptions,
+	version_graph: &'version VersionGraph,
+	changes: MappingsDiff,
+	version: VersionEntry<'version>,
+) -> Result<()> {
 
 	let direction_is_up = matches!(&options.direction, PropagationDirection::Up | PropagationDirection::Both);
 	let direction_is_down = matches!(&options.direction, PropagationDirection::Down | PropagationDirection::Both);
@@ -108,7 +112,7 @@ pub(crate) fn insert_mappings<'version>(options: PropagationOptions, version_gra
 							if let Some((sibling_key, sibling)) = sibling {
 								let side = side.opposite();
 
-								let mut do_queue_changes = |version: &'version Version| {
+								let mut do_queue_changes = |version: VersionEntry<'version>| {
 									let changes = queued_changes.entry(version)
 										.or_insert_with(|| MappingsDiff::new(Action::None));
 
@@ -209,7 +213,7 @@ pub(crate) fn insert_mappings<'version>(options: PropagationOptions, version_gra
 									let side = side.opposite();
 
 
-									let mut do_queue_changes = |version: &'version Version| {
+									let mut do_queue_changes = |version: VersionEntry<'version>| {
 										let changes = queued_changes.entry(version)
 											.or_insert_with(|| MappingsDiff::new(Action::None));
 
@@ -293,7 +297,7 @@ pub(crate) fn insert_mappings<'version>(options: PropagationOptions, version_gra
 								if let Some((parent_sibling_key, sibling_key, sibling)) = sibling {
 									let side = side.opposite();
 
-									let mut do_queue_changes = |version: &'version Version| {
+									let mut do_queue_changes = |version: VersionEntry<'version>| {
 										let changes = queued_changes.entry(version)
 											.or_insert_with(|| MappingsDiff::new(Action::None));
 
@@ -375,19 +379,19 @@ pub(crate) fn insert_mappings<'version>(options: PropagationOptions, version_gra
 #[allow(clippy::too_many_arguments)]
 fn propagate_change<'version>(
 	options_lenient: bool,
-	dirty: &mut HashSet<&'version Version>,
-	barriers: &IndexSet<&'version Version>,
+	dirty: &mut HashSet<VersionEntry<'version>>,
+	barriers: &IndexSet<VersionEntry<'version>>,
 	version_graph: &'version VersionGraph,
-	version: &'version Version,
+	version: VersionEntry<'version>,
 	op_is_not_none_mappings: bool,
 	op_is_not_none_javadocs: bool,
 	apply_to_mappings: impl Fn(&mut Mappings<2>, Mode) -> bool,
 	apply_to_diffs: impl Fn(&mut MappingsDiff, bool, DiffSide, Mode) -> bool,
-	mut queue_sibling_changes: impl FnMut(&MappingsDiff, DiffSide, PropDir, &'version Version, Mode),
+	mut queue_sibling_changes: impl FnMut(&MappingsDiff, DiffSide, PropDir, VersionEntry<'version>, Mode),
 ) {
 	let mut propagate = |mode: Mode| {
 		let mut propagation = PropagationQueue::new();
-		propagation.offer(version_graph, PropDir::Up, version);
+		propagation.offer(PropDir::Up, version);
 
 		while let Some((dir, n)) = propagation.poll() {
 			match dir {
@@ -400,13 +404,13 @@ fn propagate_change<'version>(
 
 						if success {
 							// success, now propagate in opposite direction
-							propagation.offer(version_graph, PropDir::Down, n);
+							propagation.offer(PropDir::Down, n);
 
 							dirty.insert(n);
 						}
 					} else {
 						let side = DiffSide::B;
-						let insert = barriers.contains(n);
+						let insert = barriers.contains(&n);
 						let dir = PropDir::Up;
 						let queue_sibling_change_version = n;
 
@@ -424,12 +428,12 @@ fn propagate_change<'version>(
 								}
 
 								// change applied, now propagate in the opposite direction
-								propagation.offer(version_graph, PropDir::Down, n);
+								propagation.offer(PropDir::Down, n);
 
 								dirty.insert(n);
 							} else {
 								// change not applied to this version, propagate further
-								propagation.offer(version_graph, PropDir::Up, p);
+								propagation.offer(PropDir::Up, p);
 							}
 						}
 					}
@@ -453,7 +457,7 @@ fn propagate_change<'version>(
 								.unwrap() // this unwrap needs to be replaced with ?
 								.unwrap(); // this seems to be fine, bc we checked stuff?!
 
-							let insert = barriers.contains(c);
+							let insert = barriers.contains(&c);
 							let side = DiffSide::A;
 							let dir = PropDir::Down;
 							let queue_sibling_change_version = c;
@@ -473,8 +477,8 @@ fn propagate_change<'version>(
 
 								// change came down from some version, but
 								// could be propagated up to other parents
-								propagation.offer(version_graph, PropDir::Up, c);
-								propagation.offer(version_graph, PropDir::Down, c);
+								propagation.offer(PropDir::Up, c);
+								propagation.offer(PropDir::Down, c);
 							}
 						}
 					}
@@ -900,11 +904,11 @@ fn apply_change_to_diff_optional<T: Debug + Clone + PartialEq>(
 }
 
 struct PropagationQueue<'version> {
-	queue_up: VecDeque<&'version Version>,
-	queue_down: VecDeque<&'version Version>,
+	queue_up: VecDeque<VersionEntry<'version>>,
+	queue_down: VecDeque<VersionEntry<'version>>,
 
-	version_up: IndexSet<&'version Version>,
-	version_down: IndexSet<&'version Version>,
+	version_up: IndexSet<VersionEntry<'version>>,
+	version_down: IndexSet<VersionEntry<'version>>,
 }
 
 impl<'version> PropagationQueue<'version> {
@@ -917,17 +921,13 @@ impl<'version> PropagationQueue<'version> {
 		}
 	}
 
-	fn offer(&mut self, version_graph: &VersionGraph, dir: PropDir, version: &'version Version) -> bool {
-		let get_depth = |v: &&Version| {
-			version_graph.get_depth(v)
-		};
-
+	fn offer(&mut self, dir: PropDir, version: VersionEntry<'version>) -> bool {
 		match dir {
 			PropDir::Up => {
 				if self.version_up.insert(version) {
 					self.queue_up.push_back(version);
 					self.queue_up.make_contiguous()
-						.sort_by_key(get_depth);
+						.sort_by_key(|v| v.depth());
 					true
 				} else {
 					false
@@ -937,7 +937,7 @@ impl<'version> PropagationQueue<'version> {
 				if self.version_down.insert(version) {
 					self.queue_down.push_back(version);
 					self.queue_down.make_contiguous()
-						.sort_by_key(get_depth);
+						.sort_by_key(|v| v.depth());
 					true
 				} else {
 					false
@@ -946,7 +946,7 @@ impl<'version> PropagationQueue<'version> {
 		}
 	}
 
-	fn poll(&mut self) -> Option<(PropDir, &'version Version)> {
+	fn poll(&mut self) -> Option<(PropDir, VersionEntry<'version>)> {
 		if let Some(v) = self.queue_up.pop_front() {
 			return Some((PropDir::Up, v))
 		}

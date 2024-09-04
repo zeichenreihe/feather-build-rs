@@ -13,7 +13,7 @@ use crate::download::versions_manifest::VersionsManifest;
 use dukebox::zip::mem::NamedMemJar;
 use quill::tree::mappings::Mappings;
 use quill::tree::names::{Names, Namespace};
-use crate::version_graph::{Environment, Version, VersionGraph};
+use crate::version_graph::{Environment, Version, VersionEntry, VersionGraph};
 
 
 fn inspect<const N: usize>(mappings: &Mappings<N>, path: &str) -> Result<()> {
@@ -34,12 +34,16 @@ fn inspect<const N: usize>(mappings: &Mappings<N>, path: &str) -> Result<()> {
 	Ok(())
 }
 
-pub(crate) async fn build(downloader: &Downloader, version_graph: &VersionGraph, versions_manifest: &VersionsManifest, version: &Version)
-	-> Result<BuildResult> {
+pub(crate) async fn build(
+	downloader: &Downloader,
+	version_graph: &VersionGraph,
+	versions_manifest: &VersionsManifest,
+	version: VersionEntry<'_>,
+) -> Result<BuildResult> {
 	// Get the jar from mojang. If it's a merged environment, then merge the two jars (client and server).
 
-	let environment = version.get_environment();
-	let version_details = downloader.version_details(versions_manifest, version, &environment).await?;
+	let environment = version.version().get_environment();
+	let version_details = downloader.version_details(versions_manifest, version.version(), &environment).await?;
 
 	match environment {
 		Environment::Merged => {
@@ -48,7 +52,8 @@ pub(crate) async fn build(downloader: &Downloader, version_graph: &VersionGraph,
 
 			let start = Instant::now();
 
-			let main_jar = dukebox::merge::merge(client, server).with_context(|| anyhow!("failed to merge jars for version {version}"))?;
+			let main_jar = dukebox::merge::merge(client, server)
+				.with_context(|| anyhow!("failed to merge jars for version {}", version.as_str()))?;
 
 			println!("jar merging took {:?}", start.elapsed());
 
@@ -67,7 +72,7 @@ pub(crate) async fn build(downloader: &Downloader, version_graph: &VersionGraph,
 	}
 }
 
-async fn next_feather_version(downloader: &Downloader, version: &Version, local: bool) -> Result<String> {
+async fn next_feather_version(downloader: &Downloader, version: Version<'_>, local: bool) -> Result<String> {
 	if local {
 		Ok(format!("{version}+build.local"))
 	} else {
@@ -79,11 +84,9 @@ async fn next_feather_version(downloader: &Downloader, version: &Version, local:
 		// However if you don't have this file yet, you can comment out the lines below to start at build number 1.
 		let metadata = downloader.get_maven_metadata_xml(url).await?;
 
-		let version_build = format!("{version}");
-
 		for version in metadata.versioning.versions.versions {
 			if let Some((left, right)) = version.split_once("+build.") {
-				if left == version_build {
+				if left == version.as_str() {
 					let number = right.parse()?;
 					build_number = build_number.max(number);
 				}
@@ -97,17 +100,22 @@ async fn next_feather_version(downloader: &Downloader, version: &Version, local:
 }
 
 
-async fn build_inner(downloader: &Downloader, version_graph: &VersionGraph, versions_manifest: &VersionsManifest, version: &Version, main_jar: &impl Jar)
-	-> Result<BuildResult> {
+async fn build_inner(
+	downloader: &Downloader,
+	version_graph: &VersionGraph,
+	versions_manifest: &VersionsManifest,
+	version: VersionEntry<'_>,
+	main_jar: &impl Jar
+) -> Result<BuildResult> {
 
-	let feather_version = next_feather_version(downloader, version, false).await?;
+	let feather_version = next_feather_version(downloader, version.version(), false).await?;
 
 	let mappings = version_graph.apply_diffs(version)? // calamus -> named
 		.extend_inner_class_names("named")?
 		.remove_dummy("named")?;
 
-	let calamus_v2 = downloader.calamus_v2(version).await?;
-	let libraries = downloader.mc_libs(versions_manifest, version).await?;
+	let calamus_v2 = downloader.calamus_v2(version.version()).await?;
+	let libraries = downloader.mc_libs(versions_manifest, version.version()).await?;
 
 	let build_feather_tiny = crate::specialized_methods::add_specialized_methods_to_mappings(main_jar, &calamus_v2, &libraries, &mappings)
 		.context("failed to add specialized methods to mappings")?;

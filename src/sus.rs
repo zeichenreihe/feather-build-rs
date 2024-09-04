@@ -12,7 +12,7 @@ use crate::download::Downloader;
 use dukebox::Jar;
 use crate::download::versions_manifest::VersionsManifest;
 use crate::specialized_methods::GetSpecializedMethods;
-use crate::version_graph::{Environment, Version, VersionGraph};
+use crate::version_graph::{Environment, VersionEntry, VersionGraph};
 
 pub(crate) async fn report_sus(mappings_dir: PathBuf, downloader: Downloader) -> Result<SusResult> {
 	let start = Instant::now();
@@ -36,16 +36,21 @@ pub(crate) async fn report_sus(mappings_dir: PathBuf, downloader: Downloader) ->
 #[derive(Debug)]
 pub(crate) struct SusResult;
 
-async fn sus(downloader: &Downloader, version_graph: &VersionGraph, versions_manifest: &VersionsManifest, version: &Version) -> Result<SusResult> {
-	let environment = version.get_environment();
-	let version_details = downloader.version_details(versions_manifest, version, &environment).await?;
+async fn sus(
+	downloader: &Downloader,
+	version_graph: &VersionGraph,
+	versions_manifest: &VersionsManifest,
+	version: VersionEntry<'_>
+) -> Result<SusResult> {
+	let environment = version.version().get_environment();
+	let version_details = downloader.version_details(versions_manifest, version.version(), &environment).await?;
 
 	match environment {
 		Environment::Merged => {
 			let client = downloader.get_jar(&version_details.downloads.client.url).await?;
 			let server = downloader.get_jar(&version_details.downloads.server.url).await?;
 
-			let main_jar = dukebox::merge::merge(client, server).with_context(|| anyhow!("failed to merge jars for version {version}"))?;
+			let main_jar = dukebox::merge::merge(client, server).with_context(|| anyhow!("failed to merge jars for version {}", version.as_str()))?;
 
 			sus_inner(downloader, version_graph, versions_manifest, version, &main_jar).await
 		},
@@ -62,8 +67,13 @@ async fn sus(downloader: &Downloader, version_graph: &VersionGraph, versions_man
 	}
 
 }
-async fn sus_inner(downloader: &Downloader, version_graph: &VersionGraph, versions_manifest: &VersionsManifest, version: &Version, main_jar: &impl Jar)
-	-> Result<SusResult> {
+async fn sus_inner(
+	downloader: &Downloader,
+	version_graph: &VersionGraph,
+	versions_manifest: &VersionsManifest,
+	version: VersionEntry<'_>,
+	main_jar: &impl Jar
+) -> Result<SusResult> {
 
 	println!("sus!");
 
@@ -71,8 +81,8 @@ async fn sus_inner(downloader: &Downloader, version_graph: &VersionGraph, versio
 		.extend_inner_class_names("named")?
 		.remove_dummy("named")?;
 
-	let calamus_v2 = downloader.calamus_v2(version).await?;
-	let libraries = downloader.mc_libs(versions_manifest, version).await?;
+	let calamus_v2 = downloader.calamus_v2(version.version()).await?;
+	let libraries = downloader.mc_libs(versions_manifest, version.version()).await?;
 
 	let build_feather_tiny = add_specialized_methods_to_mappings(main_jar, &calamus_v2, &libraries, mappings)
 		.context("failed to add specialized methods to mappings")?;
