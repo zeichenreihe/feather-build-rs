@@ -1,4 +1,5 @@
 use std::ffi::{OsStr, OsString};
+use std::path::PathBuf;
 use std::process::Command;
 use anyhow::{anyhow, bail, Context, Result};
 use log::{error, trace};
@@ -37,10 +38,11 @@ impl JavaLauncher {
 		const JAVA_HOME: &str = "JAVA_HOME";
 
 		std::env::var_os(JAVA_HOME)
-			.map(|mut java_home| {
-
-				java_home.push("/bin/java");
-				let java_command = java_home;
+			.map(|java_home| {
+				// needs to be a PathBuf because that takes care of slashes at the end
+				let mut path = PathBuf::from(java_home);
+				path.push("bin/java");
+				let java_command = OsString::from(path);
 
 				trace!("located java via env var as {java_command:?}");
 
