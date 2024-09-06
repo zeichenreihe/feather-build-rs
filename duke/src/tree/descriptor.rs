@@ -386,33 +386,32 @@ impl From<FieldDescriptor> for ReturnDescriptor {
 	}
 }
 
-// TODO: consider moving this to FieldDescriptor because there's a similar use case...
-impl ReturnDescriptor {
-	/// Creates a return descriptor of the class name given.
+impl FieldDescriptor {
+	/// Creates a field descriptor of the class name given.
 	///
 	/// This is equivalent to something like `"L" + class_name + ";"`, but performs more checks:
 	/// ```
 	/// # use pretty_assertions::assert_eq;
 	/// use duke::tree::class::ClassName;
-	/// use duke::tree::descriptor::ReturnDescriptor;
-	/// let a = ReturnDescriptor::from("Ljava/lang/Object;");
-	/// let b = ReturnDescriptor::from_class(ClassName::JAVA_LANG_OBJECT);
+	/// use duke::tree::field::FieldDescriptor;
+	/// let a = FieldDescriptor::from("Ljava/lang/Object;");
+	/// let b = FieldDescriptor::from_class(ClassName::JAVA_LANG_OBJECT);
 	/// assert_eq!(a, b);
 	// TODO: test cases, also one that fails, with array class name?
 	/// ```
-	pub fn from_class(class_name: &ClassNameSlice) -> ReturnDescriptor {
+	pub fn from_class(class_name: &ClassNameSlice) -> FieldDescriptor {
 		let class_name = class_name.as_str();
 		assert!(!class_name.starts_with('[')); // TODO: remove this? more generally: decide about array classes
 
 		if class_name.starts_with('[') {
 			// for array classes, the class name is just a descriptor already
-			ReturnDescriptor(class_name.to_owned())
+			FieldDescriptor(class_name.to_owned())
 		} else {
 			// otherwise, build a descriptor by L...;-ing the class name
 			let desc = String::with_capacity(2 + class_name.len())
 				+ "L" + class_name + ";";
 
-			ReturnDescriptor(desc)
+			FieldDescriptor(desc)
 		}
 	}
 }

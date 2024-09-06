@@ -4,8 +4,7 @@ use anyhow::{bail, Result};
 use indexmap::IndexMap;
 use indexmap::map::Entry;
 use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
-use duke::tree::class::{ClassFile, ClassName};
-use duke::tree::descriptor::ReturnDescriptor;
+use duke::tree::class::{ClassFile, ClassName, ClassNameSlice};
 use duke::tree::field::{Field, FieldDescriptor};
 use duke::tree::method::Method;
 use crate::storage::{ClassRepr, IsClass, IsOther, Jar, JarEntry, JarEntryEnum, OpenedJar, ParsedJar, ParsedJarEntry};
@@ -97,15 +96,19 @@ fn merge_from_client<T>(client: &T, server: &T) -> Result<T>
 	Ok(client.clone())
 }
 
+const ENVIRONMENT: &ClassNameSlice = ClassNameSlice::from_str("net/fabricmc/api/Environment");
+const ENVIRONMENT_INTERFACE: &ClassNameSlice = ClassNameSlice::from_str("net/fabricmc/api/EnvironmentInterface");
+const ENVIRONMENT_INTERFACES: &ClassNameSlice = ClassNameSlice::from_str("net/fabricmc/api/EnvironmentInterfaces");
+const ENV_TYPE: &ClassNameSlice = ClassNameSlice::from_str("net/fabricmc/api/EnvType");
 
 fn sided_annotation(side: Side) -> Annotation {
 	Annotation {
-		annotation_type: FieldDescriptor::from("Lnet/fabricmc/api/Environment;"),
+		annotation_type: FieldDescriptor::from_class(ENVIRONMENT),
 		element_value_pairs: vec![
 			ElementValuePair {
 				name: "value".to_owned(),
 				value: ElementValue::Enum {
-					type_name: FieldDescriptor::from("Lnet/fabricmc/api/EnvType;"),
+					type_name: FieldDescriptor::from_class(ENV_TYPE),
 					const_name: match side {
 						Side::Client => "CLIENT".to_owned(),
 						Side::Server => "SERVER".to_owned(),
@@ -214,12 +217,12 @@ fn class_merger_merge(client: ClassFile, server: ClassFile) -> Result<ClassFile>
 
 			fn make_annotation(i: &ClassName, side: Side) -> ElementValue {
 				ElementValue::AnnotationInterface(Annotation {
-					annotation_type: FieldDescriptor::from("Lnet/fabricmc/api/EnvironmentInterface;"),
+					annotation_type: FieldDescriptor::from_class(ENVIRONMENT_INTERFACE),
 					element_value_pairs: vec![
 						ElementValuePair {
 							name: "value".to_owned(),
 							value: ElementValue::Enum {
-								type_name: FieldDescriptor::from("Lnet/fabricmc/api/EnvType;"),
+								type_name: FieldDescriptor::from_class(ENV_TYPE),
 								const_name: match side {
 									Side::Client => "CLIENT".to_owned(),
 									Side::Server => "SERVER".to_owned(),
@@ -228,7 +231,7 @@ fn class_merger_merge(client: ClassFile, server: ClassFile) -> Result<ClassFile>
 						},
 						ElementValuePair {
 							name: "itf".to_owned(),
-							value: ElementValue::Class(ReturnDescriptor::from_class(i))
+							value: ElementValue::Class(FieldDescriptor::from_class(i).into())
 						},
 					],
 				})
@@ -241,7 +244,7 @@ fn class_merger_merge(client: ClassFile, server: ClassFile) -> Result<ClassFile>
 
 			if !array.is_empty() {
 				let annotation = Annotation {
-					annotation_type: FieldDescriptor::from("Lnet/fabricmc/api/EnvironmentInterfaces;"),
+					annotation_type: FieldDescriptor::from_class(ENVIRONMENT_INTERFACES),
 					element_value_pairs: vec![
 						ElementValuePair {
 							name: "value".to_owned(),

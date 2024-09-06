@@ -8,12 +8,12 @@ macro_rules! make_string_str_like {
 	) => {
 		$( #[$owned_doc] )*
 		#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
-		pub struct $owned(String);
+		pub struct $owned(pub(crate) String);
 
 		$( #[$borrowed_doc] )*
 		#[derive(Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 		#[repr(transparent)]
-		pub struct $borrowed(str);
+		pub struct $borrowed(pub(crate) str);
 
 		impl $owned {
 			pub fn as_slice(&self) -> &$borrowed {
