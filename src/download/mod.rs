@@ -9,12 +9,12 @@ use bytes::{Buf, Bytes};
 use log::{info, trace};
 use reqwest::{Client, StatusCode};
 use zip::ZipArchive;
+use dukebox::storage::FileJar;
 use crate::download::version_details::VersionDetails;
 use crate::download::version_manifest::VersionManifest;
 use crate::download::versions_manifest::VersionsManifest;
 use crate::download::maven_metadata::MavenMetadata;
 use quill::tree::mappings::Mappings;
-use dukebox::zip::file::FileJar;
 use dukenest::Nests;
 use maven_dependency_resolver::maven_pom::MavenPom;
 use crate::Version;
@@ -103,7 +103,7 @@ impl DownloadResult<'_> {
 			DownloadData::NotCached { bytes } => todo!("not cached is not implemented for into_file_jar"),
 			DownloadData::FileNew { path, .. } |
 			DownloadData::FileHit { path} => {
-				Ok(FileJar::new(path))
+				Ok(FileJar { path })
 			},
 		}
 	}

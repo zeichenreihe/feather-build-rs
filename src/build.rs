@@ -7,14 +7,12 @@ use zip::write::FileOptions;
 use zip::ZipWriter;
 use duke::tree::class::ClassName;
 use duke::tree::method::MethodName;
-use dukebox::Jar;
+use dukebox::storage::{Jar, NamedMemJar};
 use crate::download::Downloader;
 use crate::download::versions_manifest::VersionsManifest;
-use dukebox::zip::mem::NamedMemJar;
 use quill::tree::mappings::Mappings;
 use quill::tree::names::{Names, Namespace};
 use crate::version_graph::{Environment, Version, VersionEntry, VersionGraph};
-
 
 fn inspect<const N: usize>(mappings: &Mappings<N>, path: &str) -> Result<()> {
 	let start = Instant::now();
@@ -133,11 +131,11 @@ async fn build_inner(
 
 	let name = format!("feather-{feather_version}-mergedv2.jar");
 	let data = tiny_v2_write_zip_file(&merge_v2)?;
-	let merged_feather = NamedMemJar::new(name, data);
+	let merged_feather = NamedMemJar { name, data };
 
 	let name = format!("feather-{feather_version}-v2.jar");
 	let data = tiny_v2_write_zip_file(&build_feather_tiny)?;
-	let unmerged_feather = NamedMemJar::new(name, data);
+	let unmerged_feather = NamedMemJar { name, data };
 
 	Ok(BuildResult { merged_feather, unmerged_feather })
 }

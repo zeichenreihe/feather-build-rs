@@ -3,9 +3,7 @@ use anyhow::{Context, Result};
 use indexmap::{IndexMap, IndexSet};
 use duke::tree::class::{ClassAccess, ClassFile, ClassName, ClassNameSlice, EnclosingMethod, InnerClass, InnerClassFlags};
 use duke::tree::method::MethodNameAndDesc;
-use dukebox::{BasicFileAttributes, IsClass, IsOther, Jar, JarEntry, JarEntryEnum, OpenedJar};
-use dukebox::lazy_duke::ClassRepr;
-use dukebox::parsed::{ParsedJar, ParsedJarEntry};
+use dukebox::storage::{BasicFileAttributes, ClassRepr, IsClass, IsOther, Jar, JarEntry, JarEntryEnum, OpenedJar, ParsedJar, ParsedJarEntry};
 use quill::remapper::{ARemapper, ARemapperAsBRemapper, BRemapper, NoSuperClassProvider};
 use quill::tree::mappings::Mappings;
 
@@ -185,7 +183,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 
 		let class_node = do_nested_class_attribute_class_visitor(&this_nests, new_class);
 
-		let entry_attr = BasicFileAttributes::new_empty();
+		let entry_attr = BasicFileAttributes::default();
 
 		let (name, class_node) = if options.remap {
 			let name = dukebox::remap::remap_jar_entry_name(&name, &remapper)?;
