@@ -41,8 +41,9 @@ unsafe_op_in_unsafe_fn = "forbid"
 [workspace.lints.clippy]
 unwrap_used = "warn"
 expect_used = "warn"
-panic = "warn"
-panic_in_result_fn = "warn"
+#panic = "warn"
+# can't use this, it complains about tests
+#panic_in_result_fn = "warn"
 
 [package]
 name = "feather-build-rs"

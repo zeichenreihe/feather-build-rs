@@ -13,7 +13,7 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-indexmap = "2.0.2"
+indexmap = { workspace = true }
 
 duke = { workspace = true }
 dukebox = { workspace = true }
