@@ -8,9 +8,7 @@ use duke::tree::method::code::{Code, ConstantDynamic, Exception, Handle, Instruc
 use duke::tree::type_annotation::TypeAnnotation;
 use duke::visitor::method::code::{StackMapData, VerificationTypeInfo};
 use quill::remapper::BRemapper;
-use crate::{IsClass, IsOther, Jar, JarEntry, OpenedJar};
-use crate::lazy_duke::ClassRepr;
-use crate::parsed::{ParsedJar, ParsedJarEntry};
+use crate::storage::{ClassRepr, IsClass, IsOther, Jar, JarEntry, OpenedJar, ParsedJar, ParsedJarEntry};
 
 
 // TODO: doc

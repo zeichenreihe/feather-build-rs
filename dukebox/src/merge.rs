@@ -8,9 +8,7 @@ use duke::tree::class::{ClassFile, ClassName};
 use duke::tree::descriptor::ReturnDescriptor;
 use duke::tree::field::{Field, FieldDescriptor};
 use duke::tree::method::Method;
-use crate::{IsClass, IsOther, Jar, JarEntry, JarEntryEnum, OpenedJar};
-use crate::lazy_duke::ClassRepr;
-use crate::parsed::{ParsedJar, ParsedJarEntry};
+use crate::storage::{ClassRepr, IsClass, IsOther, Jar, JarEntry, JarEntryEnum, OpenedJar, ParsedJar, ParsedJarEntry};
 
 #[derive(Clone, Debug, PartialEq)]
 enum Side {

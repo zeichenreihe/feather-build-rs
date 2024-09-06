@@ -5,19 +5,11 @@ use anyhow::{anyhow, Context, Result};
 use indexmap::IndexMap;
 use zip::write::FileOptions;
 use zip::{DateTime, ZipWriter};
-use crate::{BasicFileAttributes, IsClass, IsOther, Jar, JarEntry, JarEntryEnum, OpenedJar};
-use crate::lazy_duke::ClassRepr;
-use crate::zip::mem::UnnamedMemJar;
+use crate::storage::{BasicFileAttributes, ClassRepr, IsClass, IsOther, Jar, JarEntry, JarEntryEnum, OpenedJar, UnnamedMemJar};
 
 #[derive(Debug, Default)]
 pub struct ParsedJar<Class, Other> {
 	pub entries: IndexMap<String, ParsedJarEntry<Class, Other>>,
-}
-
-#[derive(Debug)]
-pub struct ParsedJarEntry<Class, Other> {
-	pub attr: BasicFileAttributes,
-	pub content: JarEntryEnum<Class, Other>,
 }
 
 impl<Class, Other> Jar for ParsedJar<Class, Other>
@@ -88,10 +80,14 @@ impl<Class, Other> ParsedJar<Class, Other>
 
 			let name = entry.name().to_owned();
 
+			use JarEntryEnum::*;
 			let entry = ParsedJarEntry {
 				attr: entry.attrs(),
-				content: entry.to_jar_entry_enum()?
-					.map_both(|class| class.into_class_repr(), |other| other.get_data_owned()),
+				content: match entry.to_jar_entry_enum()? {
+					Dir => Dir,
+					Class(class) => Class(class.into_class_repr()),
+					Other(other) => Other(other.get_data_owned()),
+				},
 			};
 
 			result.entries.insert(name, entry);
@@ -138,11 +134,17 @@ impl<Class, Other> ParsedJar<Class, Other>
 	}
 
 	pub fn to_mem(self) -> Result<UnnamedMemJar> {
-		let vec = self.write(Cursor::new(Vec::new()))?
+		let data = self.write(Cursor::new(Vec::new()))?
 			.into_inner();
 
-		Ok(UnnamedMemJar::new(vec))
+		Ok(UnnamedMemJar { data })
 	}
+}
+
+#[derive(Debug)]
+pub struct ParsedJarEntry<Class, Other> {
+	pub attr: BasicFileAttributes,
+	pub content: JarEntryEnum<Class, Other>,
 }
 
 impl<'name, 'entry, Class, Other> JarEntry for (&'name String, &'entry ParsedJarEntry<Class, Other>)

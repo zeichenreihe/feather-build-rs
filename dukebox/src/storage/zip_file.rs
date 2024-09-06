@@ -2,17 +2,13 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Context, Result};
 use zip::ZipArchive;
-use crate::Jar;
+use crate::storage::Jar;
 
+/// A jar read from a path.
 #[derive(Debug)]
 pub struct FileJar {
+	/// The path pointing to a zip archive, that's read as the jar.
 	pub path: PathBuf,
-}
-
-impl FileJar {
-	pub fn new(path: PathBuf) -> FileJar {
-		FileJar { path }
-	}
 }
 
 impl Jar for FileJar {

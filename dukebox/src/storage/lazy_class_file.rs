@@ -4,7 +4,7 @@ use std::io::Cursor;
 use anyhow::Result;
 use duke::tree::class::ClassFile;
 use duke::visitor::MultiClassVisitor;
-use crate::IsClass;
+use crate::storage::IsClass;
 
 /// A lazily read [`ClassFile`].
 #[derive(Clone)]
@@ -17,6 +17,9 @@ pub enum ClassRepr {
 	},
 }
 
+/// [`Debug`] doesn't print the raw class data.
+///
+/// However, it prints the parsed class.
 impl Debug for ClassRepr {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		match self {
