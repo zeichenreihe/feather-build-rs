@@ -178,6 +178,26 @@ pub trait IsOther {
 	fn get_data_owned(self) -> Vec<u8>;
 }
 
+impl IsOther for Vec<u8> {
+	fn get_data(&self) -> &[u8] {
+		self
+	}
+
+	fn get_data_owned(self) -> Vec<u8> {
+		self
+	}
+}
+
+impl IsOther for &'_ Vec<u8> {
+	fn get_data(&self) -> &[u8] {
+		self
+	}
+	fn get_data_owned(self) -> Vec<u8> {
+		self.clone()
+	}
+}
+
+
 #[derive(Clone, Copy, Debug)]
 pub struct BasicFileAttributes {
 	last_modified: Option<DateTime>,

@@ -7,6 +7,7 @@ use clap::{ArgAction, Parser, Subcommand, ValueEnum};
 use log::{info, trace};
 use tokio::task::JoinSet;
 use dukebox::Jar;
+use dukebox::lazy_duke::ClassRepr;
 use dukebox::parsed::ParsedJar;
 use dukenest::{NesterOptions, Nests};
 use maven_dependency_resolver::coord::MavenCoord;
@@ -386,7 +387,7 @@ impl MappingUtils {
 
 // output is `calamusJar`
 // maps the mainJar (either server/client/mergedJar, selected in dlVersionDetails) from "official" to "calamus", to calamusJar
-async fn map_calamus_jar(downloader: &Downloader, version: Version<'_>) -> Result<ParsedJar> {
+async fn map_calamus_jar(downloader: &Downloader, version: Version<'_>) -> Result<ParsedJar<ClassRepr, Vec<u8>>> {
     let versions_manifest = downloader.get_versions_manifest().await?;
     let environment = version.get_environment();
     let version_details = downloader.version_details(&versions_manifest, version, &environment).await?;
@@ -413,7 +414,7 @@ async fn map_calamus_jar(downloader: &Downloader, version: Version<'_>) -> Resul
     Ok(out_jar)
 }
 
-async fn nest_jar(downloader: &Downloader, version: Version<'_>, calamus_jar: &impl Jar) -> Result<Option<ParsedJar>> {
+async fn nest_jar(downloader: &Downloader, version: Version<'_>, calamus_jar: &impl Jar) -> Result<Option<ParsedJar<ClassRepr, Vec<u8>>>> {
 
     let calamus_nests_file = patch_nests(downloader, version).await?;
 

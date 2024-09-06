@@ -10,18 +10,24 @@ use crate::lazy_duke::ClassRepr;
 use crate::zip::mem::UnnamedMemJar;
 
 #[derive(Debug, Default)]
-pub struct ParsedJar {
-	pub entries: IndexMap<String, ParsedJarEntry>,
+pub struct ParsedJar<Class, Other> {
+	pub entries: IndexMap<String, ParsedJarEntry<Class, Other>>,
 }
 
 #[derive(Debug)]
-pub struct ParsedJarEntry {
+pub struct ParsedJarEntry<Class, Other> {
 	pub attr: BasicFileAttributes,
-	pub content: JarEntryEnum<ClassRepr, Vec<u8>>,
+	pub content: JarEntryEnum<Class, Other>,
 }
 
-impl Jar for ParsedJar {
-	type Opened<'a> = &'a ParsedJar where Self: 'a;
+impl<Class, Other> Jar for ParsedJar<Class, Other>
+where
+	Class: IsClass,
+	Other: IsOther,
+	for<'a> &'a Class: IsClass,
+	for<'a> &'a Other: IsOther,
+{
+	type Opened<'a> = &'a ParsedJar<Class, Other> where Self: 'a;
 
 	fn open(&self) -> Result<Self::Opened<'_>> {
 		Ok(self)
@@ -38,10 +44,14 @@ impl Jar for ParsedJar {
 	}
 }
 
-impl<'this> OpenedJar for &'this ParsedJar {
+impl<'this, Class, Other> OpenedJar for &'this ParsedJar<Class, Other>
+where
+	for<'a> &'a Class: IsClass,
+	for<'a> &'a Other: IsOther,
+{
 	type EntryKey = usize;
 
-	type Entry<'a> = (&'a String, &'a ParsedJarEntry) where Self: 'a;
+	type Entry<'a> = (&'a String, &'a ParsedJarEntry<Class, Other>) where Self: 'a;
 
 	fn entry_keys(&self) -> impl Iterator<Item=Self::EntryKey> + 'static {
 		0..self.entries.len()
@@ -61,8 +71,12 @@ impl<'this> OpenedJar for &'this ParsedJar {
 	}
 }
 
-impl ParsedJar {
-	pub(crate) fn from_jar(jar: &impl Jar) -> Result<ParsedJar> {
+impl<Class, Other> ParsedJar<Class, Other>
+	where
+		Class: IsClass,
+		Other: IsOther,
+{
+	pub(crate) fn from_jar(jar: &impl Jar) -> Result<ParsedJar<ClassRepr, Vec<u8>>> {
 		let mut jar = jar.open()?;
 
 		let mut result = ParsedJar {
@@ -111,11 +125,11 @@ impl ParsedJar {
 					let data = class.write()?;
 
 					zip_out.start_file(name.as_str(), entry.attr.to_file_options())?;
-					zip_out.write_all(&data)?;
+					zip_out.write_all(data.as_ref())?;
 				},
 				Other(data) => {
 					zip_out.start_file(name.as_str(), entry.attr.to_file_options())?;
-					zip_out.write_all(data)?;
+					zip_out.write_all(data.get_data())?;
 				},
 			}
 		}
@@ -131,7 +145,11 @@ impl ParsedJar {
 	}
 }
 
-impl<'name, 'entry> JarEntry for (&'name String, &'entry ParsedJarEntry) {
+impl<'name, 'entry, Class, Other> JarEntry for (&'name String, &'entry ParsedJarEntry<Class, Other>)
+where
+	for<'a> &'a Class: IsClass,
+	for<'a> &'a Other: IsOther,
+{
 	fn name(&self) -> &str {
 		self.0
 	}
@@ -140,27 +158,14 @@ impl<'name, 'entry> JarEntry for (&'name String, &'entry ParsedJarEntry) {
 		self.1.attr
 	}
 
-	type Class = &'entry ClassRepr;
-	type Other = SliceOther<'entry>;
+	type Class = &'entry Class;
+	type Other = &'entry Other;
 	fn to_jar_entry_enum(self) -> Result<JarEntryEnum<Self::Class, Self::Other>> {
 		use JarEntryEnum::*;
 		Ok(match &self.1.content {
 			Dir => Dir,
 			Class(class) => Class(class),
-			Other(other) => Other(SliceOther { inner: other }),
+			Other(other) => Other(other),
 		})
-	}
-}
-
-pub struct SliceOther<'a> {
-	inner: &'a [u8],
-}
-
-impl IsOther for SliceOther<'_> {
-	fn get_data(&self) -> &[u8] {
-		self.inner
-	}
-	fn get_data_owned(self) -> Vec<u8> {
-		self.inner.to_owned()
 	}
 }

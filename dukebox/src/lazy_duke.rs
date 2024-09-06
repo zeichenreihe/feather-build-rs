@@ -26,6 +26,38 @@ impl Debug for ClassRepr {
 	}
 }
 
+impl IsClass for ClassRepr {
+	fn read(self) -> Result<ClassFile> {
+		match self {
+			ClassRepr::Parsed { class } => Ok(class),
+			ClassRepr::Vec { data } => duke::read_class(&mut Cursor::new(data)),
+		}
+	}
+
+	fn visit<M: MultiClassVisitor>(self, visitor: M) -> Result<M> {
+		match self {
+			ClassRepr::Parsed { class } => class.accept(visitor),
+			ClassRepr::Vec { data } => duke::read_class_multi(&mut Cursor::new(data), visitor),
+		}
+	}
+
+	type Written<'a> = Cow<'a, [u8]> where Self: 'a;
+	fn write(&self) -> Result<Self::Written<'_>> {
+		match self {
+			ClassRepr::Parsed { class } => {
+				let mut buf = Vec::new();
+				duke::write_class(&mut buf, class)?;
+				Ok(Cow::Owned(buf))
+			},
+			ClassRepr::Vec { data } => Ok(Cow::Borrowed(data)),
+		}
+	}
+
+	fn into_class_repr(self) -> ClassRepr {
+		self
+	}
+}
+
 impl IsClass for &ClassRepr {
 	fn read(self) -> Result<ClassFile> {
 		match self {

@@ -66,7 +66,7 @@ impl NesterOptions {
 
 // we assume class_node.name matches the name of the JarEntry
 
-pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<ParsedJar> {
+pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<ParsedJar<ClassRepr, Vec<u8>>> {
 	let mut class_version = None;
 	let mut jar_new_classes = IndexMap::new();
 	let mut methods_map: IndexMap<ClassName, HashSet<MethodNameAndDesc>> = IndexMap::new();

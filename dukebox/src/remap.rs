@@ -14,7 +14,7 @@ use crate::parsed::{ParsedJar, ParsedJarEntry};
 
 
 // TODO: doc
-pub fn remap(jar: impl Jar, remapper: impl BRemapper) -> Result<ParsedJar> {
+pub fn remap(jar: impl Jar, remapper: impl BRemapper) -> Result<ParsedJar<ClassRepr, Vec<u8>>> {
 	let mut opened = jar.open()?;
 
 	let mut resulting_entries = IndexMap::new();

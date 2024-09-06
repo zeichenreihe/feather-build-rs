@@ -281,7 +281,7 @@ fn visit_sided_annotation(class: impl IsClass, side: Side) -> Result<ClassFile> 
 }
 
 // TODO: doc
-pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar> {
+pub fn merge(client: impl Jar, server: impl Jar) -> Result<ParsedJar<ClassRepr, Vec<u8>>> {
 	let mut opened_a = client.open()?;
 	let mut opened_b = server.open()?;
 
