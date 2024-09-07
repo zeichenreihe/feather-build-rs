@@ -160,6 +160,7 @@ fn write_field_type(t: &Type, string: &mut String) {
 		Type::S => string.push('S'),
 		Type::Z => string.push('Z'),
 		Type::Object(class_name) => {
+			assert!(!class_name.as_str().starts_with('['));
 			string.push('L');
 			string.push_str(class_name.as_str());
 			string.push(';');
@@ -178,6 +179,7 @@ fn write_field_type(t: &Type, string: &mut String) {
 				ArrayType::S => string.push('S'),
 				ArrayType::Z => string.push('Z'),
 				ArrayType::Object(class_name) => {
+					assert!(!class_name.as_str().starts_with('['));
 					string.push('L');
 					string.push_str(class_name.as_str());
 					string.push(';');
@@ -261,7 +263,6 @@ impl ParsedFieldDescriptor {
 	/// );
 	///
 	/// let double_array = ParsedFieldDescriptor(Type::Array(3, ArrayType::D));
-	///
 	/// assert_eq!(double_array, double_array.write().parse().unwrap());
 	/// ```
 	pub fn write(&self) -> FieldDescriptor {
@@ -375,6 +376,107 @@ make_string_str_like!(
 	ReturnDescriptorSlice,
 );
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ParsedReturnDescriptor(pub Option<Type>);
+
+impl ReturnDescriptor {
+	/// Attempts to parse a return descriptor.
+	///
+	// TODO: check
+	/// A return descriptor is defined by the [grammar](https://docs.oracle.com/javase/specs/jvms/se22/html/jvms-4.html#jvms-4.3.2) in the
+	/// Java Virtual Machine Specification.
+	///
+	/// The inverse of this function is [`ParsedReturnDescriptor::write`].
+	///
+	/// # Examples
+	/// ```
+	/// # use pretty_assertions::assert_eq;
+	/// use duke::tree::class::ClassName;
+	/// use duke::tree::descriptor::{ArrayType, ParsedReturnDescriptor, ReturnDescriptor, Type};
+	///
+	/// assert_eq!(
+	///     ReturnDescriptor::from("I").parse().unwrap(),
+	///     ParsedReturnDescriptor(Some(Type::I))
+	/// );
+	/// assert_eq!(
+	///     ReturnDescriptor::from("V").parse().unwrap(),
+	///     ParsedReturnDescriptor(None)
+	/// );
+	/// assert_eq!(
+	///     ReturnDescriptor::from("Ljava/lang/Object;").parse().unwrap(),
+	///     ParsedReturnDescriptor(Some(Type::Object(ClassName::JAVA_LANG_OBJECT.to_owned())))
+	/// );
+	/// assert_eq!(
+	///     ReturnDescriptor::from("[[[D").parse().unwrap(),
+	///     ParsedReturnDescriptor(Some(Type::Array(3, ArrayType::D)))
+	/// );
+	///
+	/// let double_array = ReturnDescriptor::from("[[[D");
+	/// assert_eq!(double_array, double_array.parse().unwrap().write());
+	/// ```
+	pub fn parse(&self) -> Result<ParsedReturnDescriptor> {
+		let mut chars = self.as_str().chars().peekable();
+
+		let return_descriptor = if chars.next_if_eq(&'V').is_some() {
+			None
+		} else {
+			let descriptor = read_field_type(&mut chars)
+				.with_context(|| anyhow!("failed to read return descriptor {self:?}"))?;
+
+			Some(descriptor)
+		};
+
+		if chars.peek().is_some() {
+			bail!("expected end of return descriptor {self:?}, got {} remaining", String::from_iter(chars));
+		}
+
+		Ok(ParsedReturnDescriptor(return_descriptor))
+	}
+}
+
+impl ParsedReturnDescriptor {
+	/// Writes a return descriptor.
+	///
+	/// The inverse of this function is [`ReturnDescriptor::parse`].
+	///
+	/// # Examples
+	/// ```
+	/// # use pretty_assertions::assert_eq;
+	/// use duke::tree::class::ClassName;
+	/// use duke::tree::descriptor::{ArrayType, ParsedReturnDescriptor, ReturnDescriptor, Type};
+	///
+	/// assert_eq!(
+	///     ParsedReturnDescriptor(Some(Type::I)).write(),
+	///     ReturnDescriptor::from("I")
+	/// );
+	/// assert_eq!(
+	///     ParsedReturnDescriptor(None).write(),
+	///     ReturnDescriptor::from("V")
+	/// );
+	/// assert_eq!(
+	///     ParsedReturnDescriptor(Some(Type::Object(ClassName::JAVA_LANG_OBJECT.to_owned()))).write(),
+	///     ReturnDescriptor::from("Ljava/lang/Object;")
+	/// );
+	/// assert_eq!(
+	///     ParsedReturnDescriptor(Some(Type::Array(3, ArrayType::D))).write(),
+	///     ReturnDescriptor::from("[[[D")
+	/// );
+	///
+	/// let double_array = ParsedReturnDescriptor(Some(Type::Array(3, ArrayType::D)));
+	/// assert_eq!(double_array, double_array.write().parse().unwrap());
+	/// ```
+	pub fn write(&self) -> ReturnDescriptor {
+		let s = if let Some(return_descriptor) = &self.0 {
+			let mut s = String::new();
+			write_field_type(return_descriptor, &mut s);
+			s
+		} else {
+			String::from("V")
+		};
+		ReturnDescriptor::from(s)
+	}
+}
+
 impl From<FieldDescriptor> for ReturnDescriptor {
 	/// Converts a field descriptor into a return descriptor.
 	///
@@ -386,6 +488,9 @@ impl From<FieldDescriptor> for ReturnDescriptor {
 	}
 }
 
+// TODO: restructure all things? split the tree:: files into one for each struct "type"...?
+//  (so we end up with like tree::field::descriptor containing field descriptor stuff, and so on)
+//  (tho possibly do it the other way around... not sure yet!)
 impl FieldDescriptor {
 	/// Creates a field descriptor of the class name given.
 	///
@@ -401,7 +506,9 @@ impl FieldDescriptor {
 	/// ```
 	pub fn from_class(class_name: &ClassNameSlice) -> FieldDescriptor {
 		let class_name = class_name.as_str();
-		assert!(!class_name.starts_with('[')); // TODO: remove this? more generally: decide about array classes
+		assert!(!class_name.starts_with('['));
+		// TODO: remove this? more generally: decide about array classes
+		//  (this includes searching for "assert!" and "["...)
 
 		if class_name.starts_with('[') {
 			// for array classes, the class name is just a descriptor already
@@ -416,25 +523,63 @@ impl FieldDescriptor {
 	}
 }
 
-// TODO: impl parsing for return desc
-// TODO: write tests for return desc
-
 #[cfg(test)]
 mod testing {
 	use pretty_assertions::assert_eq;
 	use anyhow::Result;
 	use crate::tree::class::ClassName;
-	use crate::tree::descriptor::{ParsedMethodDescriptor, Type};
+	use crate::tree::descriptor::{ParsedFieldDescriptor, ParsedMethodDescriptor, ParsedReturnDescriptor, ReturnDescriptor, Type};
 	use crate::tree::field::FieldDescriptor;
 	use crate::tree::method::MethodDescriptor;
 
-	// TODO: field_parse tests
+	#[test]
+	fn field_parse() -> Result<()> {
+		assert_eq!(
+			FieldDescriptor::from("I").parse()?,
+			ParsedFieldDescriptor(Type::I)
+		);
+		assert_eq!(
+			FieldDescriptor::from("I"),
+			ParsedFieldDescriptor(Type::I).write()
+		);
+
+		assert_eq!(
+			FieldDescriptor::from("D").parse()?,
+			ParsedFieldDescriptor(Type::D)
+		);
+		assert_eq!(
+			FieldDescriptor::from("D"),
+			ParsedFieldDescriptor(Type::D).write()
+		);
+
+		assert_eq!(
+			FieldDescriptor::from("Ljava/lang/Thread;").parse()?,
+			ParsedFieldDescriptor(Type::Object(ClassName::from("java/lang/Thread")))
+		);
+		assert_eq!(
+			FieldDescriptor::from("Ljava/lang/Thread;"),
+			ParsedFieldDescriptor(Type::Object(ClassName::from("java/lang/Thread"))).write()
+		);
+
+		assert_eq!(
+			FieldDescriptor::from("Ljava/lang/Object;").parse()?,
+			ParsedFieldDescriptor(Type::Object(ClassName::from("java/lang/Object")))
+		);
+		assert_eq!(
+			FieldDescriptor::from("Ljava/lang/Object;"),
+			ParsedFieldDescriptor(Type::Object(ClassName::from("java/lang/Object"))).write()
+		);
+
+		Ok(())
+	}
 
 	#[test]
 	fn field_parse_err() -> Result<()> {
 		assert!(FieldDescriptor::from("").parse().is_err());
 		assert!(FieldDescriptor::from("V").parse().is_err());
 		assert!(FieldDescriptor::from("(").parse().is_err());
+		assert!(FieldDescriptor::from(")").parse().is_err());
+		assert!(FieldDescriptor::from("()").parse().is_err());
 		assert!(FieldDescriptor::from("[V").parse().is_err());
 		assert!(FieldDescriptor::from("()V").parse().is_err());
 		assert!(FieldDescriptor::from("(D)I").parse().is_err());
@@ -523,4 +668,68 @@ mod testing {
 	}
 
 	// TODO: method_get_arguments_size_err
+
+	#[test]
+	fn return_parse() -> Result<()> {
+		assert_eq!(
+			ReturnDescriptor::from("I").parse()?,
+			ParsedReturnDescriptor(Some(Type::I))
+		);
+		assert_eq!(
+			ReturnDescriptor::from("I"),
+			ParsedReturnDescriptor(Some(Type::I)).write()
+		);
+
+		assert_eq!(
+			ReturnDescriptor::from("V").parse()?,
+			ParsedReturnDescriptor(None)
+		);
+		assert_eq!(
+			ReturnDescriptor::from("V"),
+			ParsedReturnDescriptor(None).write()
+		);
+
+		assert_eq!(
+			ReturnDescriptor::from("D").parse()?,
+			ParsedReturnDescriptor(Some(Type::D))
+		);
+		assert_eq!(
+			ReturnDescriptor::from("D"),
+			ParsedReturnDescriptor(Some(Type::D)).write()
+		);
+
+		assert_eq!(
+			ReturnDescriptor::from("Ljava/lang/Thread;").parse()?,
+			ParsedReturnDescriptor(Some(Type::Object(ClassName::from("java/lang/Thread"))))
+		);
+		assert_eq!(
+			ReturnDescriptor::from("Ljava/lang/Thread;"),
+			ParsedReturnDescriptor(Some(Type::Object(ClassName::from("java/lang/Thread")))).write()
+		);
+
+		assert_eq!(
+			ReturnDescriptor::from("Ljava/lang/Object;").parse()?,
+			ParsedReturnDescriptor(Some(Type::Object(ClassName::from("java/lang/Object"))))
+		);
+		assert_eq!(
+			ReturnDescriptor::from("Ljava/lang/Object;"),
+			ParsedReturnDescriptor(Some(Type::Object(ClassName::from("java/lang/Object")))).write()
+		);
+
+		Ok(())
+	}
+
+	#[test]
+	fn return_parse_err() -> Result<()> {
+		assert!(ReturnDescriptor::from("").parse().is_err());
+		assert!(ReturnDescriptor::from("(").parse().is_err());
+		assert!(ReturnDescriptor::from(")").parse().is_err());
+		assert!(ReturnDescriptor::from("()").parse().is_err());
+		assert!(ReturnDescriptor::from("[V").parse().is_err());
+		assert!(ReturnDescriptor::from("()V").parse().is_err());
+		assert!(ReturnDescriptor::from("(D)I").parse().is_err());
+		assert!(ReturnDescriptor::from("L;DV").parse().is_err());
+		Ok(())
+	}
+
 }
