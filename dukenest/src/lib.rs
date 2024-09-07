@@ -274,7 +274,7 @@ fn do_nested_class_attribute_class_visitor(this_nests: &IndexMap<ClassName, Nest
 					None
 				},
 				inner_name: if matches!(nest.nest_type, NestType::Inner | NestType::Local) {
-					Some(strip_local_class_prefix(&nest.inner_name))
+					Some(strip_local_class_prefix(&nest.inner_name).to_owned())
 				} else {
 					None
 				},
@@ -285,23 +285,18 @@ fn do_nested_class_attribute_class_visitor(this_nests: &IndexMap<ClassName, Nest
 	class_node
 }
 
-fn strip_local_class_prefix(inner_name: &str) -> String {
+fn strip_local_class_prefix(inner_name: &str) -> &str {
 	// local class names start with a number prefix
-	let idx = inner_name.char_indices()
-		.take_while(|(_, ch)| ch.is_ascii_digit())
-		.map(|(pos, _)| pos)
-		.last()
-		.unwrap_or(0);
+	// remove all of that
+	let stripped = inner_name.trim_start_matches(|ch: char| ch.is_ascii_digit());
 
-	// if entire inner name is a number, this class is anonymous, not local
-	if idx == inner_name.len() {
-		inner_name.to_owned()
+	if stripped.is_empty() {
+		// entire inner name is a number, so this class is anonymous, not local
+		inner_name
 	} else {
-		// TODO: dangerous direct access to string slice... (before touching this, first write a test!)
-		inner_name[idx..].to_owned()
+		stripped
 	}
 }
-
 
 pub fn map_nests(mappings: &Mappings<2>, nests: Nests) -> Result<Nests> {
 	let remapper = mappings.remapper_b_first_to_second(NoSuperClassProvider::new())?;
@@ -382,3 +377,20 @@ pub fn map_nests(mappings: &Mappings<2>, nests: Nests) -> Result<Nests> {
 
 	Ok(dst)
 }
+
+
+#[cfg(test)]
+mod testing {
+	use pretty_assertions::assert_eq;
+	use crate::strip_local_class_prefix;
+
+	#[test]
+	fn strip_local_class_prefix_test() {
+		assert_eq!(strip_local_class_prefix(""), "");
+		assert_eq!(strip_local_class_prefix("FooBar"), "FooBar");
+		assert_eq!(strip_local_class_prefix("1234"), "1234");
+		assert_eq!(strip_local_class_prefix("123Foo"), "Foo");
+		assert_eq!(strip_local_class_prefix("123Bar4"), "Bar4");
+	}
+}
+
