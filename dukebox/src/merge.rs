@@ -96,10 +96,11 @@ fn merge_from_client<T>(client: &T, server: &T) -> Result<T>
 	Ok(client.clone())
 }
 
-const ENVIRONMENT: &ClassNameSlice = ClassNameSlice::from_str("net/fabricmc/api/Environment");
-const ENVIRONMENT_INTERFACE: &ClassNameSlice = ClassNameSlice::from_str("net/fabricmc/api/EnvironmentInterface");
-const ENVIRONMENT_INTERFACES: &ClassNameSlice = ClassNameSlice::from_str("net/fabricmc/api/EnvironmentInterfaces");
-const ENV_TYPE: &ClassNameSlice = ClassNameSlice::from_str("net/fabricmc/api/EnvType");
+// SAFETY: All of these are valid class names.
+const ENVIRONMENT: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked("net/fabricmc/api/Environment") };
+const ENVIRONMENT_INTERFACE: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked("net/fabricmc/api/EnvironmentInterface") };
+const ENVIRONMENT_INTERFACES: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked("net/fabricmc/api/EnvironmentInterfaces") };
+const ENV_TYPE: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked("net/fabricmc/api/EnvType") };
 
 fn sided_annotation(side: Side) -> Annotation {
 	Annotation {

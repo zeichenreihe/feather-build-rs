@@ -35,7 +35,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 
 	WithMoreIdentIter::new(&mut lines).on_every_line(|iter, mut line| {
 		if line.first_field == "c" {
-			let class_key: ClassName = line.next()?.into();
+			let class_key: ClassName = line.next()?.try_into()?;
 
 			let action = line.action()?;
 			let class = ClassNowodeDiff::new(action);
@@ -43,8 +43,8 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 
 			iter.next_level().on_every_line(|iter, mut line| {
 				if line.first_field == "f" {
-					let desc: FieldDescriptor = line.next()?.into();
-					let name: FieldName = line.next()?.into();
+					let desc: FieldDescriptor = line.next()?.try_into()?;
+					let name: FieldName = line.next()?.try_into()?;
 					let field_key = FieldNameAndDesc { desc, name };
 
 					let action = line.action()?;
@@ -59,8 +59,8 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 						}
 					}).context("reading field sub-sections")
 				} else if line.first_field == "m" {
-					let desc: MethodDescriptor = line.next()?.into();
-					let name: MethodName = line.next()?.into();
+					let desc: MethodDescriptor = line.next()?.try_into()?;
+					let name: MethodName = line.next()?.try_into()?;
 					let method_key = MethodNameAndDesc { desc, name };
 
 					let action = line.action()?;

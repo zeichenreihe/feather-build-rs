@@ -173,7 +173,7 @@ impl ApplyFix for Mappings<3> {
 
 		fn check_eq_num_of_dollar<const N: usize>(names: &Names<N, ClassName>, a: Namespace<N>, b: Namespace<N>) -> Result<()> {
 			fn count_dollars(x: &Option<ClassName>) -> usize {
-				x.as_ref().map_or(0, |x| x.as_str().chars().filter(|x| *x == '$').count())
+				x.as_ref().map_or(0, |x| x.as_inner().chars().filter(|x| *x == '$').count())
 			}
 
 			let a = count_dollars(&names[a]);
@@ -191,7 +191,7 @@ impl ApplyFix for Mappings<3> {
 		}
 
 		fn copy_init_and_starting_with_not_m<const N: usize>(names: &mut Names<N, MethodName>, from: Namespace<N>, to: Namespace<N>) {
-			if names[to].is_none() && names[from].as_ref().is_some_and(|x| x == MethodName::INIT || !x.as_str().starts_with("m_")) {
+			if names[to].is_none() && names[from].as_ref().is_some_and(|x| x == MethodName::INIT || !x.as_inner().starts_with("m_")) {
 				names[to] = names[from].clone();
 			}
 		}

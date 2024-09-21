@@ -45,7 +45,10 @@ pub trait ARemapper {
 	///
 	/// Do not implement this yourself.
 	fn map_field_desc(&self, desc: &FieldDescriptorSlice) -> Result<FieldDescriptor> {
-		self.map_desc(desc.as_str()).map(Into::into)
+		// SAFETY: `desc` is a field descriptor.
+		unsafe { self.map_desc(desc.as_inner()) }
+			// SAFETY: The returned field descriptor string is always valid.
+			.map(|string| unsafe { FieldDescriptor::from_inner_unchecked(string) })
 	}
 
 	/// Maps a method descriptor to a new one.
@@ -54,7 +57,10 @@ pub trait ARemapper {
 	///
 	/// Do not implement this yourself.
 	fn map_method_desc(&self, desc: &MethodDescriptorSlice) -> Result<MethodDescriptor> {
-		self.map_desc(desc.as_str()).map(Into::into)
+		// SAFETY: `desc` is a method descriptor.
+		unsafe { self.map_desc(desc.as_inner()) }
+			// SAFETY: The returned method descriptor string is always valid.
+			.map(|string| unsafe { MethodDescriptor::from_inner_unchecked(string) })
 	}
 
 	/// Maps a return descriptor to a new one.
@@ -63,18 +69,25 @@ pub trait ARemapper {
 	///
 	/// Do not implement this yourself.
 	fn map_return_desc(&self, desc: &ReturnDescriptorSlice) -> Result<ReturnDescriptor> {
-		self.map_desc(desc.as_str()).map(Into::into)
+		// SAFETY: `desc` is a return descriptor.
+		unsafe { self.map_desc(desc.as_inner()) }
+			// SAFETY: The returned return descriptor string is always valid.
+			.map(|string| unsafe { ReturnDescriptor::from_inner_unchecked(string) })
 	}
 
+	// TODO: separate fn from trait, as impls of trait could break the safety assumptions of callers (that it always returns a valid x-desc if an x-desc is put in)
 	/// Maps a descriptor to a new one.
 	///
 	/// This is what [`ARemapper::map_field_desc`] and [`ARemapper::map_method_desc`] use internally. Most likely you want
 	/// to call one of these methods instead.
 	///
 	/// Do not implement this yourself.
+	///
+	/// # Safety
+	/// `desc` must be a valid field, method or return descriptor.
 	// TODO: what about returning Cow<'a, str> ('a on the &'a str)? would return `desc` if no remapping
 	//  was done, and a String if it was
-	fn map_desc(&self, desc: &str) -> Result<String> {
+	unsafe fn map_desc(&self, desc: &str) -> Result<String> {
 		let mut s = String::new();
 
 		let mut iter = desc.chars();
@@ -95,10 +108,11 @@ pub trait ARemapper {
 				}
 
 				// String to ClassName doesn't allocate new memory, so it's fine
-				let old_class_name = ClassName::from(class_name);
+				// SAFETY: `class_name` is a valid class name since it comes from a valid descriptor.
+				let old_class_name = unsafe { ClassName::from_inner_unchecked(class_name) };
 				let new_class_name = self.map_class(&old_class_name)?;
 
-				s.push_str(new_class_name.as_str());
+				s.push_str(new_class_name.as_inner());
 				s.push(';');
 			}
 		}
@@ -290,10 +304,10 @@ impl<const N: usize, I> ARemapper for BRemapperImpl<'_, '_, N, I> {
 
 impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 'i, N, I> {
 	fn map_field_fail(&self, owner_name: &ClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<Option<FieldNameAndDesc>> {
-		if owner_name.as_str().is_empty() {
+		if owner_name.as_inner().is_empty() {
 			bail!("expected owner name to not be empty: {owner_name:?}");
 		}
-		if owner_name.as_str().starts_with('[') {
+		if owner_name.as_inner().starts_with('[') {
 			bail!("expected owner name to not start with '[': {owner_name:?} {field_name:?} {field_desc:?}, most likely this is a bug");
 		}
 
@@ -319,7 +333,7 @@ impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 
 
 	fn map_method_fail(&self, owner_name: &ClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice)
 			-> Result<Option<MethodNameAndDesc>> {
-		if owner_name.as_str().is_empty() {
+		if owner_name.as_inner().is_empty() {
 			bail!("expected owner name to not be empty: {owner_name:?}");
 		}
 		// You can call [Ljava/lang/Object; . clone . ()Ljava/lang/Object;
@@ -330,10 +344,10 @@ impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 
 		//}
 		// TODO: remapper tests should probably test against [L...; . clone . ()Ljava/lang/Object;
 		//  and also against other methods from Object
-		if owner_name.as_str().starts_with('[') {
+		if owner_name.as_inner().starts_with('[') {
 			return Ok(None);
 		}
-		if method_name.as_str().is_empty() {
+		if method_name.as_inner().is_empty() {
 			bail!("expected method name to not be empty: {method_name:?}");
 		}
 

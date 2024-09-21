@@ -244,13 +244,11 @@ pub mod names {
 	/// Note that empty inputs are converted into `None`.
 	///
 	/// Emptiness is determined by the `AsRef<str>` implementation, and then `.is_empty()`.
-	impl<const N: usize, T> TryFrom<[T; N]> for Names<N, T> where T: AsRef<str> {
-		type Error = Error;
-
-		fn try_from(value: [T; N]) -> Result<Self> {
+	impl<const N: usize, T> From<[T; N]> for Names<N, T> where T: AsRef<str> {
+		fn from(value: [T; N]) -> Self {
 			let names = value.map(|x| if x.as_ref().is_empty() { None } else { Some(x) });
 
-			Ok(Names { names })
+			Names { names }
 		}
 	}
 

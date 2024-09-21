@@ -11,7 +11,7 @@ impl ClassNameExt for ClassName {
 		let mut s: String = parent.into();
 		s.push('$');
 		s.push_str(inner_name.as_ref());
-		s.into()
+		unsafe { ClassName::from_inner_unchecked(s) }
 	}
 }
 
@@ -21,10 +21,10 @@ pub(crate) trait ClassNameSliceExt {
 }
 impl ClassNameSliceExt for ClassNameSlice {
 	fn get_inner_class_parent(&self) -> Option<&ClassNameSlice> {
-		self.as_str().rsplit_once('$').map(|(parent, _)| ClassNameSlice::from_str(parent))
+		self.as_inner().rsplit_once('$').map(|(parent, _)| unsafe { ClassNameSlice::from_inner_unchecked(parent) })
 	}
 	fn get_inner_class_name(&self) -> Option<&ClassNameSlice> {
-		self.as_str().rsplit_once('$').map(|(_, name)| ClassNameSlice::from_str(name))
+		self.as_inner().rsplit_once('$').map(|(_, name)| unsafe { ClassNameSlice::from_inner_unchecked(name) })
 	}
 }
 

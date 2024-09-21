@@ -67,6 +67,7 @@ pub(crate) mod tiny_line {
 	use anyhow::{anyhow, bail, Context, Result};
 	use crate::lines::Line;
 	use crate::tree::mappings_diff::Action;
+	use crate::tree::names::{Names, Namespaces};
 
 	#[derive(Debug)]
 	pub(crate) struct TinyLine {
@@ -113,16 +114,30 @@ pub(crate) mod tiny_line {
 			Ok(next)
 		}
 
-		pub(crate) fn list<const N: usize>(self) -> Result<[String; N]> {
-			let vec: Vec<_> = self.fields.collect();
+		pub(crate) fn into_namespaces<const N: usize>(self) -> Result<Namespaces<N>> {
+			<[String; N]>::try_from(self.fields.collect::<Vec<String>>())
+				.map_err(|vec| anyhow!("line contained more or less fields ({}) than the expected {N}: {:?}", vec.len(), vec))
+				.and_then(TryFrom::try_from)
+				.with_context(|| anyhow!("on line {}", self.line_number))
+		}
 
-			<[String; N]>::try_from(vec)
-				.map_err(|vec| anyhow!("line {} contained more or less fields ({}) than the expected {N}: {:?}", self.line_number, vec.len(), vec))
+		pub(crate) fn into_names<const N: usize, T>(self) -> Result<Names<N, T>>
+		where
+			T: TryFrom<String, Error=anyhow::Error> + std::fmt::Debug + AsRef<str>,
+		{
+			self.fields.map(T::try_from)
+				.collect::<Result<Vec<T>>>()
+				.with_context(|| anyhow!("failed to create names entries"))
+				.and_then(|vec| <[T; N]>::try_from(vec)
+					.map_err(|vec| anyhow!("line contained more or less fields ({}) than the expected {N}: {:?}", vec.len(), vec)))
+				.map(Names::from)
+				.with_context(|| anyhow!("on line {}", self.line_number))
 		}
 
 		pub(crate) fn action<T>(mut self) -> Result<Action<T>>
 			where
-				T: From<String>,
+				T: TryFrom<String>,
+				T::Error: Into<anyhow::Error>,
 		{
 			let a = self.fields.next().filter(|x| !x.is_empty());
 			let b = self.fields.next().filter(|x| !x.is_empty());
@@ -133,10 +148,10 @@ pub(crate) mod tiny_line {
 
 			Ok(match (a, b) {
 				(None, None) => Action::None,
-				(None, Some(b)) => Action::Add(b.into()),
-				(Some(a), None) => Action::Remove(a.into()),
+				(None, Some(b)) => Action::Add(b.try_into().map_err(Into::into)?),
+				(Some(a), None) => Action::Remove(a.try_into().map_err(Into::into)?),
 				(Some(a), Some(b)) if a == b => Action::None,
-				(Some(a), Some(b)) => Action::Edit(a.into(), b.into()),
+				(Some(a), Some(b)) => Action::Edit(a.try_into().map_err(Into::into)?, b.try_into().map_err(Into::into)?),
 			})
 		}
 	}

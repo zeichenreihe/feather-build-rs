@@ -147,7 +147,7 @@ impl ApplyFix for Mappings<3> {
 					m.info.names[official] = m.info.names[intermediary].clone();
 				}
 
-				if m.info.names[official].is_none() && m.info.names[intermediary].as_ref().is_some_and(|x| !x.as_str().starts_with("m_")) {
+				if m.info.names[official].is_none() && m.info.names[intermediary].as_ref().is_some_and(|x| !x.as_inner().starts_with("m_")) {
 					m.info.names[official] = m.info.names[intermediary].clone();
 				}
 

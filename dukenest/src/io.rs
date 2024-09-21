@@ -1,7 +1,7 @@
 use std::io::{BufRead, BufReader, Read};
 use anyhow::{anyhow, bail, Context, Result};
-use duke::tree::class::InnerClassFlags;
-use duke::tree::method::MethodNameAndDesc;
+use duke::tree::class::{ClassName, InnerClassFlags};
+use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc};
 use crate::{Nest, Nests, NestType};
 
 impl Nests {
@@ -39,8 +39,8 @@ impl Nests {
 				None
 			} else {
 				Some(MethodNameAndDesc {
-					name: encl_method_name.to_owned().into(),
-					desc: encl_method_desc.to_owned().into(),
+					name: unsafe { MethodName::from_inner_unchecked(encl_method_name.to_owned()) },
+					desc: unsafe { MethodDescriptor::from_inner_unchecked(encl_method_desc.to_owned()) },
 				})
 			};
 
@@ -63,8 +63,8 @@ impl Nests {
 
 			let nest = Nest {
 				nest_type,
-				class_name: class_name.to_owned().into(),
-				encl_class_name: encl_class_name.to_owned().into(),
+				class_name: unsafe { ClassName::from_inner_unchecked(class_name.to_owned()) },
+				encl_class_name: unsafe { ClassName::from_inner_unchecked(encl_class_name.to_owned()) },
 				encl_method,
 				inner_name: inner_name.to_owned(),
 				inner_access: InnerClassFlags::from(access),

@@ -107,7 +107,7 @@ pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
 					let parent_src = src.clone();
 					let parent_dst = dst.clone().unwrap_or_else(|| parent_src.clone());
 					let mut class = ClassNowodeMapping::new(ClassMapping {
-						names: Names::try_from([Some(src.into()), dst.map(|x| x.clone().into())])?,
+						names: Names::try_from([Some(src.try_into()?), dst.map(|x| x.clone().try_into()).transpose()?])?,
 					});
 
 					iter.next_level().on_every_line(|iter, line| {
@@ -122,8 +122,8 @@ pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
 									slice => bail!("illegal number of arguments ({}) for field mapping, expected 2-4, got {slice:?}", slice.len()),
 								};
 								let field = FieldNowodeMapping::new(FieldMapping {
-									desc: desc.to_owned().into(),
-									names: Names::try_from([Some(src.clone().into()), dst.map(|x| x.clone().into())])?,
+									desc: desc.to_owned().try_into()?,
+									names: Names::try_from([Some(src.clone().try_into()?), dst.map(|x| x.clone().try_into()).transpose()?])?,
 								});
 								let field = class.add_field(field)?;
 
@@ -143,8 +143,8 @@ pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
 									slice => bail!("illegal number of arguments ({}) for method mapping, expected 2-4, got {slice:?}", slice.len()),
 								};
 								let method = MethodNowodeMapping::new(MethodMapping {
-									desc: desc.to_owned().into(),
-									names: Names::try_from([Some(src.clone().into()), dst.map(|x| x.clone().into())])?,
+									desc: desc.to_owned().try_into()?,
+									names: Names::try_from([Some(src.clone().try_into()?), dst.map(|x| x.clone().try_into()).transpose()?])?,
 								});
 								let method = class.add_method(method)?;
 
@@ -161,7 +161,7 @@ pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
 
 											let parameter = ParameterNowodeMapping::new(ParameterMapping {
 												index,
-												names: [None, Some(dst.clone().into())].try_into()?,
+												names: [None, Some(dst.clone().try_into()?)].try_into()?,
 											});
 											let parameter = method.add_parameter(parameter)?;
 
@@ -298,7 +298,7 @@ fn write_class(class_key: &ClassNameSlice, class: &ClassNowodeMapping<2>, w: &mu
 		if let Some(dst) = dst {
 			write!(w, " {dst}")?;
 		}
-		writeln!(w, " {}", key.desc.as_str())?;
+		writeln!(w, " {}", key.desc.as_inner())?;
 
 		if let Some(javadoc) = &field.javadoc {
 			for line in javadoc.0.split('\n') {
@@ -315,7 +315,7 @@ fn write_class(class_key: &ClassNameSlice, class: &ClassNowodeMapping<2>, w: &mu
 		if let Some(dst) = dst.as_ref().filter(|&dst| dst != MethodName::INIT) {
 			write!(w, " {dst}")?;
 		}
-		writeln!(w, " {}", key.desc.as_str())?;
+		writeln!(w, " {}", key.desc.as_inner())?;
 
 		if let Some(javadoc) = &method.javadoc {
 			for line in javadoc.0.split('\n') {
@@ -330,7 +330,7 @@ fn write_class(class_key: &ClassNameSlice, class: &ClassNowodeMapping<2>, w: &mu
 			let [_, dst] = parameter.info.names.names();
 			let dst = dst.as_ref().unwrap(); // TODO: unwrap
 
-			writeln!(w, "{indent}\t\tARG {index} {}", dst.as_str())?;
+			writeln!(w, "{indent}\t\tARG {index} {}", dst.as_inner())?;
 
 			if let Some(javadoc) = &parameter.javadoc {
 				for line in javadoc.0.split('\n') {
@@ -383,8 +383,8 @@ fn figure_out_files(mappings: &Mappings<2>) -> Placement<'_> {
 		}
 
 		// in any other case, add a file to the output list
-		let dst = class.info.names.names()[1].as_ref().map(|x| x.as_str());
-		let file_name = dst.unwrap_or(src.as_str());
+		let dst = class.info.names.names()[1].as_ref().map(|x| x.as_inner());
+		let file_name = dst.unwrap_or(src.as_inner());
 		file_map.insert(file_name, Node { src, class });
 	}
 

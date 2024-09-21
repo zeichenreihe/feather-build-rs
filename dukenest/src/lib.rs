@@ -160,7 +160,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 			let mut s: String = result.into();
 			s.push('$');
 			s.push_str(corresponding_nest.inner_name.as_str());
-			s.into()
+			unsafe { ClassName::from_inner_unchecked(s) }
 		}
 
 		let map = this_nests.iter()
@@ -179,7 +179,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 	// end of that
 
 	for new_class in jar_new_classes.into_values() {
-		let name = new_class.name.as_str().to_owned() + ".class";
+		let name = new_class.name.as_inner().to_owned() + ".class";
 
 		let class_node = do_nested_class_attribute_class_visitor(&this_nests, new_class);
 
@@ -307,9 +307,9 @@ pub fn map_nests(mappings: &Mappings<2>, nests: Nests) -> Result<Nests> {
 
 		let mapped_name = remapper.map_class(&nest.class_name)?;
 
-		let (encl_class_name, inner_name) = if let Some((encl_class_name, inner_name)) = mapped_name.as_str().rsplit_once("__") {
+		let (encl_class_name, inner_name) = if let Some((encl_class_name, inner_name)) = mapped_name.as_inner().rsplit_once("__") {
 			// provided mappings already use nesting
-			(encl_class_name.to_owned().into(), inner_name.to_owned())
+			(unsafe { ClassName::from_inner_unchecked(encl_class_name.to_owned()) }, inner_name.to_owned())
 		} else {
 			let encl_class_name = remapper.map_class(&nest.encl_class_name)?;
 
@@ -327,13 +327,13 @@ pub fn map_nests(mappings: &Mappings<2>, nests: Nests) -> Result<Nests> {
 					let simple_name = &nest.inner_name[i..];
 
 					// make sure the class does not have custom inner name
-					if nest.class_name.as_str().ends_with(simple_name) {
+					if nest.class_name.as_inner().ends_with(simple_name) {
 						let mut s = String::new();
 						s.push_str(prefix);
-						s.push_str(if let Some((_, substring)) = mapped_name.as_str().rsplit_once('/') {
+						s.push_str(if let Some((_, substring)) = mapped_name.as_inner().rsplit_once('/') {
 							substring
 						} else {
-							mapped_name.as_str()
+							mapped_name.as_inner()
 						});
 						s
 					} else {
@@ -341,10 +341,10 @@ pub fn map_nests(mappings: &Mappings<2>, nests: Nests) -> Result<Nests> {
 					}
 				} else {
 					// anonymous class
-					let simple_name = if let Some((_, substring)) = mapped_name.as_str().rsplit_once('/') {
+					let simple_name = if let Some((_, substring)) = mapped_name.as_inner().rsplit_once('/') {
 						substring
 					} else {
-						mapped_name.as_str()
+						mapped_name.as_inner()
 					};
 
 					if let Some(number) = simple_name.strip_prefix("C_") {

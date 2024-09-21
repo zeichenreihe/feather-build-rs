@@ -1,5 +1,6 @@
 use anyhow::Result;
 use duke::tree::class::ClassName;
+use duke::tree::method::ParameterName;
 use crate::tree::mappings_diff::{Action, MappingsDiff};
 
 impl MappingsDiff {
@@ -53,7 +54,10 @@ impl MappingsDiff {
 						Action::Remove(a) => {
 							// removing a mapping is changed into a dummy mapping
 
-							let b = format!("p_{}", k.index).into();
+							let name = format!("p_{}", k.index);
+							// SAFETY: `p_` and a formatted `usize` is always a valid parameter name.
+							let b = unsafe { ParameterName::from_inner_unchecked(name) };
+
 							v.info = Action::Edit(a.clone(), b);
 							true
 						},
@@ -104,7 +108,10 @@ impl MappingsDiff {
 
 					fn get_simplified(name: &ClassName) -> ClassName {
 						name.as_ref().rsplit_once('$')
-							.map_or_else(|| name.clone(), |(_, inner)| inner.to_owned().into())
+							.map_or_else(|| name.clone(), |(_, inner)| {
+								let inner = inner.to_owned();
+								unsafe { ClassName::from_inner_unchecked(inner) }
+							})
 					}
 
 					let b = get_simplified(k);

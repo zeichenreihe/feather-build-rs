@@ -20,19 +20,19 @@ impl<const N: usize> Mappings<N> {
 		self.classes.retain(|_, v| {
 			v.fields.retain(|_, v| {
 				v.javadoc.is_some() ||
-					!v.info.names[namespace].as_ref().is_some_and(|x| x.as_str().starts_with("f_"))
+					!v.info.names[namespace].as_ref().is_some_and(|x| x.as_inner().starts_with("f_"))
 			});
 
 			v.methods.retain(|_, v| {
 				v.parameters.retain(|_, v| {
 					v.javadoc.is_some() ||
-						!v.info.names[namespace].as_ref().is_some_and(|x| x.as_str().starts_with("p_"))
+						!v.info.names[namespace].as_ref().is_some_and(|x| x.as_inner().starts_with("p_"))
 				});
 
 				v.javadoc.is_some() ||
 					!v.parameters.is_empty() ||
 					!v.info.names[namespace].as_ref().is_some_and(|x|
-						x.as_str().starts_with("m_") ||
+						x.as_inner().starts_with("m_") ||
 							x == MethodName::INIT ||
 							x == MethodName::CLINIT
 					)
@@ -42,8 +42,8 @@ impl<const N: usize> Mappings<N> {
 				!v.fields.is_empty() ||
 				!v.methods.is_empty() ||
 				!v.info.names[namespace].as_ref().is_some_and(|x| {
-					x.as_str().starts_with("C_") ||
-						x.as_str().starts_with("net/minecraft/unmapped/C_")
+					x.as_inner().starts_with("C_") ||
+						x.as_inner().starts_with("net/minecraft/unmapped/C_")
 				})
 		});
 

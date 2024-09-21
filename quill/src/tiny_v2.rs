@@ -16,11 +16,8 @@ use std::fs::File;
 use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::path::Path;
-use duke::tree::class::ClassName;
-use duke::tree::field::FieldName;
-use duke::tree::method::{MethodName, ParameterName};
 use crate::lines::tiny_line::TinyLine;
-use crate::lines::{Line, WithMoreIdentIter};
+use crate::lines::WithMoreIdentIter;
 use crate::tree::mappings::{ClassMapping, FieldMapping, JavadocMapping, MappingInfo, MethodMapping, ParameterMapping, ClassNowodeMapping, FieldNowodeMapping, Mappings, MethodNowodeMapping, ParameterNowodeMapping};
 use crate::tree::names::{Names, Namespaces};
 use crate::tree::NodeInfo;
@@ -90,28 +87,26 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 		.peekable();
 
 	let mut header = lines.next().context("no header line")??;
-	let header_line_number = header.get_line_number();
 
 	if header.first_field != "tiny" || header.next()? != "2" || header.next()? != "0" {
 		bail!("header version isn't tiny v2.0, in line {header:?}");
 	}
 
-	let namespaces = header.list()?.try_into()
-		.with_context(|| anyhow!("on line {header_line_number}"))?;
+	let namespaces = header.into_namespaces()?;
 
 	let mut mappings = Mappings::new(MappingInfo { namespaces });
 
 	WithMoreIdentIter::new(&mut lines).on_every_line(|iter, line| {
 		if line.first_field == "c" {
-			let names = line.list()?.map(ClassName::from).try_into()?;
+			let names = line.into_names()?;
 			let mapping = ClassMapping { names };
 			let class: ClassNowodeMapping<N> = ClassNowodeMapping::new(mapping);
 			let class = mappings.add_class(class)?;
 
 			iter.next_level().on_every_line(|iter, mut line| {
 				if line.first_field == "f" {
-					let desc = line.next()?.into();
-					let names = line.list()?.map(FieldName::from).try_into()?;
+					let desc = line.next()?.try_into()?;
+					let names = line.into_names()?;
 					let mapping = FieldMapping { desc, names };
 					let field: FieldNowodeMapping<N> = FieldNowodeMapping::new(mapping);
 					let field = class.add_field(field)?;
@@ -124,8 +119,8 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 						}
 					}).context("reading field sub-sections")
 				} else if line.first_field == "m" {
-					let desc = line.next()?.into();
-					let names = line.list()?.map(MethodName::from).try_into()?;
+					let desc = line.next()?.try_into()?;
+					let names = line.into_names()?;
 					let mapping = MethodMapping { desc, names };
 					let method: MethodNowodeMapping<N> = MethodNowodeMapping::new(mapping);
 					let method = class.add_method(method)?;
@@ -133,7 +128,7 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 					iter.next_level().on_every_line(|iter, mut line| {
 						if line.first_field == "p" {
 							let index = line.next()?.parse()?;
-							let names = line.list()?.map(ParameterName::from).try_into()?;
+							let names = line.into_names()?;
 							let mapping = ParameterMapping { index, names };
 							let parameter: ParameterNowodeMapping<N> = ParameterNowodeMapping::new(mapping);
 							let parameter = method.add_parameter(parameter)?;
@@ -311,7 +306,7 @@ pub fn write<const N: usize>(mappings: &Mappings<N>, w: &mut impl Write) -> Resu
 		let mut fields: Vec<_> = class.fields.values().collect();
 		fields.sort_by_key(|x| &x.info);
 		for field in fields {
-			write!(w, "\tf\t{}", field.info.desc.as_str())?;
+			write!(w, "\tf\t{}", field.info.desc.as_inner())?;
 			write_names(w, &field.info.names)?;
 
 			if let Some(ref comment) = field.javadoc {
@@ -322,7 +317,7 @@ pub fn write<const N: usize>(mappings: &Mappings<N>, w: &mut impl Write) -> Resu
 		let mut methods: Vec<_> = class.methods.values().collect();
 		methods.sort_by_key(|x| &x.info);
 		for method in methods {
-			write!(w, "\tm\t{}", method.info.desc.as_str())?;
+			write!(w, "\tm\t{}", method.info.desc.as_inner())?;
 			write_names(w, &method.info.names)?;
 
 			if let Some(ref comment) = method.javadoc {

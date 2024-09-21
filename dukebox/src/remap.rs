@@ -40,7 +40,7 @@ pub fn remap(jar: impl Jar, remapper: impl BRemapper) -> Result<ParsedJar<ClassR
 
 pub fn remap_jar_entry_name(name: &str, remapper: &impl BRemapper) -> Result<String> {
 	if let Some(name_without_class) = name.strip_suffix(".class") {
-		let name = remapper.map_class(ClassNameSlice::from_str(name_without_class))?;
+		let name = remapper.map_class(unsafe { ClassNameSlice::from_inner_unchecked(name_without_class) })?;
 		Ok(format!("{name}.class"))
 	} else {
 		// TODO: also deal with directory names...

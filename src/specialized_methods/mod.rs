@@ -367,7 +367,8 @@ mod testing {
 	use anyhow::Result;
 	use std::io::Cursor;
 	use indexmap::IndexMap;
-	use duke::tree::method::MethodRef;
+	use duke::tree::class::ClassName;
+	use duke::tree::method::{MethodDescriptor, MethodName, MethodRef};
 	use raw_class_file::{AttributeInfo, ClassFile, CpInfo, FieldInfo, flags, insn, MethodInfo};
 	use crate::specialized_methods::MultiClassVisitorImpl;
 
@@ -394,13 +395,13 @@ mod testing {
 			specialized_methods.bridge_to_specialized,
 			IndexMap::from([
 				(MethodRef {
-					class: "MyNode".into(),
-					name: "setData".into(),
-					desc: "(Ljava/lang/Object;)V".into(),
+					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned()) },
+					name: unsafe { MethodName::from_inner_unchecked("setData".to_owned()) },
+					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Object;)V".to_owned()) },
 				}, MethodRef {
-					class: "MyNode".into(),
-					name: "setData".into(),
-					desc: "(Ljava/lang/Integer;)V".into(),
+					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned()) },
+					name: unsafe { MethodName::from_inner_unchecked("setData".to_owned()) },
+					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Integer;)V".to_owned()) },
 				}),
 			])
 		);
@@ -408,13 +409,13 @@ mod testing {
 			specialized_methods.specialized_to_bridge,
 			IndexMap::from([
 				(MethodRef {
-					class: "MyNode".into(),
-					name: "setData".into(),
-					desc: "(Ljava/lang/Integer;)V".into(),
+					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned()) },
+					name: unsafe { MethodName::from_inner_unchecked("setData".to_owned()) },
+					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Integer;)V".to_owned()) },
 				}, MethodRef {
-					class: "MyNode".into(),
-					name: "setData".into(),
-					desc: "(Ljava/lang/Object;)V".into(),
+					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned()) },
+					name: unsafe { MethodName::from_inner_unchecked("setData".to_owned()) },
+					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Object;)V".to_owned()) },
 				}),
 			])
 		);
@@ -621,13 +622,13 @@ mod testing {
 			specialized_methods.bridge_to_specialized,
 			IndexMap::from([
 				(MethodRef {
-					class: "MyNode".into(),
-					name: "setData".into(),
-					desc: "(Ljava/lang/Object;)V".into(),
+					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned()) },
+					name: unsafe { MethodName::from_inner_unchecked("setData".to_owned()) },
+					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Object;)V".to_owned()) },
 				}, MethodRef {
-					class: "MyNode".into(),
-					name: "specialized".into(),
-					desc: "(Ljava/lang/Integer;)V".into(),
+					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned()) },
+					name: unsafe { MethodName::from_inner_unchecked("specialized".to_owned()) },
+					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Integer;)V".to_owned()) },
 				}),
 			])
 		);
@@ -635,24 +636,24 @@ mod testing {
 			specialized_methods.specialized_to_bridge,
 			IndexMap::from([
 				(MethodRef {
-					class: "MyNode".into(),
-					name: "specialized".into(),
-					desc: "(Ljava/lang/Integer;)V".into(),
+					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned()) },
+					name: unsafe { MethodName::from_inner_unchecked("specialized".to_owned()) },
+					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Integer;)V".to_owned()) },
 				}, MethodRef {
-					class: "MyNode".into(),
-					name: "setData".into(),
-					desc: "(Ljava/lang/Object;)V".into(),
+					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned()) },
+					name: unsafe { MethodName::from_inner_unchecked("setData".to_owned()) },
+					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Object;)V".to_owned()) },
 				}),
 				/*
 				// TODO: see todo about putting more stuff into that map
 				(MethodRef {
-					class: "MyNode".into(),
-					name: "setData".into(),
-					desc: "(Ljava/lang/Integer;)V".into(),
+					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned()) },
+					name: unsafe { MethodName::from_inner_unchecked("setData".to_owned()) },
+					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Integer;)V".to_owned()) },
 				}, MethodRef {
-					class: "MyNode".into(),
-					name: "setData".into(),
-					desc: "(Ljava/lang/Object;)V".into(),
+					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned()) },
+					name: unsafe { MethodName::from_inner_unchecked("setData".to_owned()) },
+					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Object;)V".to_owned()) },
 				}),
 				 */
 			])

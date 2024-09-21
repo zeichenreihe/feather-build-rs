@@ -129,20 +129,19 @@ pub(crate) fn insert_mappings<'version>(
 											let (from_stem, from_simple) = make_class_name_stem_and_simple(from);
 											let (to_stem, to_simple) = make_class_name_stem_and_simple(to);
 
-											let ofrom = ofrom.as_str();
-											let from = from.as_str();
-											let to = to.as_str();
+											let ofrom_inner = ofrom.as_inner();
+											let from_inner = from.as_inner();
+											let to_inner = to.as_inner();
 
-											let to = if ofrom_simple.len() > from_simple.len() {
+											let to_inner = if ofrom_simple.len() > from_simple.len() {
 												format!("{}{}", from_stem, &to_simple[(ofrom_simple.len() - from_simple.len())..])
 											} else {
-												format!("{}{}", &from[..(from.len() - ofrom_simple.len())], to_simple)
+												format!("{}{}", &from_inner[..(from_inner.len() - ofrom_simple.len())], to_simple)
 											};
 
-											let from_ = ClassName::from(from.to_owned());
-											let to_ = ClassName::from(to);
+											let to_ = unsafe { ClassName::from_inner_unchecked(to_inner) };
 
-											action_set(&mut sibling_change.info, DiffSide::A, Some(&from_));
+											action_set(&mut sibling_change.info, DiffSide::A, Some(&from));
 											action_set(&mut sibling_change.info, DiffSide::B, Some(&to_));
 										},
 										Mode::Javadocs => {
@@ -1042,7 +1041,7 @@ fn make_class_name_simple(class_name: &ClassName) -> &str {
 
 
 fn make_class_name_stem_and_simple(class_name: &ClassName) -> (&str, &str) {
-	let s = class_name.as_str();
+	let s = class_name.as_inner();
 	s.rfind('/').map_or(("", s), |i| s.split_at(i))
 }
 
@@ -1068,13 +1067,13 @@ fn get_id_internal(s: &str) -> &str {
 }
 
 fn get_id_class(class_key: &ClassName) -> &ClassNameSlice {
-	ClassNameSlice::from_str(get_id_internal(class_key.as_str()))
+	unsafe { ClassNameSlice::from_inner_unchecked(get_id_internal(class_key.as_inner())) }
 }
 fn get_id_field(field_key: &FieldNameAndDesc) -> &FieldNameSlice {
-	FieldNameSlice::from_str(get_id_internal(field_key.name.as_str()))
+	unsafe { FieldNameSlice::from_inner_unchecked(get_id_internal(field_key.name.as_inner())) }
 }
 fn get_id_method(method_key: &MethodNameAndDesc) -> &MethodNameSlice {
-	MethodNameSlice::from_str(get_id_internal(method_key.name.as_str()))
+	unsafe { MethodNameSlice::from_inner_unchecked(get_id_internal(method_key.name.as_inner())) }
 }
 
 fn find_class_sibling<'a>(
@@ -1107,7 +1106,7 @@ fn find_class_sibling<'a>(
 							sibling_simple.ends_with(simple)
 						};
 
-						ends_with && action_get(&change_class.info, DiffSide::B).unwrap().as_str() != sibling_simple
+						ends_with && action_get(&change_class.info, DiffSide::B).unwrap().as_inner() != sibling_simple
 					}
 			},
 			Mode::Javadocs => {
