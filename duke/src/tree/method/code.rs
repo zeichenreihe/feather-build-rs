@@ -99,7 +99,15 @@ impl Code {
 	}
 }
 
-make_string_str_like!(LocalVariableName, LocalVariableNameSlice);
+make_string_str_like!(
+	pub LocalVariableName(String);
+	pub LocalVariableNameSlice(str);
+	is_valid(s) = if crate::tree::names::is_valid_unqualified_name(s) {
+		Ok(())
+	} else {
+		bail!("invalid local variable name: must be non-empty and not contain any of `.`, `;`, `[` and `/`")
+	};
+);
 
 impl Display for LocalVariableName {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -108,7 +116,7 @@ impl Display for LocalVariableName {
 }
 impl Display for LocalVariableNameSlice {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.as_str())
+		write!(f, "{}", self.as_inner())
 	}
 }
 

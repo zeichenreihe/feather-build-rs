@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
 use crate::macros::make_string_str_like;
@@ -186,7 +186,15 @@ pub struct FieldNameAndDesc {
 	pub desc: FieldDescriptor,
 }
 
-make_string_str_like!(FieldName, FieldNameSlice);
+make_string_str_like!(
+	pub FieldName(String);
+	pub FieldNameSlice(str);
+	is_valid(s) = if crate::tree::names::is_valid_unqualified_name(s) {
+		Ok(())
+	} else {
+		bail!("invalid field name: must be non-empty and not contain any of `.`, `;`, `[` and `/`")
+	};
+);
 
 impl Display for FieldName {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -195,13 +203,21 @@ impl Display for FieldName {
 }
 impl Display for FieldNameSlice {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.as_str())
+		write!(f, "{}", self.as_inner())
 	}
 }
 
-make_string_str_like!(FieldDescriptor, FieldDescriptorSlice);
+make_string_str_like!(
+	pub FieldDescriptor(String);
+	pub FieldDescriptorSlice(str);
+	is_valid(__) = Ok(()); // TODO: parse the desc and fail if invalid
+);
 
-make_string_str_like!(FieldSignature, FieldSignatureSlice);
+make_string_str_like!(
+	pub FieldSignature(String);
+	pub FieldSignatureSlice(str);
+	is_valid(__) = Ok(()); // TODO: signature format is even more complicated
+);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConstantValue {

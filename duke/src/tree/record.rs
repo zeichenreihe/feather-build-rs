@@ -97,7 +97,11 @@ impl RecordComponent {
 	}
 }
 
-make_string_str_like!(RecordName, RecordNameSlice);
+make_string_str_like!(
+	pub RecordName(String);
+	pub RecordNameSlice(str);
+	is_valid(s) = Ok(()); // TODO: see JVMS
+);
 
 impl Display for RecordName {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -106,7 +110,7 @@ impl Display for RecordName {
 }
 impl Display for RecordNameSlice {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.as_str())
+		write!(f, "{}", self.as_inner())
 	}
 }
 

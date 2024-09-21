@@ -147,7 +147,7 @@ pub(crate) fn read<V: MultiClassVisitor>(reader: &mut impl ClassRead, visitor: V
 					},
 					attribute::SIGNATURE if !interests.signature => reader.skip(length as i64)?,
 					attribute::SIGNATURE => {
-						let signature = ClassSignature::from(pool.get_utf8(reader.read_u16()?)?);
+						let signature = ClassSignature::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 						class_visitor.visit_signature(signature)?;
 					},
 					attribute::SOURCE_FILE if !interests.source_file => reader.skip(length as i64)?,
@@ -282,8 +282,8 @@ pub(crate) fn read<V: MultiClassVisitor>(reader: &mut impl ClassRead, visitor: V
 
 fn read_field<C: ClassVisitor>(reader: &mut impl ClassRead, visitor: C, pool: &PoolRead) -> Result<C> {
 	let access = FieldAccess::from(reader.read_u16()?);
-	let name = FieldName::from(pool.get_utf8(reader.read_u16()?)?);
-	let descriptor = FieldDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+	let name = FieldName::try_from(pool.get_utf8(reader.read_u16()?)?)?;
+	let descriptor = FieldDescriptor::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 
 	match visitor.visit_field(access, name, descriptor)? {
 		ControlFlow::Continue((visitor, mut field_visitor)) => {
@@ -310,7 +310,7 @@ fn read_field<C: ClassVisitor>(reader: &mut impl ClassRead, visitor: C, pool: &P
 					},
 					attribute::SIGNATURE if !interests.signature => reader.skip(length as i64)?,
 					attribute::SIGNATURE => {
-						let signature = FieldSignature::from(pool.get_utf8(reader.read_u16()?)?);
+						let signature = FieldSignature::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 						field_visitor.visit_signature(signature)?;
 					},
 					attribute::RUNTIME_VISIBLE_ANNOTATIONS if !interests.runtime_visible_annotations => reader.skip(length as i64)?,
@@ -359,8 +359,8 @@ fn read_field<C: ClassVisitor>(reader: &mut impl ClassRead, visitor: C, pool: &P
 
 fn read_method<C: ClassVisitor>(reader: &mut impl ClassRead, visitor: C, pool: &PoolRead, bootstrap_methods: &Option<Vec<BootstrapMethodRead>>) -> Result<C> {
 	let access = MethodAccess::from(reader.read_u16()?);
-	let name = MethodName::from(pool.get_utf8(reader.read_u16()?)?);
-	let descriptor = MethodDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+	let name = MethodName::try_from(pool.get_utf8(reader.read_u16()?)?)?;
+	let descriptor = MethodDescriptor::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 
 	match visitor.visit_method(access, name.clone(), descriptor.clone())? {
 		ControlFlow::Continue((visitor, mut method_visitor)) => {
@@ -398,7 +398,7 @@ fn read_method<C: ClassVisitor>(reader: &mut impl ClassRead, visitor: C, pool: &
 					},
 					attribute::SIGNATURE if !interests.signature => reader.skip(length as i64)?,
 					attribute::SIGNATURE => {
-						let signature = MethodSignature::from(pool.get_utf8(reader.read_u16()?)?);
+						let signature = MethodSignature::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 						method_visitor.visit_signature(signature)?;
 					},
 					attribute::RUNTIME_VISIBLE_ANNOTATIONS if !interests.runtime_visible_annotations => reader.skip(length as i64)?,
@@ -446,7 +446,7 @@ fn read_method<C: ClassVisitor>(reader: &mut impl ClassRead, visitor: C, pool: &
 						let method_parameters = reader.read_vec(
 							|r| r.read_u8_as_usize(),
 							|r| Ok(MethodParameter {
-								name: pool.get_optional(r.read_u16()?, PoolRead::get_utf8)?.map(|x| x.into()),
+								name: pool.get_optional(r.read_u16()?, PoolRead::get_utf8)?.map(|x| x.try_into()).transpose()?,
 								flags: ParameterFlags::from(r.read_u16()?),
 							})
 						)?;
@@ -783,8 +783,8 @@ fn read_code<C: CodeVisitor>(
 					let start_pc = reader.read_u16()?;
 					let length = reader.read_u16()?;
 					let range = labels.get_or_create_range(start_pc, length)?;
-					let name = LocalVariableName::from(pool.get_utf8(reader.read_u16()?)?);
-					let descriptor = FieldDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+					let name = LocalVariableName::try_from(pool.get_utf8(reader.read_u16()?)?)?;
+					let descriptor = FieldDescriptor::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 					let index = reader.read_u16_as_local_variable()?;
 					table.push(Lv {
 						range,
@@ -804,8 +804,8 @@ fn read_code<C: CodeVisitor>(
 					let start_pc = reader.read_u16()?;
 					let length = reader.read_u16()?;
 					let range = labels.get_or_create_range(start_pc, length)?;
-					let name = LocalVariableName::from(pool.get_utf8(reader.read_u16()?)?);
-					let signature = FieldSignature::from(pool.get_utf8(reader.read_u16()?)?);
+					let name = LocalVariableName::try_from(pool.get_utf8(reader.read_u16()?)?)?;
+					let signature = FieldSignature::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 					let index = reader.read_u16_as_local_variable()?;
 					table.push(Lv {
 						range,
@@ -1179,8 +1179,8 @@ fn read_verification_type_info(reader: &mut impl ClassRead, pool: &PoolRead, lab
 }
 
 fn read_record_component<C: ClassVisitor>(reader: &mut impl ClassRead, class_visitor: C, pool: &PoolRead) -> Result<C> {
-	let name = RecordName::from(pool.get_utf8(reader.read_u16()?)?);
-	let descriptor = FieldDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+	let name = RecordName::try_from(pool.get_utf8(reader.read_u16()?)?)?;
+	let descriptor = FieldDescriptor::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 
 	match class_visitor.visit_record_component(name, descriptor)? {
 		ControlFlow::Continue((visitor, mut record_component_visitor)) => {
@@ -1194,7 +1194,7 @@ fn read_record_component<C: ClassVisitor>(reader: &mut impl ClassRead, class_vis
 				match attribute_name.as_str() {
 					attribute::SIGNATURE if !interests.signature => reader.skip(length as i64)?,
 					attribute::SIGNATURE => {
-						let signature = FieldSignature::from(pool.get_utf8(reader.read_u16()?)?);
+						let signature = FieldSignature::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 						record_component_visitor.visit_signature(signature)?;
 					},
 					attribute::RUNTIME_VISIBLE_ANNOTATIONS if !interests.runtime_visible_annotations => reader.skip(length as i64)?,
@@ -1242,7 +1242,7 @@ fn read_record_component<C: ClassVisitor>(reader: &mut impl ClassRead, class_vis
 fn read_annotations_attribute<A: AnnotationsVisitor>(reader: &mut impl ClassRead, mut annotations_visitor: A, pool: &PoolRead) -> Result<A> {
 	let num_annotations = reader.read_u16()?;
 	for _ in 0..num_annotations {
-		let annotation_descriptor = FieldDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+		let annotation_descriptor = FieldDescriptor::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 
 		let (visitor, named_element_values_visitor) = annotations_visitor.visit_annotation(annotation_descriptor)?;
 
@@ -1304,16 +1304,16 @@ fn read_element_values_named<A: NamedElementValuesVisitor>(reader: &mut impl Cla
 				outer.visit(name, Object::String(string))?;
 			},
 			b'e' => {
-				let type_name = FieldDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+				let type_name = FieldDescriptor::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 				let const_name = pool.get_utf8(reader.read_u16()?)?;
 				outer.visit_enum(name, type_name, const_name)?;
 			},
 			b'c' => {
-				let class = ReturnDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+				let class = ReturnDescriptor::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 				outer.visit_class(name, class)?;
 			},
 			b'@' => {
-				let annotation_descriptor = FieldDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+				let annotation_descriptor = FieldDescriptor::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 				let (visitor, inner) = outer.visit_annotation(name, annotation_descriptor)?;
 				let inner = read_element_values_named(reader, pool, inner)?;
 				outer = A::finish_annotation(visitor, inner)?;
@@ -1386,16 +1386,16 @@ fn read_element_value_unnamed<A: UnnamedElementValueVisitor>(reader: &mut impl C
 			outer.visit(Object::String(string))?;
 		},
 		b'e' => {
-			let type_name = FieldDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+			let type_name = FieldDescriptor::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 			let const_name = pool.get_utf8(reader.read_u16()?)?;
 			outer.visit_enum(type_name, const_name)?;
 		},
 		b'c' => {
-			let class = ReturnDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+			let class = ReturnDescriptor::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 			outer.visit_class(class)?;
 		},
 		b'@' => {
-			let annotation_descriptor = FieldDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+			let annotation_descriptor = FieldDescriptor::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 			let (visitor, inner) = outer.visit_annotation(annotation_descriptor)?;
 			let inner = read_element_values_named(reader, pool, inner)?;
 			outer = A::finish_annotation(visitor, inner)?;
@@ -1420,7 +1420,7 @@ fn read_type_annotations_attribute<A: TypeAnnotationsVisitor<T>, T: TargetInfoRe
 	for _ in 0..num_annotations {
 		let type_reference = TargetInfoRead::read_type_reference(reader)?;
 		let type_path = read_type_path(reader)?;
-		let annotation_descriptor = FieldDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+		let annotation_descriptor = FieldDescriptor::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 
 		let (visitor, named_element_values_visitor) = type_annotations_visitor.visit_type_annotation(type_reference, type_path, annotation_descriptor)?;
 
@@ -1442,7 +1442,7 @@ fn read_type_annotations_attribute_code<A: TypeAnnotationsVisitor<TargetInfoCode
 	for _ in 0..num_annotations {
 		let type_reference = read_type_reference_code(reader, labels)?;
 		let type_path = read_type_path(reader)?;
-		let annotation_descriptor = FieldDescriptor::from(pool.get_utf8(reader.read_u16()?)?);
+		let annotation_descriptor = FieldDescriptor::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 
 		let (visitor, named_element_values_visitor) = type_annotations_visitor.visit_type_annotation(type_reference, type_path, annotation_descriptor)?;
 

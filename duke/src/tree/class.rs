@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Display, Formatter};
-use anyhow::Result;
+use anyhow::{bail, Result};
 use std::ops::ControlFlow;
 use crate::macros::make_string_str_like;
 use crate::tree::annotation::Annotation;
@@ -306,18 +306,23 @@ make_string_str_like!(
 	/// let java_lang_object = ClassName::JAVA_LANG_OBJECT.clone();
 	/// assert_eq!(java_lang_object, ClassName::from("java/lang/Object"));
 	/// ```
-	ClassName,
+	pub ClassName(String);
 	/// A [`ClassName`] slice.
-	ClassNameSlice,
+	pub ClassNameSlice(str);
+	is_valid(s) = if crate::tree::names::is_valid_class_name(s) {
+		Ok(())
+	} else {
+		bail!("invalid class name: must be either array field descriptor; or must consist out of `/` separated non-empty parts, and not contain any of `.`, `;`, `[`")
+	};
 );
 
 impl ClassName {
 	/// A constant holding the class name of `Object`.
-	pub const JAVA_LANG_OBJECT: &'static ClassNameSlice = ClassNameSlice::from_str("java/lang/Object");
+	pub const JAVA_LANG_OBJECT: &'static ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked("java/lang/Object") };
 
 	// TODO: doc, check with JVM spec
 	pub fn get_simple_name(&self) -> &str {
-		let s = self.as_str();
+		let s = self.as_inner();
 		s.rsplit_once('/')
 			.map_or(s, |(_, simple)| simple)
 	}
@@ -330,14 +335,15 @@ impl Display for ClassName {
 }
 impl Display for ClassNameSlice {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.as_str())
+		write!(f, "{}", self.as_inner())
 	}
 }
 
 make_string_str_like!(
 	/// Represents a class signature, from a generic such as `Foo<T extends Bar>`.
-	ClassSignature,
-	ClassSignatureSlice,
+	pub ClassSignature(String);
+	pub ClassSignatureSlice(str);
+	is_valid(__) = Ok(()); // TODO: signature format is even more complicated
 );
 
 #[derive(Debug, Clone, PartialEq)]

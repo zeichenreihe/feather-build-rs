@@ -17,7 +17,11 @@ pub struct Module {
 	pub(crate) provides: Vec<ModuleProvides>,
 }
 
-make_string_str_like!(ModuleName, ModuleNameSlice);
+make_string_str_like!(
+	pub ModuleName(String);
+	pub ModuleNameSlice(str);
+	is_valid(s) = Ok(()); // TODO: see JVMS 4.2.3
+);
 
 impl Display for ModuleName {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -26,11 +30,15 @@ impl Display for ModuleName {
 }
 impl Display for ModuleNameSlice {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.as_str())
+		write!(f, "{}", self.as_inner())
 	}
 }
 
-make_string_str_like!(PackageName, PackageNameSlice);
+make_string_str_like!(
+	pub PackageName(String);
+	pub PackageNameSlice(str);
+	is_valid(s) = Ok(()); // TODO: see JVMS 4.2.3
+);
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct ModuleFlags {

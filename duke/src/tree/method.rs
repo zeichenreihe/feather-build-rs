@@ -1,6 +1,6 @@
 pub mod code;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
 use crate::macros::make_string_str_like;
@@ -229,7 +229,15 @@ pub struct MethodNameAndDesc {
 	pub desc: MethodDescriptor,
 }
 
-make_string_str_like!(MethodName, MethodNameSlice);
+make_string_str_like!(
+	pub MethodName(String);
+	pub MethodNameSlice(str);
+	is_valid(s) = if crate::tree::names::is_valid_method_name(s) {
+		Ok(())
+	} else {
+		bail!("invalid method name: must be either `<init>`, `<clinit>`, or non-empty and not contain any of `.`, `;`, `[`, `/`, `<`, and `>`");
+	};
+);
 
 impl Display for MethodName {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -238,18 +246,27 @@ impl Display for MethodName {
 }
 impl Display for MethodNameSlice {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.as_str())
+		write!(f, "{}", self.as_inner())
 	}
 }
 
 impl MethodName {
-	pub const INIT: &'static MethodNameSlice = MethodNameSlice::from_str("<init>");
-	pub const CLINIT: &'static MethodNameSlice = MethodNameSlice::from_str("<clinit>");
+	// SAFETY: `<init>` and `<clinit>` are always valid.
+	pub const INIT: &'static MethodNameSlice = unsafe { MethodNameSlice::from_inner_unchecked("<init>") };
+	pub const CLINIT: &'static MethodNameSlice = unsafe { MethodNameSlice::from_inner_unchecked("<clinit>") };
 }
 
-make_string_str_like!(MethodDescriptor, MethodDescriptorSlice);
+make_string_str_like!(
+	pub MethodDescriptor(String);
+	pub MethodDescriptorSlice(str);
+	is_valid(s) = Ok(()); // TODO: parse the desc and fail if invalid
+);
 
-make_string_str_like!(MethodSignature, MethodSignatureSlice);
+make_string_str_like!(
+	pub MethodSignature(String);
+	pub MethodSignatureSlice(str);
+	is_valid(s) = Ok(()); // TODO: signature format is even more complicated
+);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MethodParameter {
@@ -257,7 +274,15 @@ pub struct MethodParameter {
 	pub flags: ParameterFlags,
 }
 
-make_string_str_like!(ParameterName, ParameterNameSlice);
+make_string_str_like!(
+	pub ParameterName(String);
+	pub ParameterNameSlice(str);
+	is_valid(s) = if crate::tree::names::is_valid_unqualified_name(s) {
+		Ok(())
+	} else {
+		bail!("invalid parameter name: must be non-empty and not contain any of `.`, `;`, `[` and `/`");
+	};
+);
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct ParameterFlags {

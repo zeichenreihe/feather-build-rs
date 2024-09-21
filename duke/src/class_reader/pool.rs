@@ -62,7 +62,7 @@ impl PoolEntry {
 			bail!("pool entry not `Class`: {self:?}");
 		};
 		let s = pool.get_utf8(name_index)?;
-		Ok(s.into())
+		s.try_into()
 	}
 
 	fn as_name_and_type<'a>(&self, pool: &'a PoolRead) -> Result<(&'a String, &'a String)> {
@@ -120,7 +120,7 @@ impl PoolEntry {
 			bail!("pool entry not `Package`: {self:?}");
 		};
 		let s = pool.get_utf8(name_index)?;
-		Ok(s.into())
+		s.try_into()
 	}
 
 	fn as_module(&self, pool: &PoolRead) -> Result<ModuleName> {
@@ -128,7 +128,7 @@ impl PoolEntry {
 			bail!("pool entry not `Module`: {self:?}");
 		};
 		let s = pool.get_utf8(name_index)?;
-		Ok(s.into())
+		s.try_into()
 	}
 
 	fn as_integer(&self) -> Result<i32> {
@@ -193,7 +193,7 @@ impl PoolEntry {
 		let PoolEntry::MethodType { descriptor_index } = *self else {
 			bail!("pool entry not `MethodType`: {self:?}");
 		};
-		Ok(MethodDescriptor::from(pool.get_utf8(descriptor_index).context("while getting method type")?))
+		MethodDescriptor::try_from(pool.get_utf8(descriptor_index).context("while getting method type")?)
 	}
 
 	fn as_dynamic(&self, pool: &PoolRead, bootstrap_methods: &Option<Vec<BootstrapMethodRead>>) -> Result<ConstantDynamic> {
@@ -431,17 +431,17 @@ impl PoolRead {
 	}
 
 	// TODO: deprecate this in favour of the one below
-	fn get_name_and_type<A: From<String>, B: From<String>>(&self, index: u16) -> Result<(A, B)> {
+	fn get_name_and_type<A: TryFrom<String,Error=anyhow::Error>, B: TryFrom<String,Error=anyhow::Error>>(&self, index: u16) -> Result<(A, B)> {
 		self.get(index)?.as_name_and_type(self).pool_context(index)
-			.map(|(a, b)| (A::from(a.clone()), B::from(b.clone())))
+			.and_then(|(a, b)| Ok((A::try_from(a.clone())?, B::try_from(b.clone())?)))
 	}
 
 	pub(crate) fn get_method_name_and_type(&self, index: u16) -> Result<MethodNameAndDesc> {
 		self.get(index)?.as_name_and_type(self).pool_context(index)
-			.map(|(name, desc)| MethodNameAndDesc {
-				name: MethodName::from(name.clone()),
-				desc: MethodDescriptor::from(desc.clone()),
-			})
+			.and_then(|(name, desc)| Ok(MethodNameAndDesc {
+				name: MethodName::try_from(name.clone())?,
+				desc: MethodDescriptor::try_from(desc.clone())?,
+			}))
 	}
 
 	fn get_name_and_type_ref(&self, index: u16) -> Result<(&String, &String)> {
@@ -590,10 +590,10 @@ impl Debug for PoolRead {
 						format!("InvokeDynamic: bootstrap method attribute index: {bootstrap_method_attribute_index}, name and type index: {name_and_type_index}")
 					},
 					PoolEntry::Module { .. } => {
-						format!("Module: {}", entry.as_module(self)?.as_str())
+						format!("Module: {}", entry.as_module(self)?.as_inner())
 					},
 					PoolEntry::Package { .. } => {
-						format!("Package: {}", entry.as_package(self)?.as_str())
+						format!("Package: {}", entry.as_package(self)?.as_inner())
 					},
 				}) };
 				match dbg() {

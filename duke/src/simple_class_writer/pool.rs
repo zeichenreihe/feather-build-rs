@@ -51,7 +51,7 @@ impl PoolEntry<'_> {
 	}
 
 	fn from_class<'a, 'b: 'a>(pool: &mut PoolWrite<'a>, value: &'b ClassName) -> Result<Self> {
-		Ok(PoolEntry::Class { name_index: pool.put_utf8(value.as_str())? })
+		Ok(PoolEntry::Class { name_index: pool.put_utf8(value.as_inner())? })
 	}
 
 	fn from_name_and_type<'a, 'b: 'a, 'c: 'a>(pool: &mut PoolWrite<'a>, name: &'b str, descriptor: &'c str) -> Result<Self> {
@@ -95,11 +95,11 @@ impl PoolEntry<'_> {
 	}
 
 	fn from_package<'a, 'b: 'a>(pool: &mut PoolWrite<'a>, value: &'b PackageName) -> Result<Self> {
-		Ok(PoolEntry::Package { name_index: pool.put_utf8(value.as_str())? })
+		Ok(PoolEntry::Package { name_index: pool.put_utf8(value.as_inner())? })
 	}
 
 	fn from_module<'a, 'b: 'a>(pool: &mut PoolWrite<'a>, value: &'b ModuleName) -> Result<Self> {
-		Ok(PoolEntry::Module { name_index: pool.put_utf8(value.as_str())? })
+		Ok(PoolEntry::Module { name_index: pool.put_utf8(value.as_inner())? })
 	}
 
 	fn from_integer(value: i32) -> Self {
@@ -134,7 +134,7 @@ impl PoolEntry<'_> {
 	}
 
 	fn from_method_type<'a, 'b: 'a>(pool: &mut PoolWrite<'a>, value: &'b MethodDescriptor) -> Result<Self> {
-		Ok(PoolEntry::MethodType { descriptor_index: pool.put_utf8(value.as_str())? })
+		Ok(PoolEntry::MethodType { descriptor_index: pool.put_utf8(value.as_inner())? })
 	}
 
 	fn from_dynamic<'a, 'b: 'a>(pool: &mut PoolWrite<'a>, value: &'b ConstantDynamic) -> Result<Self> {

@@ -117,7 +117,7 @@ pub(crate) fn write(class_writer: &mut impl ClassWrite, class: &ClassFile) -> Re
 	if let Some(signature) = &class.signature {
 		attribute_count += 1;
 		write_attribute_fix_length(&mut buffer, pool, attribute::SIGNATURE, 2)?;
-		buffer.write_u16(pool.put_utf8(signature.as_str())?)?;
+		buffer.write_u16(pool.put_utf8(signature.as_inner())?)?;
 	}
 
 	if let Some(source_file) = &class.source_file {
@@ -253,8 +253,8 @@ pub(crate) fn write(class_writer: &mut impl ClassWrite, class: &ClassFile) -> Re
 
 fn write_field<'a, 'b: 'a>(writer: &mut impl ClassWrite, field: &'b Field, pool: &mut PoolWrite<'a>) -> Result<()> {
 	writer.write_u16(field.access.into())?;
-	writer.write_u16(pool.put_utf8(field.name.as_str())?)?;
-	writer.write_u16(pool.put_utf8(field.descriptor.as_str())?)?;
+	writer.write_u16(pool.put_utf8(field.name.as_inner())?)?;
+	writer.write_u16(pool.put_utf8(field.descriptor.as_inner())?)?;
 
 	// We write the attributes into a buffer and count them.
 	let mut attribute_count = 0;
@@ -277,7 +277,7 @@ fn write_field<'a, 'b: 'a>(writer: &mut impl ClassWrite, field: &'b Field, pool:
 	if let Some(signature) = &field.signature {
 		attribute_count += 1;
 		write_attribute_fix_length(&mut buffer, pool, attribute::SIGNATURE, 2)?;
-		buffer.write_u16(pool.put_utf8(signature.as_str())?)?;
+		buffer.write_u16(pool.put_utf8(signature.as_inner())?)?;
 	}
 
 	if !field.runtime_visible_annotations.is_empty() {
@@ -321,8 +321,8 @@ fn write_field<'a, 'b: 'a>(writer: &mut impl ClassWrite, field: &'b Field, pool:
 
 fn write_method<'a, 'b: 'a>(writer: &mut impl ClassWrite, method: &'b Method, pool: &mut PoolWrite<'a>) -> Result<()> {
 	writer.write_u16(method.access.into())?;
-	writer.write_u16(pool.put_utf8(method.name.as_str())?)?;
-	writer.write_u16(pool.put_utf8(method.descriptor.as_str())?)?;
+	writer.write_u16(pool.put_utf8(method.name.as_inner())?)?;
+	writer.write_u16(pool.put_utf8(method.descriptor.as_inner())?)?;
 
 	// We write the attributes into a buffer and count them.
 	let mut attribute_count = 0;
@@ -356,7 +356,7 @@ fn write_method<'a, 'b: 'a>(writer: &mut impl ClassWrite, method: &'b Method, po
 	if let Some(signature) = &method.signature {
 		attribute_count += 1;
 		write_attribute_fix_length(&mut buffer, pool, attribute::SIGNATURE, 2)?;
-		buffer.write_u16(pool.put_utf8(signature.as_str())?)?;
+		buffer.write_u16(pool.put_utf8(signature.as_inner())?)?;
 	}
 
 	if !method.runtime_visible_annotations.is_empty() {
@@ -397,7 +397,7 @@ fn write_method<'a, 'b: 'a>(writer: &mut impl ClassWrite, method: &'b Method, po
 			w.write_slice(method_parameters,
 				|w, len| w.write_usize_as_u8(len), // TODO: .context
 				|w, parameter| {
-					w.write_u16(pool.put_optional(parameter.name.as_ref().map(|x| x.as_str()), PoolWrite::put_utf8)?)?;
+					w.write_u16(pool.put_optional(parameter.name.as_ref().map(|x| x.as_inner()), PoolWrite::put_utf8)?)?;
 					w.write_u16(parameter.flags.into())
 				}
 			)
@@ -701,7 +701,7 @@ fn write_code<'a, 'b: 'a>(writer: &mut impl ClassWrite, code: &'b Code, pool: &m
 					Instruction::Ldc(loadable) => {
 						let is_long_or_double = match loadable {
 							Loadable::Double(_) | Loadable::Long(_) => true,
-							Loadable::Dynamic(x) => x.descriptor.as_str().starts_with('D') || x.descriptor.as_str().starts_with('J'),
+							Loadable::Dynamic(x) => x.descriptor.as_inner().starts_with('D') || x.descriptor.as_inner().starts_with('J'),
 							_ => false,
 						};
 
@@ -1139,8 +1139,8 @@ fn write_code<'a, 'b: 'a>(writer: &mut impl ClassWrite, code: &'b Code, pool: &m
 						let (start, length) = labels.try_get_range(&lv.range)?;
 						w.write_u16(start)?;
 						w.write_u16(length)?;
-						w.write_u16(pool.put_utf8(lv.name.as_str())?)?;
-						w.write_u16(pool.put_utf8(descriptor.as_str())?)?;
+						w.write_u16(pool.put_utf8(lv.name.as_inner())?)?;
+						w.write_u16(pool.put_utf8(descriptor.as_inner())?)?;
 						w.write_u16(lv.index.index)?;
 					}
 				}
@@ -1156,8 +1156,8 @@ fn write_code<'a, 'b: 'a>(writer: &mut impl ClassWrite, code: &'b Code, pool: &m
 						let (start, length) = labels.try_get_range(&lv.range)?;
 						w.write_u16(start)?;
 						w.write_u16(length)?;
-						w.write_u16(pool.put_utf8(lv.name.as_str())?)?;
-						w.write_u16(pool.put_utf8(signature.as_str())?)?;
+						w.write_u16(pool.put_utf8(lv.name.as_inner())?)?;
+						w.write_u16(pool.put_utf8(signature.as_inner())?)?;
 						w.write_u16(lv.index.index)?;
 					}
 				}
@@ -1187,8 +1187,8 @@ fn write_code<'a, 'b: 'a>(writer: &mut impl ClassWrite, code: &'b Code, pool: &m
 }
 
 fn write_record_component<'a: 'b, 'b>(writer: &mut impl ClassWrite, record_component: &'a RecordComponent, pool: &mut PoolWrite<'b>) -> Result<()> {
-	writer.write_u16(pool.put_utf8(record_component.name.as_str())?)?;
-	writer.write_u16(pool.put_utf8(record_component.descriptor.as_str())?)?;
+	writer.write_u16(pool.put_utf8(record_component.name.as_inner())?)?;
+	writer.write_u16(pool.put_utf8(record_component.descriptor.as_inner())?)?;
 
 	// We write the attributes into a buffer and count them.
 	let mut attribute_count = 0;
@@ -1197,7 +1197,7 @@ fn write_record_component<'a: 'b, 'b>(writer: &mut impl ClassWrite, record_compo
 	if let Some(signature) = &record_component.signature {
 		attribute_count += 1;
 		write_attribute_fix_length(&mut buffer, pool, attribute::SIGNATURE, 2)?;
-		buffer.write_u16(pool.put_utf8(signature.as_str())?)?;
+		buffer.write_u16(pool.put_utf8(signature.as_inner())?)?;
 	}
 
 	if !record_component.runtime_visible_annotations.is_empty() {
@@ -1243,7 +1243,7 @@ fn write_annotations_attribute<'a: 'b, 'b>(writer: &mut impl ClassWrite, pool: &
 	writer.write_usize_as_u16(annotations.len())?; // TODO: .context()
 
 	for annotation in annotations {
-		writer.write_u16(pool.put_utf8(annotation.annotation_type.as_str())?)?;
+		writer.write_u16(pool.put_utf8(annotation.annotation_type.as_inner())?)?;
 
 		write_element_values_named(writer, pool, &annotation.element_value_pairs)?;
 	}
@@ -1316,16 +1316,16 @@ fn write_element_value_unnamed<'a: 'b, 'b>(writer: &mut impl ClassWrite, pool: &
 		},
 		ElementValue::Enum { type_name, const_name } => {
 			writer.write_u8(b'e')?;
-			writer.write_u16(pool.put_utf8(type_name.as_str())?)?;
+			writer.write_u16(pool.put_utf8(type_name.as_inner())?)?;
 			writer.write_u16(pool.put_utf8(const_name)?)
 		},
 		ElementValue::Class(class) => {
 			writer.write_u8(b'c')?;
-			writer.write_u16(pool.put_utf8(class.as_str())?)
+			writer.write_u16(pool.put_utf8(class.as_inner())?)
 		},
 		ElementValue::AnnotationInterface(annotation) => {
 			writer.write_u8(b'@')?;
-			writer.write_u16(pool.put_utf8(annotation.annotation_type.as_str())?)?;
+			writer.write_u16(pool.put_utf8(annotation.annotation_type.as_inner())?)?;
 
 			write_element_values_named(writer, pool, &annotation.element_value_pairs)
 		},
@@ -1346,7 +1346,7 @@ fn write_type_annotations_attribute<'a: 'b, 'b, T: TargetInfoWrite>(
 	for type_annotation in type_annotations {
 		TargetInfoWrite::write_type_reference(writer, &type_annotation.type_reference)?;
 		write_type_path(writer, &type_annotation.type_path)?;
-		writer.write_u16(pool.put_utf8(type_annotation.annotation.annotation_type.as_str())?)?;
+		writer.write_u16(pool.put_utf8(type_annotation.annotation.annotation_type.as_inner())?)?;
 
 		write_element_values_named(writer, pool, &type_annotation.annotation.element_value_pairs)?;
 	}
@@ -1365,7 +1365,7 @@ fn write_type_annotations_attribute_code<'a: 'b, 'b>(
 	for type_annotation in type_annotations {
 		write_type_reference_code(writer, &type_annotation.type_reference, labels)?;
 		write_type_path(writer, &type_annotation.type_path)?;
-		writer.write_u16(pool.put_utf8(type_annotation.annotation.annotation_type.as_str())?)?;
+		writer.write_u16(pool.put_utf8(type_annotation.annotation.annotation_type.as_inner())?)?;
 
 		write_element_values_named(writer, pool, &type_annotation.annotation.element_value_pairs)?;
 	}
