@@ -13,6 +13,7 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+java_string = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

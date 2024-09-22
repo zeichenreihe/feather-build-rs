@@ -16,6 +16,7 @@ bytes = "1.6.0"
 clap = { version = "4.5.7", features = ["derive"] }
 fern = "0.6.2" # the logging implementation
 indexmap = "2.0.2"
+java_string = "0.1.2"
 log = "0.4.22"
 petgraph = "0.6.4"
 pretty_assertions = "1.4.0"
