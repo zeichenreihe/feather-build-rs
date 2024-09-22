@@ -517,7 +517,7 @@ impl FieldDescriptor {
 	/// # use pretty_assertions::assert_eq;
 	/// use duke::tree::class::ClassName;
 	/// use duke::tree::field::FieldDescriptor;
-	/// let a = FieldDescriptor::from("Ljava/lang/Object;");
+	/// let a = unsafe { FieldDescriptor::from_inner_unchecked("Ljava/lang/Object;".into()) };
 	/// let b = FieldDescriptor::from_class(ClassName::JAVA_LANG_OBJECT);
 	/// assert_eq!(a, b);
 	// TODO: test cases, also one that fails, with array class name?

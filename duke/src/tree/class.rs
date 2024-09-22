@@ -299,13 +299,13 @@ make_string_str_like!(
 	/// The java class `java.lang.Thread` would get:
 	/// ```
 	/// use duke::tree::class::ClassName;
-	/// let java_lang_thread = ClassName::from("java/lang/Thread");
+	/// let java_lang_thread = unsafe { ClassName::from_inner_unchecked("java/lang/Thread".into()) };
 	/// ```
 	/// Note that there's an associated constant holding the name of the `java.lang.Object` class:
 	/// ```
 	/// use duke::tree::class::ClassName;
 	/// let java_lang_object = ClassName::JAVA_LANG_OBJECT.clone();
-	/// assert_eq!(java_lang_object, ClassName::from("java/lang/Object"));
+	/// assert_eq!(java_lang_object, unsafe { ClassName::from_inner_unchecked("java/lang/Object".into()) });
 	/// ```
 	pub ClassName(JavaString);
 	/// A [`ClassName`] slice.
