@@ -1,6 +1,7 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use anyhow::{anyhow, Context, Result};
+use java_string::JavaStr;
 use crate::class_constants::pool;
 use crate::{ClassWrite, jstring};
 use crate::class_constants::pool::method_handle_reference;
@@ -32,7 +33,7 @@ enum PoolEntry<'a> {
 	Long { bytes: i64 },
 	Double { bytes: u64 },
 	NameAndType { name_index: u16, descriptor_index: u16 },
-	Utf8 { string: &'a str },
+	Utf8 { string: &'a JavaStr },
 	MethodHandle { reference_kind: u8, reference_index: u16 },
 	MethodType { descriptor_index: u16 },
 	Dynamic { bootstrap_method_attribute_index: u16, name_and_type_index: u16 },
@@ -42,11 +43,11 @@ enum PoolEntry<'a> {
 }
 
 impl PoolEntry<'_> {
-	fn from_utf8(string: &str) -> PoolEntry {
+	fn from_utf8(string: &JavaStr) -> PoolEntry {
 		PoolEntry::Utf8 { string }
 	}
 
-	fn from_string<'a, 'b: 'a>(pool: &mut PoolWrite<'a>, value: &'b str) -> Result<Self> {
+	fn from_string<'a, 'b: 'a>(pool: &mut PoolWrite<'a>, value: &'b JavaStr) -> Result<Self> {
 		Ok(PoolEntry::String { string_index: pool.put_utf8(value)? })
 	}
 
@@ -54,7 +55,7 @@ impl PoolEntry<'_> {
 		Ok(PoolEntry::Class { name_index: pool.put_utf8(value.as_inner())? })
 	}
 
-	fn from_name_and_type<'a, 'b: 'a, 'c: 'a>(pool: &mut PoolWrite<'a>, name: &'b str, descriptor: &'c str) -> Result<Self> {
+	fn from_name_and_type<'a, 'b: 'a, 'c: 'a>(pool: &mut PoolWrite<'a>, name: &'b JavaStr, descriptor: &'c JavaStr) -> Result<Self> {
 		Ok(PoolEntry::NameAndType {
 			name_index: pool.put_utf8(name)?,
 			descriptor_index: pool.put_utf8(descriptor)?,
@@ -354,7 +355,7 @@ impl<'a> PoolWrite<'a> {
 		}
 	}
 
-	pub(crate) fn put_utf8<'b: 'a>(&mut self, value: &'b str) -> Result<u16> {
+	pub(crate) fn put_utf8<'b: 'a>(&mut self, value: &'b JavaStr) -> Result<u16> {
 		self.put(PoolEntry::from_utf8(value))
 	}
 
@@ -377,8 +378,8 @@ impl<'a> PoolWrite<'a> {
 		where
 			't: 'a,
 			'u: 'a,
-			T: AsRef<str>,
-			U: AsRef<str>,
+			T: AsRef<JavaStr>,
+			U: AsRef<JavaStr>,
 	{
 		let entry = PoolEntry::from_name_and_type(self, t.as_ref(), u.as_ref())?;
 		self.put(entry)

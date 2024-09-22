@@ -2,6 +2,7 @@
 use std::convert::Infallible;
 use std::ops::ControlFlow;
 use anyhow::Result;
+use java_string::JavaString;
 use crate::tree::annotation::Object;
 use crate::tree::class::{ClassAccess, ClassName, ClassSignature, EnclosingMethod, InnerClass};
 use crate::tree::descriptor::ReturnDescriptor;
@@ -67,11 +68,11 @@ impl ClassVisitor for Infallible {
 		unreachable!()
 	}
 
-	fn visit_source_file(&mut self, _source_file: String) -> Result<()> {
+	fn visit_source_file(&mut self, _source_file: JavaString) -> Result<()> {
 		unreachable!()
 	}
 
-	fn visit_source_debug_extension(&mut self, _source_debug_extension: String) -> Result<()> {
+	fn visit_source_debug_extension(&mut self, _source_debug_extension: JavaString) -> Result<()> {
 		unreachable!()
 	}
 
@@ -182,19 +183,19 @@ impl NamedElementValueVisitor for Infallible {
 	type AnnotationArrayVisitor = Infallible;
 	type AnnotationArrayResidual = Self;
 
-	fn visit(&mut self, _name: String, _value: Object) -> Result<()> {
+	fn visit(&mut self, _name: JavaString, _value: Object) -> Result<()> {
 		unreachable!()
 	}
 
-	fn visit_enum(&mut self, _name: String, _type_name: FieldDescriptor, _const_name: String) -> Result<()> {
+	fn visit_enum(&mut self, _name: JavaString, _type_name: FieldDescriptor, _const_name: JavaString) -> Result<()> {
 		unreachable!()
 	}
 
-	fn visit_class(&mut self, _name: String, _class: ReturnDescriptor) -> Result<()> {
+	fn visit_class(&mut self, _name: JavaString, _class: ReturnDescriptor) -> Result<()> {
 		unreachable!()
 	}
 
-	fn visit_annotation(self, _name: String, _annotation_type: FieldDescriptor) -> Result<(Self::AnnotationResidual, Self::AnnotationVisitor)> {
+	fn visit_annotation(self, _name: JavaString, _annotation_type: FieldDescriptor) -> Result<(Self::AnnotationResidual, Self::AnnotationVisitor)> {
 		unreachable!()
 	}
 
@@ -202,7 +203,7 @@ impl NamedElementValueVisitor for Infallible {
 		unreachable!()
 	}
 
-	fn visit_array(self, _name: String) -> Result<(Self::AnnotationArrayResidual, Self::AnnotationArrayVisitor)> {
+	fn visit_array(self, _name: JavaString) -> Result<(Self::AnnotationArrayResidual, Self::AnnotationArrayVisitor)> {
 		unreachable!()
 	}
 
@@ -223,7 +224,7 @@ impl UnnamedElementValueVisitor for Infallible {
 		unreachable!()
 	}
 
-	fn visit_enum(&mut self, _type_name: FieldDescriptor, _const_name: String) -> Result<()> {
+	fn visit_enum(&mut self, _type_name: FieldDescriptor, _const_name: JavaString) -> Result<()> {
 		unreachable!()
 	}
 

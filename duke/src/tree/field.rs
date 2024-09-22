@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
+use java_string::{JavaStr, JavaString};
 use crate::macros::make_string_str_like;
 use crate::tree::annotation::Annotation;
 use crate::tree::attribute::Attribute;
@@ -187,8 +188,8 @@ pub struct FieldNameAndDesc {
 }
 
 make_string_str_like!(
-	pub FieldName(String);
-	pub FieldNameSlice(str);
+	pub FieldName(JavaString);
+	pub FieldNameSlice(JavaStr);
 	is_valid(s) = if crate::tree::names::is_valid_unqualified_name(s) {
 		Ok(())
 	} else {
@@ -208,14 +209,14 @@ impl Display for FieldNameSlice {
 }
 
 make_string_str_like!(
-	pub FieldDescriptor(String);
-	pub FieldDescriptorSlice(str);
+	pub FieldDescriptor(JavaString);
+	pub FieldDescriptorSlice(JavaStr);
 	is_valid(__) = Ok(()); // TODO: parse the desc and fail if invalid
 );
 
 make_string_str_like!(
-	pub FieldSignature(String);
-	pub FieldSignatureSlice(str);
+	pub FieldSignature(JavaString);
+	pub FieldSignatureSlice(JavaStr);
 	is_valid(__) = Ok(()); // TODO: signature format is even more complicated
 );
 
@@ -226,5 +227,5 @@ pub enum ConstantValue {
 	Float(f32),
 	Long(i64),
 	Double(f64),
-	String(String),
+	String(JavaString),
 }

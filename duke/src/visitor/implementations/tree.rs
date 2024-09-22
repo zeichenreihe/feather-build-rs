@@ -1,5 +1,6 @@
 use std::ops::ControlFlow;
 use anyhow::{anyhow, bail, Context, Result};
+use java_string::JavaString;
 use crate::OptionExpansion;
 use crate::class_reader::pool::PoolRead;
 use crate::tree::annotation::{Annotation, ElementValue, ElementValuePair, Object};
@@ -92,11 +93,11 @@ impl ClassVisitor for ClassFile {
 		self.signature.insert_if_empty(signature).context("only one Signature attribute is allowed")
 	}
 
-	fn visit_source_file(&mut self, source_file: String) -> Result<()> {
+	fn visit_source_file(&mut self, source_file: JavaString) -> Result<()> {
 		self.source_file.insert_if_empty(source_file).context("only one SourceFile attribute is allowed")
 	}
 
-	fn visit_source_debug_extension(&mut self, source_debug_extension: String) -> Result<()> {
+	fn visit_source_debug_extension(&mut self, source_debug_extension: JavaString) -> Result<()> {
 		self.source_debug_extension.insert_if_empty(source_debug_extension).context("only one SourceDebugExtension attribute is allowed")
 	}
 
@@ -229,11 +230,11 @@ impl NamedElementValuesVisitor for Annotation {}
 
 impl NamedElementValueVisitor for Annotation {
 	type AnnotationVisitor = Annotation;
-	type AnnotationResidual = (Self, String);
+	type AnnotationResidual = (Self, JavaString);
 	type AnnotationArrayVisitor = Vec<ElementValue>;
-	type AnnotationArrayResidual = (Self, String);
+	type AnnotationArrayResidual = (Self, JavaString);
 
-	fn visit(&mut self, name: String, value: Object) -> Result<()> {
+	fn visit(&mut self, name: JavaString, value: Object) -> Result<()> {
 		self.element_value_pairs.push(ElementValuePair {
 			name,
 			value: ElementValue::Object(value),
@@ -241,7 +242,7 @@ impl NamedElementValueVisitor for Annotation {
 		Ok(())
 	}
 
-	fn visit_enum(&mut self, name: String, type_name: FieldDescriptor, const_name: String) -> Result<()> {
+	fn visit_enum(&mut self, name: JavaString, type_name: FieldDescriptor, const_name: JavaString) -> Result<()> {
 		self.element_value_pairs.push(ElementValuePair {
 			name,
 			value: ElementValue::Enum {
@@ -252,7 +253,7 @@ impl NamedElementValueVisitor for Annotation {
 		Ok(())
 	}
 
-	fn visit_class(&mut self, name: String, class: ReturnDescriptor) -> Result<()> {
+	fn visit_class(&mut self, name: JavaString, class: ReturnDescriptor) -> Result<()> {
 		self.element_value_pairs.push(ElementValuePair {
 			name,
 			value: ElementValue::Class(class),
@@ -260,7 +261,7 @@ impl NamedElementValueVisitor for Annotation {
 		Ok(())
 	}
 
-	fn visit_annotation(self, name: String, annotation_type: FieldDescriptor) -> Result<(Self::AnnotationResidual, Self::AnnotationVisitor)> {
+	fn visit_annotation(self, name: JavaString, annotation_type: FieldDescriptor) -> Result<(Self::AnnotationResidual, Self::AnnotationVisitor)> {
 		Ok(((self, name), Annotation::new(annotation_type)))
 	}
 
@@ -272,7 +273,7 @@ impl NamedElementValueVisitor for Annotation {
 		Ok(this)
 	}
 
-	fn visit_array(self, name: String) -> Result<(Self::AnnotationArrayResidual, Self::AnnotationArrayVisitor)> {
+	fn visit_array(self, name: JavaString) -> Result<(Self::AnnotationArrayResidual, Self::AnnotationArrayVisitor)> {
 		Ok(((self, name), Vec::new()))
 	}
 
@@ -298,7 +299,7 @@ impl UnnamedElementValueVisitor for Vec<ElementValue> {
 		Ok(())
 	}
 
-	fn visit_enum(&mut self, type_name: FieldDescriptor, const_name: String) -> Result<()> {
+	fn visit_enum(&mut self, type_name: FieldDescriptor, const_name: JavaString) -> Result<()> {
 		self.push(ElementValue::Enum {
 			type_name,
 			const_name,
@@ -331,7 +332,7 @@ impl UnnamedElementValueVisitor for Vec<ElementValue> {
 }
 
 impl UnknownAttributeVisitor for Attribute {
-	fn read(name: String, bytes: Vec<u8>, _pool: &PoolRead) -> Result<Self> {
+	fn read(name: JavaString, bytes: Vec<u8>, _pool: &PoolRead) -> Result<Self> {
 		Ok(Attribute {
 			name,
 			bytes,

@@ -1,4 +1,5 @@
 use anyhow::Result;
+use java_string::JavaString;
 use crate::tree::annotation::Object;
 use crate::tree::descriptor::ReturnDescriptor;
 use crate::tree::field::FieldDescriptor;
@@ -44,21 +45,21 @@ where
 	type AnnotationArrayVisitor;
 	type AnnotationArrayResidual;
 
-	fn visit(&mut self, name: String, value: Object) -> Result<()>;
+	fn visit(&mut self, name: JavaString, value: Object) -> Result<()>;
 
 	fn visit_enum(
 		&mut self,
-		name: String,
+		name: JavaString,
 		type_name: FieldDescriptor,
-		const_name: String,
+		const_name: JavaString,
 	) -> Result<()>;
 
-	fn visit_class(&mut self, name: String, class: ReturnDescriptor) -> Result<()>;
+	fn visit_class(&mut self, name: JavaString, class: ReturnDescriptor) -> Result<()>;
 
-	fn visit_annotation(self, name: String, annotation_type: FieldDescriptor) -> Result<(Self::AnnotationResidual, Self::AnnotationVisitor)>;
+	fn visit_annotation(self, name: JavaString, annotation_type: FieldDescriptor) -> Result<(Self::AnnotationResidual, Self::AnnotationVisitor)>;
 	fn finish_annotation(this: Self::AnnotationResidual, annotation_visitor: Self::AnnotationVisitor) -> Result<Self>;
 
-	fn visit_array(self, name: String) -> Result<(Self::AnnotationArrayResidual, Self::AnnotationArrayVisitor)>;
+	fn visit_array(self, name: JavaString) -> Result<(Self::AnnotationArrayResidual, Self::AnnotationArrayVisitor)>;
 	fn finish_array(this: Self::AnnotationArrayResidual, annotation_array_visitor: Self::AnnotationArrayVisitor) -> Result<Self>;
 }
 
@@ -81,7 +82,7 @@ where
 	fn visit_enum(
 		&mut self,
 		type_name: FieldDescriptor,
-		const_name: String,
+		const_name: JavaString,
 	) -> Result<()>;
 
 	fn visit_class(&mut self, class: ReturnDescriptor) -> Result<()>;

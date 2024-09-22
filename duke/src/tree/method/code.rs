@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 use anyhow::{bail, Result};
+use java_string::{JavaStr, JavaString};
 use crate::class_constants::atype;
 use crate::macros::make_string_str_like;
 use crate::tree::attribute::Attribute;
@@ -100,8 +101,8 @@ impl Code {
 }
 
 make_string_str_like!(
-	pub LocalVariableName(String);
-	pub LocalVariableNameSlice(str);
+	pub LocalVariableName(JavaString);
+	pub LocalVariableNameSlice(JavaStr);
 	is_valid(s) = if crate::tree::names::is_valid_unqualified_name(s) {
 		Ok(())
 	} else {
@@ -284,7 +285,7 @@ pub enum Loadable {
 	Long(i64),
 	Double(f64),
 	Class(ClassName),
-	String(String),
+	String(JavaString),
 	MethodHandle(Handle),
 	MethodType(MethodDescriptor),
 	Dynamic(ConstantDynamic),

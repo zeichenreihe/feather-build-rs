@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use anyhow::{anyhow, bail, Context, Result};
+use java_string::JavaStr;
 use crate::{class_constants, ClassWrite, jstring};
 use crate::class_constants::{attribute, opcode, type_annotation};
 use crate::simple_class_writer::labels::{Labels};
@@ -20,7 +21,7 @@ mod labels;
 
 // TODO: take a look at all write_usize_as_X methods uses and check if there's sufficient .context/.with_context on them
 
-fn write_attribute<'a, 'b, F>(writer: &mut impl ClassWrite, pool: &mut PoolWrite<'a>, name: &'b str, f: F) -> Result<()>
+fn write_attribute<'a, 'b, F>(writer: &mut impl ClassWrite, pool: &mut PoolWrite<'a>, name: &'b JavaStr, f: F) -> Result<()>
 where
 	'b: 'a,
 	F: FnOnce(&mut Vec<u8>, &mut PoolWrite<'a>) -> Result<()>,
@@ -32,7 +33,7 @@ where
 	writer.write_u8_slice(&buffer)
 }
 
-fn write_attribute_fix_length<'a, 'b: 'a>(writer: &mut impl ClassWrite, pool: &mut PoolWrite<'a>, name: &'b str, length: usize) -> Result<()> {
+fn write_attribute_fix_length<'a, 'b: 'a>(writer: &mut impl ClassWrite, pool: &mut PoolWrite<'a>, name: &'b JavaStr, length: usize) -> Result<()> {
 	writer.write_u16(pool.put_utf8(name)?)?;
 	writer.write_usize_as_u32(length).with_context(|| anyhow!("attribute {name:?} is too large"))
 }

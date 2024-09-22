@@ -35,39 +35,41 @@ pub(crate) mod pool {
 }
 
 pub(crate) mod attribute {
-	pub(crate) const ANNOTATION_DEFAULT: &str = "AnnotationDefault";
-	pub(crate) const BOOTSTRAP_METHODS: &str = "BootstrapMethods";
-	pub(crate) const CODE: &str = "Code";
-	pub(crate) const CONSTANT_VALUE: &str = "ConstantValue";
-	pub(crate) const DEPRECATED: &str = "Deprecated";
-	pub(crate) const ENCLOSING_METHOD: &str = "EnclosingMethod";
-	pub(crate) const EXCEPTIONS: &str = "Exceptions";
-	pub(crate) const INNER_CLASSES: &str = "InnerClasses";
-	pub(crate) const LINE_NUMBER_TABLE: &str = "LineNumberTable";
-	pub(crate) const LOCAL_VARIABLE_TABLE: &str = "LocalVariableTable";
-	pub(crate) const LOCAL_VARIABLE_TYPE_TABLE: &str = "LocalVariableTypeTable";
-	pub(crate) const METHOD_PARAMETERS: &str = "MethodParameters";
-	pub(crate) const MODULE: &str = "Module";
-	pub(crate) const MODULE_MAIN_CLASS: &str = "ModuleMainClass";
-	pub(crate) const MODULE_PACKAGES: &str = "ModulePackages";
-	pub(crate) const NEST_HOST: &str = "NestHost";
-	pub(crate) const NEST_MEMBERS: &str = "NestMembers";
-	pub(crate) const PERMITTED_SUBCLASSES: &str = "PermittedSubclasses";
-	pub(crate) const RECORD: &str = "Record";
-	pub(crate) const RUNTIME_VISIBLE_ANNOTATIONS: &str = "RuntimeVisibleAnnotations";
-	pub(crate) const RUNTIME_VISIBLE_PARAMETER_ANNOTATIONS: &str = "RuntimeVisibleParameterAnnotations";
-	pub(crate) const RUNTIME_VISIBLE_TYPE_ANNOTATIONS: &str = "RuntimeVisibleTypeAnnotations";
-	pub(crate) const RUNTIME_INVISIBLE_ANNOTATIONS: &str = "RuntimeInvisibleAnnotations";
-	pub(crate) const RUNTIME_INVISIBLE_PARAMETER_ANNOTATIONS: &str = "RuntimeInvisibleParameterAnnotations";
-	pub(crate) const RUNTIME_INVISIBLE_TYPE_ANNOTATIONS: &str = "RuntimeInvisibleTypeAnnotations";
-	pub(crate) const SIGNATURE: &str = "Signature";
-	pub(crate) const SOURCE_DEBUG_EXTENSION: &str = "SourceDebugExtension";
-	pub(crate) const SOURCE_FILE: &str = "SourceFile";
+	use java_string::JavaStr;
+
+	pub(crate) const ANNOTATION_DEFAULT: &JavaStr = JavaStr::from_str("AnnotationDefault");
+	pub(crate) const BOOTSTRAP_METHODS: &JavaStr = JavaStr::from_str("BootstrapMethods");
+	pub(crate) const CODE: &JavaStr = JavaStr::from_str("Code");
+	pub(crate) const CONSTANT_VALUE: &JavaStr = JavaStr::from_str("ConstantValue");
+	pub(crate) const DEPRECATED: &JavaStr = JavaStr::from_str("Deprecated");
+	pub(crate) const ENCLOSING_METHOD: &JavaStr = JavaStr::from_str("EnclosingMethod");
+	pub(crate) const EXCEPTIONS: &JavaStr = JavaStr::from_str("Exceptions");
+	pub(crate) const INNER_CLASSES: &JavaStr = JavaStr::from_str("InnerClasses");
+	pub(crate) const LINE_NUMBER_TABLE: &JavaStr = JavaStr::from_str("LineNumberTable");
+	pub(crate) const LOCAL_VARIABLE_TABLE: &JavaStr = JavaStr::from_str("LocalVariableTable");
+	pub(crate) const LOCAL_VARIABLE_TYPE_TABLE: &JavaStr = JavaStr::from_str("LocalVariableTypeTable");
+	pub(crate) const METHOD_PARAMETERS: &JavaStr = JavaStr::from_str("MethodParameters");
+	pub(crate) const MODULE: &JavaStr = JavaStr::from_str("Module");
+	pub(crate) const MODULE_MAIN_CLASS: &JavaStr = JavaStr::from_str("ModuleMainClass");
+	pub(crate) const MODULE_PACKAGES: &JavaStr = JavaStr::from_str("ModulePackages");
+	pub(crate) const NEST_HOST: &JavaStr = JavaStr::from_str("NestHost");
+	pub(crate) const NEST_MEMBERS: &JavaStr = JavaStr::from_str("NestMembers");
+	pub(crate) const PERMITTED_SUBCLASSES: &JavaStr = JavaStr::from_str("PermittedSubclasses");
+	pub(crate) const RECORD: &JavaStr = JavaStr::from_str("Record");
+	pub(crate) const RUNTIME_VISIBLE_ANNOTATIONS: &JavaStr = JavaStr::from_str("RuntimeVisibleAnnotations");
+	pub(crate) const RUNTIME_VISIBLE_PARAMETER_ANNOTATIONS: &JavaStr = JavaStr::from_str("RuntimeVisibleParameterAnnotations");
+	pub(crate) const RUNTIME_VISIBLE_TYPE_ANNOTATIONS: &JavaStr = JavaStr::from_str("RuntimeVisibleTypeAnnotations");
+	pub(crate) const RUNTIME_INVISIBLE_ANNOTATIONS: &JavaStr = JavaStr::from_str("RuntimeInvisibleAnnotations");
+	pub(crate) const RUNTIME_INVISIBLE_PARAMETER_ANNOTATIONS: &JavaStr = JavaStr::from_str("RuntimeInvisibleParameterAnnotations");
+	pub(crate) const RUNTIME_INVISIBLE_TYPE_ANNOTATIONS: &JavaStr = JavaStr::from_str("RuntimeInvisibleTypeAnnotations");
+	pub(crate) const SIGNATURE: &JavaStr = JavaStr::from_str("Signature");
+	pub(crate) const SOURCE_DEBUG_EXTENSION: &JavaStr = JavaStr::from_str("SourceDebugExtension");
+	pub(crate) const SOURCE_FILE: &JavaStr = JavaStr::from_str("SourceFile");
 	/// The `StackMap` attribute for JavaME, defined here:
 	/// <https://docs.oracle.com/javame/8.0/api/cldc/api/Appendix1-verifier.pdf>
-	pub(crate) const STACK_MAP: &str = "StackMap";
-	pub(crate) const STACK_MAP_TABLE: &str = "StackMapTable";
-	pub(crate) const SYNTHETIC: &str = "Synthetic";
+	pub(crate) const STACK_MAP: &JavaStr = JavaStr::from_str("StackMap");
+	pub(crate) const STACK_MAP_TABLE: &JavaStr = JavaStr::from_str("StackMapTable");
+	pub(crate) const SYNTHETIC: &JavaStr = JavaStr::from_str("Synthetic");
 }
 
 pub(crate) mod type_annotation {

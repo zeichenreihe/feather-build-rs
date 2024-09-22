@@ -3,6 +3,7 @@ pub mod code;
 use anyhow::{bail, Result};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
+use java_string::{JavaStr, JavaString};
 use crate::macros::make_string_str_like;
 use crate::tree::annotation::{Annotation, ElementValue};
 use crate::tree::attribute::Attribute;
@@ -230,8 +231,8 @@ pub struct MethodNameAndDesc {
 }
 
 make_string_str_like!(
-	pub MethodName(String);
-	pub MethodNameSlice(str);
+	pub MethodName(JavaString);
+	pub MethodNameSlice(JavaStr);
 	is_valid(s) = if crate::tree::names::is_valid_method_name(s) {
 		Ok(())
 	} else {
@@ -252,19 +253,19 @@ impl Display for MethodNameSlice {
 
 impl MethodName {
 	// SAFETY: `<init>` and `<clinit>` are always valid.
-	pub const INIT: &'static MethodNameSlice = unsafe { MethodNameSlice::from_inner_unchecked("<init>") };
-	pub const CLINIT: &'static MethodNameSlice = unsafe { MethodNameSlice::from_inner_unchecked("<clinit>") };
+	pub const INIT: &'static MethodNameSlice = unsafe { MethodNameSlice::from_inner_unchecked(JavaStr::from_str("<init>")) };
+	pub const CLINIT: &'static MethodNameSlice = unsafe { MethodNameSlice::from_inner_unchecked(JavaStr::from_str("<clinit>")) };
 }
 
 make_string_str_like!(
-	pub MethodDescriptor(String);
-	pub MethodDescriptorSlice(str);
+	pub MethodDescriptor(JavaString);
+	pub MethodDescriptorSlice(JavaStr);
 	is_valid(s) = Ok(()); // TODO: parse the desc and fail if invalid
 );
 
 make_string_str_like!(
-	pub MethodSignature(String);
-	pub MethodSignatureSlice(str);
+	pub MethodSignature(JavaString);
+	pub MethodSignatureSlice(JavaStr);
 	is_valid(s) = Ok(()); // TODO: signature format is even more complicated
 );
 
@@ -275,8 +276,8 @@ pub struct MethodParameter {
 }
 
 make_string_str_like!(
-	pub ParameterName(String);
-	pub ParameterNameSlice(str);
+	pub ParameterName(JavaString);
+	pub ParameterNameSlice(JavaStr);
 	is_valid(s) = if crate::tree::names::is_valid_unqualified_name(s) {
 		Ok(())
 	} else {

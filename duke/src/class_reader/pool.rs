@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Formatter};
 use anyhow::{anyhow, bail, Context, Result};
+use java_string::JavaString;
 use crate::class_constants::pool;
 use crate::{ClassRead, jstring};
 use crate::class_constants::pool::method_handle_reference;
@@ -33,7 +34,7 @@ enum PoolEntry {
 	Long { bytes: i64 },
 	Double { bytes: u64 },
 	NameAndType { name_index: u16, descriptor_index: u16 },
-	Utf8 { string: String },
+	Utf8 { string: JavaString },
 	MethodHandle { reference_kind: u8, reference_index: u16 },
 	MethodType { descriptor_index: u16 },
 	Dynamic { bootstrap_method_attribute_index: u16, name_and_type_index: u16 },
@@ -43,14 +44,14 @@ enum PoolEntry {
 }
 
 impl PoolEntry {
-	fn as_utf8(&self) -> Result<&String> {
+	fn as_utf8(&self) -> Result<&JavaString> {
 		let PoolEntry::Utf8 { string } = self else {
 			bail!("pool entry not `Utf8`: {self:?}");
 		};
 		Ok(string)
 	}
 
-	fn as_string(&self, pool: &PoolRead) -> Result<String> {
+	fn as_string(&self, pool: &PoolRead) -> Result<JavaString> {
 		let PoolEntry::String { string_index } = *self else {
 			bail!("pool entry not `String`: {self:?}");
 		};
@@ -65,7 +66,7 @@ impl PoolEntry {
 		s.try_into()
 	}
 
-	fn as_name_and_type<'a>(&self, pool: &'a PoolRead) -> Result<(&'a String, &'a String)> {
+	fn as_name_and_type<'a>(&self, pool: &'a PoolRead) -> Result<(&'a JavaString, &'a JavaString)> {
 		let PoolEntry::NameAndType { name_index, descriptor_index } = *self else {
 			bail!("pool entry not `NameAndType`: {self:?}");
 		};
@@ -410,11 +411,11 @@ impl PoolRead {
 		}
 	}
 
-	pub(crate) fn get_utf8(&self, index: u16) -> Result<String> {
+	pub(crate) fn get_utf8(&self, index: u16) -> Result<JavaString> {
 		self.get(index)?.as_utf8().pool_context(index).cloned()
 	}
 
-	pub(crate) fn get_utf8_ref(&self, index: u16) -> Result<&String> {
+	pub(crate) fn get_utf8_ref(&self, index: u16) -> Result<&JavaString> {
 		self.get(index)?.as_utf8().pool_context(index)
 	}
 
@@ -431,7 +432,7 @@ impl PoolRead {
 	}
 
 	// TODO: deprecate this in favour of the one below
-	fn get_name_and_type<A: TryFrom<String,Error=anyhow::Error>, B: TryFrom<String,Error=anyhow::Error>>(&self, index: u16) -> Result<(A, B)> {
+	fn get_name_and_type<A: TryFrom<JavaString,Error=anyhow::Error>, B: TryFrom<JavaString,Error=anyhow::Error>>(&self, index: u16) -> Result<(A, B)> {
 		self.get(index)?.as_name_and_type(self).pool_context(index)
 			.and_then(|(a, b)| Ok((A::try_from(a.clone())?, B::try_from(b.clone())?)))
 	}
@@ -444,7 +445,7 @@ impl PoolRead {
 			}))
 	}
 
-	fn get_name_and_type_ref(&self, index: u16) -> Result<(&String, &String)> {
+	fn get_name_and_type_ref(&self, index: u16) -> Result<(&JavaString, &JavaString)> {
 		self.get(index)?.as_name_and_type(self).pool_context(index)
 	}
 

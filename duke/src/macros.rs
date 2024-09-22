@@ -57,7 +57,7 @@ macro_rules! make_string_str_like {
 		}
 
 		impl AsRef<$borrowed_inner> for $borrowed {
-			fn as_ref(&self) -> &str {
+			fn as_ref(&self) -> &$borrowed_inner {
 				&self.0
 			}
 		}

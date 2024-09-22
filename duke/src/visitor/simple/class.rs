@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 use std::ops::ControlFlow;
 use anyhow::Result;
+use java_string::JavaString;
 use crate::tree::class::{ClassName, ClassSignature, EnclosingMethod, InnerClass};
 use crate::tree::field::{FieldAccess, FieldDescriptor, FieldName};
 use crate::tree::method::{MethodAccess, MethodDescriptor, MethodName};
@@ -78,10 +79,10 @@ impl<T> ClassVisitor for T where T: SimpleClassVisitor {
 		Ok(())
 	}
 
-	fn visit_source_file(&mut self, _source_file: String) -> Result<()> {
+	fn visit_source_file(&mut self, _source_file: JavaString) -> Result<()> {
 		Ok(())
 	}
-	fn visit_source_debug_extension(&mut self, _source_debug_extension: String) -> Result<()> {
+	fn visit_source_debug_extension(&mut self, _source_debug_extension: JavaString) -> Result<()> {
 		Ok(())
 	}
 

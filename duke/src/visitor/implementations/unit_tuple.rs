@@ -1,5 +1,6 @@
 use std::ops::ControlFlow;
 use anyhow::Result;
+use java_string::JavaString;
 use crate::class_reader::pool::PoolRead;
 use crate::tree::annotation::Object;
 use crate::tree::attribute::Attribute;
@@ -72,11 +73,11 @@ impl ClassVisitor for () {
 		Ok(())
 	}
 
-	fn visit_source_file(&mut self, _source_file: String) -> Result<()> {
+	fn visit_source_file(&mut self, _source_file: JavaString) -> Result<()> {
 		Ok(())
 	}
 
-	fn visit_source_debug_extension(&mut self, _source_debug_extension: String) -> Result<()> {
+	fn visit_source_debug_extension(&mut self, _source_debug_extension: JavaString) -> Result<()> {
 		Ok(())
 	}
 
@@ -184,19 +185,19 @@ impl NamedElementValueVisitor for () {
 	type AnnotationArrayVisitor = ();
 	type AnnotationArrayResidual = Self;
 
-	fn visit(&mut self, _name: String, _value: Object) -> Result<()> {
+	fn visit(&mut self, _name: JavaString, _value: Object) -> Result<()> {
 		Ok(())
 	}
 
-	fn visit_enum(&mut self, _name: String, _type_name: FieldDescriptor, _const_name: String) -> Result<()> {
+	fn visit_enum(&mut self, _name: JavaString, _type_name: FieldDescriptor, _const_name: JavaString) -> Result<()> {
 		Ok(())
 	}
 
-	fn visit_class(&mut self, _name: String, _class: ReturnDescriptor) -> Result<()> {
+	fn visit_class(&mut self, _name: JavaString, _class: ReturnDescriptor) -> Result<()> {
 		Ok(())
 	}
 
-	fn visit_annotation(self, _name: String, _annotation_type: FieldDescriptor) -> Result<(Self::AnnotationResidual, Self::AnnotationVisitor)> {
+	fn visit_annotation(self, _name: JavaString, _annotation_type: FieldDescriptor) -> Result<(Self::AnnotationResidual, Self::AnnotationVisitor)> {
 		Ok((self, ()))
 	}
 
@@ -204,7 +205,7 @@ impl NamedElementValueVisitor for () {
 		Ok(this)
 	}
 
-	fn visit_array(self, _name: String) -> Result<(Self::AnnotationArrayResidual, Self::AnnotationArrayVisitor)> {
+	fn visit_array(self, _name: JavaString) -> Result<(Self::AnnotationArrayResidual, Self::AnnotationArrayVisitor)> {
 		Ok((self, ()))
 	}
 
@@ -225,7 +226,7 @@ impl UnnamedElementValueVisitor for () {
 		Ok(())
 	}
 
-	fn visit_enum(&mut self, _type_name: FieldDescriptor, _const_name: String) -> Result<()> {
+	fn visit_enum(&mut self, _type_name: FieldDescriptor, _const_name: JavaString) -> Result<()> {
 		Ok(())
 	}
 
@@ -251,7 +252,7 @@ impl UnnamedElementValueVisitor for () {
 }
 
 impl UnknownAttributeVisitor for () {
-	fn read(_name: String, _bytes: Vec<u8>, _pool: &PoolRead) -> Result<Self> {
+	fn read(_name: JavaString, _bytes: Vec<u8>, _pool: &PoolRead) -> Result<Self> {
 		Ok(())
 	}
 

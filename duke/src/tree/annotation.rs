@@ -1,5 +1,6 @@
 use anyhow::Result;
 use std::fmt::{Debug, Formatter};
+use java_string::JavaString;
 use crate::tree::descriptor::ReturnDescriptor;
 use crate::tree::field::FieldDescriptor;
 use crate::visitor::annotation::{AnnotationsVisitor, NamedElementValuesVisitor, UnnamedElementValuesVisitor, UnnamedElementValueVisitor};
@@ -106,7 +107,7 @@ impl Debug for Annotation {
 
 #[derive(Clone, PartialEq)]
 pub struct ElementValuePair {
-	pub name: String,
+	pub name: JavaString,
 	pub value: ElementValue,
 }
 
@@ -115,7 +116,7 @@ pub enum ElementValue {
 	Object(Object),
 	Enum {
 		type_name: FieldDescriptor,
-		const_name: String /* TODO: name of the constant */,
+		const_name: JavaString /* TODO: name of the constant */,
 	},
 	Class(ReturnDescriptor),
 	AnnotationInterface(Annotation),
@@ -132,5 +133,5 @@ pub enum Object {
 	Long(i64),
 	Short(i16),
 	Boolean(bool),
-	String(String),
+	String(JavaString),
 }

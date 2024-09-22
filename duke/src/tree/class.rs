@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use anyhow::{bail, Result};
 use std::ops::ControlFlow;
+use java_string::{JavaStr, JavaString};
 use crate::macros::make_string_str_like;
 use crate::tree::annotation::Annotation;
 use crate::tree::attribute::Attribute;
@@ -32,8 +33,8 @@ pub struct ClassFile {
 	pub enclosing_method: Option<EnclosingMethod>,
 	pub signature: Option<ClassSignature>,
 
-	pub source_file: Option<String>,
-	pub source_debug_extension: Option<String>,
+	pub source_file: Option<JavaString>,
+	pub source_debug_extension: Option<JavaString>,
 
 	pub runtime_visible_annotations: Vec<Annotation>,
 	pub runtime_invisible_annotations: Vec<Annotation>,
@@ -306,9 +307,9 @@ make_string_str_like!(
 	/// let java_lang_object = ClassName::JAVA_LANG_OBJECT.clone();
 	/// assert_eq!(java_lang_object, ClassName::from("java/lang/Object"));
 	/// ```
-	pub ClassName(String);
+	pub ClassName(JavaString);
 	/// A [`ClassName`] slice.
-	pub ClassNameSlice(str);
+	pub ClassNameSlice(JavaStr);
 	is_valid(s) = if crate::tree::names::is_valid_class_name(s) {
 		Ok(())
 	} else {
@@ -318,10 +319,10 @@ make_string_str_like!(
 
 impl ClassName {
 	/// A constant holding the class name of `Object`.
-	pub const JAVA_LANG_OBJECT: &'static ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked("java/lang/Object") };
+	pub const JAVA_LANG_OBJECT: &'static ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked(JavaStr::from_str("java/lang/Object")) };
 
 	// TODO: doc, check with JVM spec
-	pub fn get_simple_name(&self) -> &str {
+	pub fn get_simple_name(&self) -> &JavaStr {
 		let s = self.as_inner();
 		s.rsplit_once('/')
 			.map_or(s, |(_, simple)| simple)
@@ -341,8 +342,8 @@ impl Display for ClassNameSlice {
 
 make_string_str_like!(
 	/// Represents a class signature, from a generic such as `Foo<T extends Bar>`.
-	pub ClassSignature(String);
-	pub ClassSignatureSlice(str);
+	pub ClassSignature(JavaString);
+	pub ClassSignatureSlice(JavaStr);
 	is_valid(__) = Ok(()); // TODO: signature format is even more complicated
 );
 
@@ -350,7 +351,7 @@ make_string_str_like!(
 pub struct InnerClass {
 	pub inner_class: ClassName,
 	pub outer_class: Option<ClassName>,
-	pub inner_name: Option<String>,
+	pub inner_name: Option<JavaString>,
 	pub flags: InnerClassFlags,
 }
 

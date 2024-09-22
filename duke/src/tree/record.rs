@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
+use java_string::{JavaStr, JavaString};
 use crate::macros::make_string_str_like;
 use crate::tree::annotation::Annotation;
 use crate::tree::attribute::Attribute;
@@ -98,8 +99,8 @@ impl RecordComponent {
 }
 
 make_string_str_like!(
-	pub RecordName(String);
-	pub RecordNameSlice(str);
+	pub RecordName(JavaString);
+	pub RecordNameSlice(JavaStr);
 	is_valid(s) = Ok(()); // TODO: see JVMS
 );
 

@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Display, Formatter};
+use java_string::{JavaStr, JavaString};
 use crate::macros::make_string_str_like;
 use crate::tree::class::ClassName;
 
@@ -9,7 +10,7 @@ use crate::tree::class::ClassName;
 pub struct Module {
 	pub(crate) name: ModuleName,
 	pub(crate) flags: ModuleFlags,
-	pub(crate) version: Option<String>, // represents a module version...
+	pub(crate) version: Option<JavaString>, // represents a module version...
 	pub(crate) requires: Vec<ModuleRequires>,
 	pub(crate) exports: Vec<ModuleExports>,
 	pub(crate) opens: Vec<ModuleOpens>,
@@ -18,8 +19,8 @@ pub struct Module {
 }
 
 make_string_str_like!(
-	pub ModuleName(String);
-	pub ModuleNameSlice(str);
+	pub ModuleName(JavaString);
+	pub ModuleNameSlice(JavaStr);
 	is_valid(s) = Ok(()); // TODO: see JVMS 4.2.3
 );
 
@@ -35,8 +36,8 @@ impl Display for ModuleNameSlice {
 }
 
 make_string_str_like!(
-	pub PackageName(String);
-	pub PackageNameSlice(str);
+	pub PackageName(JavaString);
+	pub PackageNameSlice(JavaStr);
 	is_valid(s) = Ok(()); // TODO: see JVMS 4.2.3
 );
 
@@ -79,7 +80,7 @@ impl From<ModuleFlags> for u16 {
 pub struct ModuleRequires {
 	pub(crate) name: ModuleName,
 	pub(crate) flags: ModuleRequiresFlags,
-	pub(crate) version: Option<String>, // represents a module version...
+	pub(crate) version: Option<JavaString>, // represents a module version...
 }
 
 #[derive(Copy, Clone, PartialEq)]

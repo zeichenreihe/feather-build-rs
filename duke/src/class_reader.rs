@@ -115,15 +115,15 @@ pub(crate) fn read<V: MultiClassVisitor>(reader: &mut impl ClassRead, visitor: V
 				let attribute_name = pool.get_utf8_ref(reader.read_u16()?)?;
 				let length = reader.read_u32()?;
 
-				match attribute_name.as_str() {
-					attribute::DEPRECATED => {
+				match attribute_name.as_java_str() {
+					name if name == attribute::DEPRECATED => {
 						is_deprecated = true;
 					},
-					attribute::SYNTHETIC => {
+					name if name == attribute::SYNTHETIC => {
 						is_synthetic = true;
 					},
-					attribute::INNER_CLASSES if !interests.inner_classes => reader.skip(length as i64)?,
-					attribute::INNER_CLASSES => {
+					name if name == attribute::INNER_CLASSES && !interests.inner_classes => reader.skip(length as i64)?,
+					name if name == attribute::INNER_CLASSES => {
 						let inner_classes = reader.read_vec(
 							|r| r.read_u16_as_usize(),
 							|r| {
@@ -137,94 +137,94 @@ pub(crate) fn read<V: MultiClassVisitor>(reader: &mut impl ClassRead, visitor: V
 						)?;
 						class_visitor.visit_inner_classes(inner_classes)?;
 					},
-					attribute::ENCLOSING_METHOD if !interests.enclosing_method => reader.skip(length as i64)?,
-					attribute::ENCLOSING_METHOD => {
+					name if name == attribute::ENCLOSING_METHOD && !interests.enclosing_method => reader.skip(length as i64)?,
+					name if name == attribute::ENCLOSING_METHOD => {
 						let class = pool.get_class(reader.read_u16()?)?;
 						let method = pool.get_optional(reader.read_u16()?, PoolRead::get_method_name_and_type)?;
 						let enclosing_method = EnclosingMethod { class, method };
 
 						class_visitor.visit_enclosing_method(enclosing_method)?;
 					},
-					attribute::SIGNATURE if !interests.signature => reader.skip(length as i64)?,
-					attribute::SIGNATURE => {
+					name if name == attribute::SIGNATURE && !interests.signature => reader.skip(length as i64)?,
+					name if name == attribute::SIGNATURE => {
 						let signature = ClassSignature::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 						class_visitor.visit_signature(signature)?;
 					},
-					attribute::SOURCE_FILE if !interests.source_file => reader.skip(length as i64)?,
-					attribute::SOURCE_FILE => {
+					name if name == attribute::SOURCE_FILE && !interests.source_file => reader.skip(length as i64)?,
+					name if name == attribute::SOURCE_FILE => {
 						let source_file = pool.get_utf8(reader.read_u16()?)?;
 						class_visitor.visit_source_file(source_file)?;
 					},
-					attribute::SOURCE_DEBUG_EXTENSION if !interests.source_debug_extension => reader.skip(length as i64)?,
-					attribute::SOURCE_DEBUG_EXTENSION => {
+					name if name == attribute::SOURCE_DEBUG_EXTENSION && !interests.source_debug_extension => reader.skip(length as i64)?,
+					name if name == attribute::SOURCE_DEBUG_EXTENSION => {
 						let source_debug_extension = jstring::from_vec_to_string(reader.read_u8_vec(length as usize)?)?;
 						class_visitor.visit_source_debug_extension(source_debug_extension)?;
 					},
-					attribute::RUNTIME_VISIBLE_ANNOTATIONS if !interests.runtime_visible_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_VISIBLE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_VISIBLE_ANNOTATIONS && !interests.runtime_visible_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_VISIBLE_ANNOTATIONS => {
 						let (visitor, annotations_visitor) = class_visitor.visit_annotations(true)?;
 						let annotations_visitor = read_annotations_attribute(reader, annotations_visitor, pool)?;
 						class_visitor = ClassVisitor::finish_annotations(visitor, annotations_visitor)?;
 					},
-					attribute::RUNTIME_INVISIBLE_ANNOTATIONS if !interests.runtime_invisible_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_INVISIBLE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_INVISIBLE_ANNOTATIONS && !interests.runtime_invisible_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_INVISIBLE_ANNOTATIONS => {
 						let (visitor, annotations_visitor) = class_visitor.visit_annotations(false)?;
 						let annotations_visitor = read_annotations_attribute(reader, annotations_visitor, pool)?;
 						class_visitor = ClassVisitor::finish_annotations(visitor, annotations_visitor)?;
 					},
-					attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS if !interests.runtime_visible_type_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS && !interests.runtime_visible_type_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS => {
 						let (visitor, type_annotations_visitor) = class_visitor.visit_type_annotations(true)?;
 						let type_annotations_visitor = read_type_annotations_attribute(reader, type_annotations_visitor, pool)?;
 						class_visitor = ClassVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;
 					},
-					attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS if !interests.runtime_invisible_type_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS && !interests.runtime_invisible_type_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS => {
 						let (visitor, type_annotations_visitor) = class_visitor.visit_type_annotations(false)?;
 						let type_annotations_visitor = read_type_annotations_attribute(reader, type_annotations_visitor, pool)?;
 						class_visitor = ClassVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;
 					},
-					attribute::MODULE if !interests.module => reader.skip(length as i64)?,
-					attribute::MODULE => {
+					name if name == attribute::MODULE && !interests.module => reader.skip(length as i64)?,
+					name if name == attribute::MODULE => {
 						let module = read_module(reader, pool)?;
 						class_visitor.visit_module(module)?;
 					},
-					attribute::MODULE_PACKAGES if !interests.module_packages => reader.skip(length as i64)?,
-					attribute::MODULE_PACKAGES => {
+					name if name == attribute::MODULE_PACKAGES && !interests.module_packages => reader.skip(length as i64)?,
+					name if name == attribute::MODULE_PACKAGES => {
 						let module_packages = reader.read_vec(
 							|r| r.read_u16_as_usize(),
 							|r| pool.get_package(r.read_u16()?)
 						)?;
 						class_visitor.visit_module_packages(module_packages)?;
 					},
-					attribute::MODULE_MAIN_CLASS if !interests.module_main_class => reader.skip(length as i64)?,
-					attribute::MODULE_MAIN_CLASS => {
+					name if name == attribute::MODULE_MAIN_CLASS && !interests.module_main_class => reader.skip(length as i64)?,
+					name if name == attribute::MODULE_MAIN_CLASS => {
 						let module_main_class = pool.get_class(reader.read_u16()?)?;
 						class_visitor.visit_module_main_class(module_main_class)?;
 					},
-					attribute::NEST_HOST if !interests.nest_host => reader.skip(length as i64)?,
-					attribute::NEST_HOST => {
+					name if name == attribute::NEST_HOST && !interests.nest_host => reader.skip(length as i64)?,
+					name if name == attribute::NEST_HOST => {
 						let nest_host_class = pool.get_class(reader.read_u16()?)?;
 						class_visitor.visit_nest_host_class(nest_host_class)?;
 					},
-					attribute::NEST_MEMBERS if !interests.nest_members => reader.skip(length as i64)?,
-					attribute::NEST_MEMBERS => {
+					name if name == attribute::NEST_MEMBERS && !interests.nest_members => reader.skip(length as i64)?,
+					name if name == attribute::NEST_MEMBERS => {
 						let nest_members = reader.read_vec(
 							|r| r.read_u16_as_usize(),
 							|r| pool.get_class(r.read_u16()?)
 						)?;
 						class_visitor.visit_nest_members(nest_members)?;
 					},
-					attribute::PERMITTED_SUBCLASSES if !interests.permitted_subclasses => reader.skip(length as i64)?,
-					attribute::PERMITTED_SUBCLASSES => {
+					name if name == attribute::PERMITTED_SUBCLASSES && !interests.permitted_subclasses => reader.skip(length as i64)?,
+					name if name == attribute::PERMITTED_SUBCLASSES => {
 						let permitted_subclasses = reader.read_vec(
 							|r| r.read_u16_as_usize(),
 							|r| pool.get_class(r.read_u16()?)
 						)?;
 						class_visitor.visit_permitted_subclasses(permitted_subclasses)?;
 					},
-					attribute::RECORD if !interests.record => reader.skip(length as i64)?,
-					attribute::RECORD => {
+					name if name == attribute::RECORD && !interests.record => reader.skip(length as i64)?,
+					name if name == attribute::RECORD => {
 						if had_record_attribute {
 							bail!("only one Record attribute is allowed");
 						}
@@ -235,7 +235,7 @@ pub(crate) fn read<V: MultiClassVisitor>(reader: &mut impl ClassRead, visitor: V
 							class_visitor = read_record_component(reader, class_visitor, pool)?;
 						}
 					},
-					attribute::BOOTSTRAP_METHODS => {
+					name if name == attribute::BOOTSTRAP_METHODS => {
 						let methods = reader.read_vec(
 							|r| r.read_u16_as_usize(),
 							|r| Ok(BootstrapMethodRead {
@@ -296,43 +296,43 @@ fn read_field<C: ClassVisitor>(reader: &mut impl ClassRead, visitor: C, pool: &P
 				let attribute_name = pool.get_utf8_ref(reader.read_u16()?)?;
 				let length = reader.read_u32()?;
 
-				match attribute_name.as_str() {
-					attribute::DEPRECATED => {
+				match attribute_name.as_java_str() {
+					name if name == attribute::DEPRECATED => {
 						is_deprecated = true;
 					},
-					attribute::SYNTHETIC => {
+					name if name == attribute::SYNTHETIC => {
 						is_synthetic = true;
 					},
-					attribute::CONSTANT_VALUE if !interests.constant_value => reader.skip(length as i64)?,
-					attribute::CONSTANT_VALUE => {
+					name if name == attribute::CONSTANT_VALUE && !interests.constant_value => reader.skip(length as i64)?,
+					name if name == attribute::CONSTANT_VALUE => {
 						let constant_value = pool.get_constant_value(reader.read_u16()?)?;
 						field_visitor.visit_constant_value(constant_value)?;
 					},
-					attribute::SIGNATURE if !interests.signature => reader.skip(length as i64)?,
-					attribute::SIGNATURE => {
+					name if name == attribute::SIGNATURE && !interests.signature => reader.skip(length as i64)?,
+					name if name == attribute::SIGNATURE => {
 						let signature = FieldSignature::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 						field_visitor.visit_signature(signature)?;
 					},
-					attribute::RUNTIME_VISIBLE_ANNOTATIONS if !interests.runtime_visible_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_VISIBLE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_VISIBLE_ANNOTATIONS && !interests.runtime_visible_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_VISIBLE_ANNOTATIONS => {
 						let (visitor, annotations_visitor) = field_visitor.visit_annotations(true)?;
 						let annotations_visitor = read_annotations_attribute(reader, annotations_visitor, pool)?;
 						field_visitor = FieldVisitor::finish_annotations(visitor, annotations_visitor)?;
 					},
-					attribute::RUNTIME_INVISIBLE_ANNOTATIONS if !interests.runtime_invisible_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_INVISIBLE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_INVISIBLE_ANNOTATIONS && !interests.runtime_invisible_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_INVISIBLE_ANNOTATIONS => {
 						let (visitor, annotations_visitor) = field_visitor.visit_annotations(false)?;
 						let annotations_visitor = read_annotations_attribute(reader, annotations_visitor, pool)?;
 						field_visitor = FieldVisitor::finish_annotations(visitor, annotations_visitor)?;
 					},
-					attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS if !interests.runtime_visible_type_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS && !interests.runtime_visible_type_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS => {
 						let (visitor, type_annotations_visitor) = field_visitor.visit_type_annotations(true)?;
 						let type_annotations_visitor = read_type_annotations_attribute(reader, type_annotations_visitor, pool)?;
 						field_visitor = FieldVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;
 					},
-					attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS if !interests.runtime_invisible_type_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS && !interests.runtime_invisible_type_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS => {
 						let (visitor, type_annotations_visitor) = field_visitor.visit_type_annotations(false)?;
 						let type_annotations_visitor = read_type_annotations_attribute(reader, type_annotations_visitor, pool)?;
 						field_visitor = FieldVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;
@@ -373,76 +373,76 @@ fn read_method<C: ClassVisitor>(reader: &mut impl ClassRead, visitor: C, pool: &
 				let attribute_name = pool.get_utf8_ref(reader.read_u16()?)?;
 				let length = reader.read_u32()?;
 
-				match attribute_name.as_str() {
-					attribute::DEPRECATED => {
+				match attribute_name.as_java_str() {
+					name if name == attribute::DEPRECATED => {
 						is_deprecated = true;
 					},
-					attribute::SYNTHETIC => {
+					name if name == attribute::SYNTHETIC => {
 						is_synthetic = true;
 					},
-					attribute::CODE if !interests.code => reader.skip(length as i64)?,
-					attribute::CODE => {
+					name if name == attribute::CODE && !interests.code => reader.skip(length as i64)?,
+					name if name == attribute::CODE => {
 						if let Some(code_visitor) = method_visitor.visit_code()? {
 							let code_visitor = read_code(reader, code_visitor, pool, bootstrap_methods)
 								.with_context(|| anyhow!("failed to read code of method {name:?} {descriptor:?}"))?;
 							method_visitor.finish_code(code_visitor)?;
 						}
 					},
-					attribute::EXCEPTIONS if !interests.exceptions => reader.skip(length as i64)?,
-					attribute::EXCEPTIONS => {
+					name if name == attribute::EXCEPTIONS && !interests.exceptions => reader.skip(length as i64)?,
+					name if name == attribute::EXCEPTIONS => {
 						let exceptions = reader.read_vec(
 							|r| r.read_u16_as_usize(),
 							|r| pool.get_class(r.read_u16()?)
 						)?;
 						method_visitor.visit_exceptions(exceptions)?;
 					},
-					attribute::SIGNATURE if !interests.signature => reader.skip(length as i64)?,
-					attribute::SIGNATURE => {
+					name if name == attribute::SIGNATURE && !interests.signature => reader.skip(length as i64)?,
+					name if name == attribute::SIGNATURE => {
 						let signature = MethodSignature::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 						method_visitor.visit_signature(signature)?;
 					},
-					attribute::RUNTIME_VISIBLE_ANNOTATIONS if !interests.runtime_visible_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_VISIBLE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_VISIBLE_ANNOTATIONS && !interests.runtime_visible_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_VISIBLE_ANNOTATIONS => {
 						let (visitor, annotations_visitor) = method_visitor.visit_annotations(true)?;
 						let annotations_visitor = read_annotations_attribute(reader, annotations_visitor, pool)?;
 						method_visitor = MethodVisitor::finish_annotations(visitor, annotations_visitor)?;
 					},
-					attribute::RUNTIME_INVISIBLE_ANNOTATIONS if !interests.runtime_invisible_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_INVISIBLE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_INVISIBLE_ANNOTATIONS && !interests.runtime_invisible_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_INVISIBLE_ANNOTATIONS => {
 						let (visitor, annotations_visitor) = method_visitor.visit_annotations(false)?;
 						let annotations_visitor = read_annotations_attribute(reader, annotations_visitor, pool)?;
 						method_visitor = MethodVisitor::finish_annotations(visitor, annotations_visitor)?;
 					},
-					attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS if !interests.runtime_visible_type_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS && !interests.runtime_visible_type_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS => {
 						let (visitor, type_annotations_visitor) = method_visitor.visit_type_annotations(true)?;
 						let type_annotations_visitor = read_type_annotations_attribute(reader, type_annotations_visitor, pool)?;
 						method_visitor = MethodVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;
 					},
-					attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS if !interests.runtime_invisible_type_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS && !interests.runtime_invisible_type_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS => {
 						let (visitor, type_annotations_visitor) = method_visitor.visit_type_annotations(false)?;
 						let type_annotations_visitor = read_type_annotations_attribute(reader, type_annotations_visitor, pool)?;
 						method_visitor = MethodVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;
 					},
-					attribute::RUNTIME_VISIBLE_PARAMETER_ANNOTATIONS if !interests.runtime_visible_parameter_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_VISIBLE_PARAMETER_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_VISIBLE_PARAMETER_ANNOTATIONS && !interests.runtime_visible_parameter_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_VISIBLE_PARAMETER_ANNOTATIONS => {
 						// TODO: RuntimeVisibleParameterAnnotations
 						reader.skip(length as i64)?;
 					},
-					attribute::RUNTIME_INVISIBLE_PARAMETER_ANNOTATIONS if !interests.runtime_invisible_parameter_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_INVISIBLE_PARAMETER_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_INVISIBLE_PARAMETER_ANNOTATIONS && !interests.runtime_invisible_parameter_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_INVISIBLE_PARAMETER_ANNOTATIONS => {
 						// TODO: RuntimeInvisibleParameterAnnotations
 						reader.skip(length as i64)?;
 					},
-					attribute::ANNOTATION_DEFAULT if !interests.annotation_default => reader.skip(length as i64)?,
-					attribute::ANNOTATION_DEFAULT => {
+					name if name == attribute::ANNOTATION_DEFAULT && !interests.annotation_default => reader.skip(length as i64)?,
+					name if name == attribute::ANNOTATION_DEFAULT => {
 						let (visitor, x) = method_visitor.visit_annotation_default()?;
 						let x = read_element_value_unnamed(reader, pool, x)?;
 						method_visitor = MethodVisitor::finish_annotation_default(visitor, x)?;
 					},
-					attribute::METHOD_PARAMETERS if !interests.method_parameters => reader.skip(length as i64)?,
-					attribute::METHOD_PARAMETERS => {
+					name if name == attribute::METHOD_PARAMETERS && !interests.method_parameters => reader.skip(length as i64)?,
+					name if name == attribute::METHOD_PARAMETERS => {
 						let method_parameters = reader.read_vec(
 							|r| r.read_u8_as_usize(),
 							|r| Ok(MethodParameter {
@@ -671,9 +671,9 @@ fn read_code<C: CodeVisitor>(
 		let attribute_name = pool.get_utf8_ref(reader.read_u16()?)?;
 		let length = reader.read_u32()?;
 
-		match attribute_name.as_str() {
-			attribute::STACK_MAP_TABLE if !interests.stack_map_table => reader.skip(length as i64)?,
-			attribute::STACK_MAP_TABLE => {
+		match attribute_name.as_java_str() {
+			name if name == attribute::STACK_MAP_TABLE && !interests.stack_map_table => reader.skip(length as i64)?,
+			name if name == attribute::STACK_MAP_TABLE => {
 				let mut offset = 0;
 				let number_of_entries = reader.read_u16_as_usize()?;
 				let mut frames = std::collections::VecDeque::with_capacity(number_of_entries);
@@ -727,8 +727,8 @@ fn read_code<C: CodeVisitor>(
 				}
 				stack_map_frame.insert_if_empty(frames).context("only one StackMapTable attribute is allowed")?;
 			},
-			attribute::STACK_MAP if !interests.stack_map_table => reader.skip(length as i64)?, // Skip it as well, it's just "another format" of StackMapFrame
-			attribute::STACK_MAP => {
+			name if name == attribute::STACK_MAP && !interests.stack_map_table => reader.skip(length as i64)?, // Skip it as well, it's just "another format" of StackMapFrame
+			name if name == attribute::STACK_MAP => {
 				// See https://docs.oracle.com/javame/8.0/api/cldc/api/Appendix1-verifier.pdf for a definition of it.
 				// Our bytecode length, our maximum number of local variables and our maximum size of the operand stack fit into an `u16`,
 				// this means that `uoffset`, `ulocalvar` and `ustack` are all `u2` (for us `u16`).
@@ -762,8 +762,8 @@ fn read_code<C: CodeVisitor>(
 
 				stack_map_frame.insert_if_empty(frames).context("only one StackMap attribute is allowed")?;
 			},
-			attribute::LINE_NUMBER_TABLE if !interests.line_number_table => reader.skip(length as i64)?,
-			attribute::LINE_NUMBER_TABLE => {
+			name if name == attribute::LINE_NUMBER_TABLE && !interests.line_number_table => reader.skip(length as i64)?,
+			name if name == attribute::LINE_NUMBER_TABLE => {
 				let table = line_number_table.get_or_insert_with(Vec::new);
 
 				let line_number_table_length = reader.read_u16()?;
@@ -774,8 +774,8 @@ fn read_code<C: CodeVisitor>(
 					table.push((start, line_number));
 				}
 			},
-			attribute::LOCAL_VARIABLE_TABLE if !interests.local_variable_table => reader.skip(length as i64)?,
-			attribute::LOCAL_VARIABLE_TABLE => {
+			name if name == attribute::LOCAL_VARIABLE_TABLE && !interests.local_variable_table => reader.skip(length as i64)?,
+			name if name == attribute::LOCAL_VARIABLE_TABLE => {
 				let table = local_variable_table.get_or_insert_with(Vec::new);
 
 				let local_variable_table_length = reader.read_u16()?;
@@ -795,8 +795,8 @@ fn read_code<C: CodeVisitor>(
 					});
 				}
 			},
-			attribute::LOCAL_VARIABLE_TYPE_TABLE if !interests.local_variable_type_table => reader.skip(length as i64)?,
-			attribute::LOCAL_VARIABLE_TYPE_TABLE => {
+			name if name == attribute::LOCAL_VARIABLE_TYPE_TABLE && !interests.local_variable_type_table => reader.skip(length as i64)?,
+			name if name == attribute::LOCAL_VARIABLE_TYPE_TABLE => {
 				let table = local_variable_table.get_or_insert_with(Vec::new);
 
 				let local_variable_type_table_length = reader.read_u16()?;
@@ -816,14 +816,14 @@ fn read_code<C: CodeVisitor>(
 					});
 				}
 			},
-			attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS if !interests.runtime_visible_type_annotations => reader.skip(length as i64)?,
-			attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS => {
+			name if name == attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS && !interests.runtime_visible_type_annotations => reader.skip(length as i64)?,
+			name if name == attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS => {
 				let (visitor, type_annotations_visitor) = code_visitor.visit_type_annotations(true)?;
 				let type_annotations_visitor = read_type_annotations_attribute_code(reader, type_annotations_visitor, pool, &mut labels)?;
 				code_visitor = CodeVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;
 			},
-			attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS if !interests.runtime_invisible_type_annotations => reader.skip(length as i64)?,
-			attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS => {
+			name if name == attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS && !interests.runtime_invisible_type_annotations => reader.skip(length as i64)?,
+			name if name == attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS => {
 				let (visitor, type_annotations_visitor) = code_visitor.visit_type_annotations(false)?;
 				let type_annotations_visitor = read_type_annotations_attribute_code(reader, type_annotations_visitor, pool, &mut labels)?;
 				code_visitor = CodeVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;
@@ -1191,32 +1191,32 @@ fn read_record_component<C: ClassVisitor>(reader: &mut impl ClassRead, class_vis
 				let attribute_name = pool.get_utf8_ref(reader.read_u16()?)?;
 				let length = reader.read_u32()?;
 
-				match attribute_name.as_str() {
-					attribute::SIGNATURE if !interests.signature => reader.skip(length as i64)?,
-					attribute::SIGNATURE => {
+				match attribute_name.as_java_str() {
+					name if name == attribute::SIGNATURE && !interests.signature => reader.skip(length as i64)?,
+					name if name == attribute::SIGNATURE => {
 						let signature = FieldSignature::try_from(pool.get_utf8(reader.read_u16()?)?)?;
 						record_component_visitor.visit_signature(signature)?;
 					},
-					attribute::RUNTIME_VISIBLE_ANNOTATIONS if !interests.runtime_visible_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_VISIBLE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_VISIBLE_ANNOTATIONS && !interests.runtime_visible_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_VISIBLE_ANNOTATIONS => {
 						let (visitor, annotations_visitor) = record_component_visitor.visit_annotations(true)?;
 						let annotations_visitor = read_annotations_attribute(reader, annotations_visitor, pool)?;
 						record_component_visitor = RecordComponentVisitor::finish_annotations(visitor, annotations_visitor)?;
 					},
-					attribute::RUNTIME_INVISIBLE_ANNOTATIONS if !interests.runtime_invisible_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_INVISIBLE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_INVISIBLE_ANNOTATIONS && !interests.runtime_invisible_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_INVISIBLE_ANNOTATIONS => {
 						let (visitor, annotations_visitor) = record_component_visitor.visit_annotations(false)?;
 						let annotations_visitor = read_annotations_attribute(reader, annotations_visitor, pool)?;
 						record_component_visitor = RecordComponentVisitor::finish_annotations(visitor, annotations_visitor)?;
 					},
-					attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS if !interests.runtime_visible_type_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS && !interests.runtime_visible_type_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_VISIBLE_TYPE_ANNOTATIONS => {
 						let (visitor, type_annotations_visitor) = record_component_visitor.visit_type_annotations(true)?;
 						let type_annotations_visitor = read_type_annotations_attribute(reader, type_annotations_visitor, pool)?;
 						record_component_visitor = RecordComponentVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;
 					},
-					attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS if !interests.runtime_invisible_type_annotations => reader.skip(length as i64)?,
-					attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS => {
+					name if name == attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS && !interests.runtime_invisible_type_annotations => reader.skip(length as i64)?,
+					name if name == attribute::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS => {
 						let (visitor, type_annotations_visitor) = record_component_visitor.visit_type_annotations(false)?;
 						let type_annotations_visitor = read_type_annotations_attribute(reader, type_annotations_visitor, pool)?;
 						record_component_visitor = RecordComponentVisitor::finish_type_annotations(visitor, type_annotations_visitor)?;

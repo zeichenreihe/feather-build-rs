@@ -1,6 +1,6 @@
 use std::iter::Peekable;
-use std::str::Chars;
 use anyhow::{anyhow, bail, Context, Result};
+use java_string::{Chars, JavaCodePoint, JavaStr, JavaString};
 use crate::macros::make_string_str_like;
 use crate::tree::class::{ClassName, ClassNameSlice};
 use crate::tree::field::{FieldDescriptor, FieldDescriptorSlice};
@@ -83,6 +83,16 @@ pub enum ArrayType {
 //     "L" ClassName ";" |
 //     "[" FieldType
 fn read_field_type(chars: &mut Peekable<Chars>) -> Result<Type> {
+	const B: JavaCodePoint = JavaCodePoint::from_char('B');
+	const C: JavaCodePoint = JavaCodePoint::from_char('C');
+	const D: JavaCodePoint = JavaCodePoint::from_char('D');
+	const F: JavaCodePoint = JavaCodePoint::from_char('F');
+	const I: JavaCodePoint = JavaCodePoint::from_char('I');
+	const J: JavaCodePoint = JavaCodePoint::from_char('J');
+	const L: JavaCodePoint = JavaCodePoint::from_char('L');
+	const S: JavaCodePoint = JavaCodePoint::from_char('S');
+	const Z: JavaCodePoint = JavaCodePoint::from_char('Z');
+
 	let mut array_dimension = 0;
 	while chars.next_if_eq(&'[').is_some() {
 		array_dimension += 1;
@@ -92,20 +102,20 @@ fn read_field_type(chars: &mut Peekable<Chars>) -> Result<Type> {
 	if array_dimension == 0 {
 		let char = chars.next().ok_or_else(|| anyhow!("unexpected abrupt ending of descriptor"))?;
 		let descriptor = match char {
-			'B' => Type::B,
-			'C' => Type::C,
-			'D' => Type::D,
-			'F' => Type::F,
-			'I' => Type::I,
-			'J' => Type::J,
-			'S' => Type::S,
-			'Z' => Type::Z,
-			'L' => {
-				let mut s = String::new();
+			B => Type::B,
+			C => Type::C,
+			D => Type::D,
+			F => Type::F,
+			I => Type::I,
+			J => Type::J,
+			S => Type::S,
+			Z => Type::Z,
+			L => {
+				let mut s = JavaString::new();
 
 				let mut char = chars.next().ok_or_else(|| anyhow!("unexpected abrupt ending of descriptor"))?;
 				while char != ';' {
-					s.push(char);
+					s.push_java(char);
 
 					char = chars.next().ok_or_else(|| anyhow!("unexpected abrupt ending of descriptor"))?;
 				}
@@ -122,20 +132,20 @@ fn read_field_type(chars: &mut Peekable<Chars>) -> Result<Type> {
 	} else {
 		let char = chars.next().ok_or_else(|| anyhow!("unexpected abrupt ending of descriptor"))?;
 		let descriptor = match char {
-			'B' => Type::Array(array_dimension, ArrayType::B),
-			'C' => Type::Array(array_dimension, ArrayType::C),
-			'D' => Type::Array(array_dimension, ArrayType::D),
-			'F' => Type::Array(array_dimension, ArrayType::F),
-			'I' => Type::Array(array_dimension, ArrayType::I),
-			'J' => Type::Array(array_dimension, ArrayType::J),
-			'S' => Type::Array(array_dimension, ArrayType::S),
-			'Z' => Type::Array(array_dimension, ArrayType::Z),
-			'L' => {
-				let mut s = String::new();
+			B => Type::Array(array_dimension, ArrayType::B),
+			C => Type::Array(array_dimension, ArrayType::C),
+			D => Type::Array(array_dimension, ArrayType::D),
+			F => Type::Array(array_dimension, ArrayType::F),
+			I => Type::Array(array_dimension, ArrayType::I),
+			J => Type::Array(array_dimension, ArrayType::J),
+			S => Type::Array(array_dimension, ArrayType::S),
+			Z => Type::Array(array_dimension, ArrayType::Z),
+			L => {
+				let mut s = JavaString::new();
 
 				let mut char = chars.next().ok_or_else(|| anyhow!("unexpected abrupt ending of descriptor"))?;
 				while char != ';' {
-					s.push(char);
+					s.push_java(char);
 
 					char = chars.next().ok_or_else(|| anyhow!("unexpected abrupt ending of descriptor"))?;
 				}
@@ -152,7 +162,7 @@ fn read_field_type(chars: &mut Peekable<Chars>) -> Result<Type> {
 	}
 }
 
-fn write_field_type(t: &Type, string: &mut String) {
+fn write_field_type(t: &Type, string: &mut JavaString) {
 	match t {
 		Type::B => string.push('B'),
 		Type::C => string.push('C'),
@@ -165,7 +175,7 @@ fn write_field_type(t: &Type, string: &mut String) {
 		Type::Object(class_name) => {
 			assert!(!class_name.as_inner().starts_with('['));
 			string.push('L');
-			string.push_str(class_name.as_inner());
+			string.push_java_str(class_name.as_inner());
 			string.push(';');
 		},
 		Type::Array(array_dimension, array_type) => {
@@ -184,7 +194,7 @@ fn write_field_type(t: &Type, string: &mut String) {
 				ArrayType::Object(class_name) => {
 					assert!(!class_name.as_inner().starts_with('['));
 					string.push('L');
-					string.push_str(class_name.as_inner());
+					string.push_java_str(class_name.as_inner());
 					string.push(';');
 				},
 			}
@@ -211,19 +221,19 @@ impl FieldDescriptorSlice {
 	/// use duke::tree::field::FieldDescriptorSlice;
 	///
 	/// assert_eq!(
-	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("I") }.parse().unwrap(),
+	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("I".into()) }.parse().unwrap(),
 	///     ParsedFieldDescriptor(Type::I)
 	/// );
 	/// assert_eq!(
-	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;") }.parse().unwrap(),
+	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;".into()) }.parse().unwrap(),
 	///     ParsedFieldDescriptor(Type::Object(ClassName::JAVA_LANG_OBJECT.to_owned()))
 	/// );
 	/// assert_eq!(
-	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("[[[D") }.parse().unwrap(),
+	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("[[[D".into()) }.parse().unwrap(),
 	///     ParsedFieldDescriptor(Type::Array(3, ArrayType::D))
 	/// );
 	///
-	/// let double_array = unsafe { FieldDescriptorSlice::from_inner_unchecked("[[[D") };
+	/// let double_array = unsafe { FieldDescriptorSlice::from_inner_unchecked("[[[D".into()) };
 	/// assert_eq!(double_array, double_array.parse().unwrap().write());
 	/// ```
 	pub fn parse(&self) -> Result<ParsedFieldDescriptor> {
@@ -233,7 +243,7 @@ impl FieldDescriptorSlice {
 			.with_context(|| anyhow!("failed to read field descriptor {self:?}"))?;
 
 		if chars.peek().is_some() {
-			bail!("expected end of field descriptor {self:?}, got {} remaining", String::from_iter(chars));
+			bail!("expected end of field descriptor {self:?}, got {:?} remaining", JavaString::from_iter(chars));
 		}
 
 		Ok(ParsedFieldDescriptor(descriptor))
@@ -254,22 +264,22 @@ impl ParsedFieldDescriptor {
 	///
 	/// assert_eq!(
 	///     ParsedFieldDescriptor(Type::I).write(),
-	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("I") },
+	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("I".into()) },
 	/// );
 	/// assert_eq!(
 	///     ParsedFieldDescriptor(Type::Object(ClassName::JAVA_LANG_OBJECT.to_owned())).write(),
-	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;") },
+	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;".into()) },
 	/// );
 	/// assert_eq!(
 	///     ParsedFieldDescriptor(Type::Array(3, ArrayType::D)).write(),
-	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("[[[D") },
+	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("[[[D".into()) },
 	/// );
 	///
 	/// let double_array = ParsedFieldDescriptor(Type::Array(3, ArrayType::D));
 	/// assert_eq!(double_array, double_array.write().parse().unwrap());
 	/// ```
 	pub fn write(&self) -> FieldDescriptor {
-		let mut s = String::new();
+		let mut s = JavaString::new();
 		write_field_type(&self.0, &mut s);
 		unsafe { FieldDescriptor::from_inner_unchecked(s) }
 	}
@@ -311,7 +321,7 @@ impl MethodDescriptorSlice {
 		};
 
 		if chars.peek().is_some() {
-			bail!("expected end of method descriptor {self:?}, got {} remaining", String::from_iter(chars));
+			bail!("expected end of method descriptor {self:?}, got {} remaining", JavaString::from_iter(chars));
 		}
 
 		Ok(ParsedMethodDescriptor {
@@ -359,7 +369,7 @@ impl MethodDescriptorSlice {
 
 impl ParsedMethodDescriptor {
 	pub fn write(&self) -> MethodDescriptor {
-		let mut s = String::new();
+		let mut s = JavaString::new();
 		s.push('(');
 		for parameter_descriptor in &self.parameter_descriptors {
 			write_field_type(parameter_descriptor, &mut s);
@@ -375,11 +385,12 @@ impl ParsedMethodDescriptor {
 }
 
 make_string_str_like!(
-	pub ReturnDescriptor(String);
-	pub ReturnDescriptorSlice(str);
+	pub ReturnDescriptor(JavaString);
+	pub ReturnDescriptorSlice(JavaStr);
 	is_valid(s) = Ok(()); // TODO: impl
 );
 
+// TODO: rethink if we really want these examples with that amount of unsafe/JavaStr
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ParsedReturnDescriptor(pub Option<Type>);
 
@@ -399,23 +410,23 @@ impl ReturnDescriptorSlice {
 	/// use duke::tree::descriptor::{ArrayType, ParsedReturnDescriptor, ReturnDescriptorSlice, Type};
 	///
 	/// assert_eq!(
-	///     unsafe { ReturnDescriptorSlice::from_inner_unchecked("I") }.parse().unwrap(),
+	///     unsafe { ReturnDescriptorSlice::from_inner_unchecked("I".into()) }.parse().unwrap(),
 	///     ParsedReturnDescriptor(Some(Type::I))
 	/// );
 	/// assert_eq!(
-	///     unsafe { ReturnDescriptorSlice::from_inner_unchecked("V") }.parse().unwrap(),
+	///     unsafe { ReturnDescriptorSlice::from_inner_unchecked("V".into()) }.parse().unwrap(),
 	///     ParsedReturnDescriptor(None)
 	/// );
 	/// assert_eq!(
-	///     unsafe { ReturnDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;") }.parse().unwrap(),
+	///     unsafe { ReturnDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;".into()) }.parse().unwrap(),
 	///     ParsedReturnDescriptor(Some(Type::Object(ClassName::JAVA_LANG_OBJECT.to_owned())))
 	/// );
 	/// assert_eq!(
-	///     unsafe { ReturnDescriptorSlice::from_inner_unchecked("[[[D") }.parse().unwrap(),
+	///     unsafe { ReturnDescriptorSlice::from_inner_unchecked("[[[D".into()) }.parse().unwrap(),
 	///     ParsedReturnDescriptor(Some(Type::Array(3, ArrayType::D)))
 	/// );
 	///
-	/// let double_array = unsafe { ReturnDescriptorSlice::from_inner_unchecked("[[[D") };
+	/// let double_array = unsafe { ReturnDescriptorSlice::from_inner_unchecked("[[[D".into()) };
 	/// assert_eq!(double_array, double_array.parse().unwrap().write());
 	/// ```
 	pub fn parse(&self) -> Result<ParsedReturnDescriptor> {
@@ -431,7 +442,7 @@ impl ReturnDescriptorSlice {
 		};
 
 		if chars.peek().is_some() {
-			bail!("expected end of return descriptor {self:?}, got {} remaining", String::from_iter(chars));
+			bail!("expected end of return descriptor {self:?}, got {} remaining", JavaString::from_iter(chars));
 		}
 
 		Ok(ParsedReturnDescriptor(return_descriptor))
@@ -472,11 +483,11 @@ impl ParsedReturnDescriptor {
 	/// ```
 	pub fn write(&self) -> ReturnDescriptor {
 		let s = if let Some(return_descriptor) = &self.0 {
-			let mut s = String::new();
+			let mut s = JavaString::new();
 			write_field_type(return_descriptor, &mut s);
 			s
 		} else {
-			String::from("V")
+			JavaString::from("V")
 		};
 		unsafe { ReturnDescriptor::from_inner_unchecked(s) }
 	}
@@ -524,7 +535,7 @@ impl FieldDescriptor {
 			unsafe { FieldDescriptor::from_inner_unchecked(desc) }
 		} else {
 			// otherwise, build a descriptor by L...;-ing the class name
-			let desc = String::with_capacity(2 + class_name.len())
+			let desc = JavaString::with_capacity(2 + class_name.len())
 				+ "L" + class_name + ";";
 
 			// SAFETY: `desc` is valid by construction.
@@ -537,18 +548,19 @@ impl FieldDescriptor {
 mod testing {
 	use pretty_assertions::assert_eq;
 	use anyhow::Result;
+	use java_string::JavaStr;
 	use crate::tree::class::ClassNameSlice;
 	use crate::tree::descriptor::{ParsedFieldDescriptor, ParsedMethodDescriptor, ParsedReturnDescriptor, ReturnDescriptorSlice, Type};
 	use crate::tree::field::FieldDescriptorSlice;
 	use crate::tree::method::MethodDescriptorSlice;
 
-	const JAVA_LANG_THREAD: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked("java/lang/Thread") };
-	const JAVA_LANG_OBJECT: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked("java/lang/Object") };
+	const JAVA_LANG_THREAD: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked(JavaStr::from_str("java/lang/Thread")) };
+	const JAVA_LANG_OBJECT: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked(JavaStr::from_str("java/lang/Object")) };
 
 	#[test]
 	fn field_parse() -> Result<()> {
 		assert_eq!(
-			unsafe { FieldDescriptorSlice::from_inner_unchecked("I") }.parse()?,
+			unsafe { FieldDescriptorSlice::from_inner_unchecked("I".into()) }.parse()?,
 			ParsedFieldDescriptor(Type::I),
 		);
 		assert_eq!(
@@ -557,7 +569,7 @@ mod testing {
 		);
 
 		assert_eq!(
-			unsafe { FieldDescriptorSlice::from_inner_unchecked("D") }.parse()?,
+			unsafe { FieldDescriptorSlice::from_inner_unchecked("D".into()) }.parse()?,
 			ParsedFieldDescriptor(Type::D),
 		);
 		assert_eq!(
@@ -566,7 +578,7 @@ mod testing {
 		);
 
 		assert_eq!(
-			unsafe { FieldDescriptorSlice::from_inner_unchecked("Ljava/lang/Thread;") }.parse()?,
+			unsafe { FieldDescriptorSlice::from_inner_unchecked("Ljava/lang/Thread;".into()) }.parse()?,
 			ParsedFieldDescriptor(Type::Object(JAVA_LANG_THREAD.to_owned())),
 		);
 		assert_eq!(
@@ -576,7 +588,7 @@ mod testing {
 		);
 
 		assert_eq!(
-			unsafe { FieldDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;") }.parse()?,
+			unsafe { FieldDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;".into()) }.parse()?,
 			ParsedFieldDescriptor(Type::Object(JAVA_LANG_OBJECT.to_owned())),
 		);
 		assert_eq!(
@@ -590,22 +602,22 @@ mod testing {
 
 	#[test]
 	fn field_parse_err() -> Result<()> {
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("") }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("V") }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("(") }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked(")") }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("()") }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("[V") }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("()V") }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("(D)I") }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("L;DV") }.parse().is_err());
+		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("".into()) }.parse().is_err());
+		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("V".into()) }.parse().is_err());
+		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("(".into()) }.parse().is_err());
+		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked(")".into()) }.parse().is_err());
+		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("()".into()) }.parse().is_err());
+		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("[V".into()) }.parse().is_err());
+		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("()V".into()) }.parse().is_err());
+		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("(D)I".into()) }.parse().is_err());
+		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("L;DV".into()) }.parse().is_err());
 		Ok(())
 	}
 
 	#[test]
 	fn method_parse() -> Result<()> {
 		assert_eq!(
-			unsafe { MethodDescriptorSlice::from_inner_unchecked("(IDLjava/lang/Thread;)Ljava/lang/Object;") }.parse()?,
+			unsafe { MethodDescriptorSlice::from_inner_unchecked("(IDLjava/lang/Thread;)Ljava/lang/Object;".into()) }.parse()?,
 			ParsedMethodDescriptor {
 				parameter_descriptors: vec![
 					Type::I,
@@ -628,7 +640,7 @@ mod testing {
 		);
 
 		assert_eq!(
-			unsafe { MethodDescriptorSlice::from_inner_unchecked("(Ljava/lang/Thread;Ljava/lang/Object;)V") }.parse()?,
+			unsafe { MethodDescriptorSlice::from_inner_unchecked("(Ljava/lang/Thread;Ljava/lang/Object;)V".into()) }.parse()?,
 			ParsedMethodDescriptor {
 				parameter_descriptors: vec![
 					Type::Object(JAVA_LANG_THREAD.to_owned()),
@@ -653,17 +665,17 @@ mod testing {
 
 	#[test]
 	fn method_parse_err() -> Result<()> {
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("") }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(") }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(D") }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(V") }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("()") }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(I)") }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(V)D") }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(D)[") }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(D)[V") }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("[(D)V") }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(L;;)V") }.parse().is_err());
+		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("".into()) }.parse().is_err());
+		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(".into()) }.parse().is_err());
+		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(D".into()) }.parse().is_err());
+		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(V".into()) }.parse().is_err());
+		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("()".into()) }.parse().is_err());
+		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(I)".into()) }.parse().is_err());
+		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(V)D".into()) }.parse().is_err());
+		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(D)[".into()) }.parse().is_err());
+		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(D)[V".into()) }.parse().is_err());
+		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("[(D)V".into()) }.parse().is_err());
+		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(L;;)V".into()) }.parse().is_err());
 		Ok(())
 	}
 
@@ -671,7 +683,7 @@ mod testing {
 	fn method_get_arguments_size() -> Result<()> {
 		impl MethodDescriptorSlice {
 			fn from_str_(s: &str) -> &MethodDescriptorSlice {
-				unsafe { Self::from_inner_unchecked(s) }
+				unsafe { Self::from_inner_unchecked(s.into()) }
 			}
 		}
 
@@ -693,7 +705,7 @@ mod testing {
 	#[test]
 	fn return_parse() -> Result<()> {
 		assert_eq!(
-			unsafe { ReturnDescriptorSlice::from_inner_unchecked("I") }.parse()?,
+			unsafe { ReturnDescriptorSlice::from_inner_unchecked("I".into()) }.parse()?,
 			ParsedReturnDescriptor(Some(Type::I)),
 		);
 		assert_eq!(
@@ -702,7 +714,7 @@ mod testing {
 		);
 
 		assert_eq!(
-			unsafe { ReturnDescriptorSlice::from_inner_unchecked("V") }.parse()?,
+			unsafe { ReturnDescriptorSlice::from_inner_unchecked("V".into()) }.parse()?,
 			ParsedReturnDescriptor(None),
 		);
 		assert_eq!(
@@ -711,7 +723,7 @@ mod testing {
 		);
 
 		assert_eq!(
-			unsafe { ReturnDescriptorSlice::from_inner_unchecked("D") }.parse()?,
+			unsafe { ReturnDescriptorSlice::from_inner_unchecked("D".into()) }.parse()?,
 			ParsedReturnDescriptor(Some(Type::D)),
 		);
 		assert_eq!(
@@ -720,7 +732,7 @@ mod testing {
 		);
 
 		assert_eq!(
-			unsafe { ReturnDescriptorSlice::from_inner_unchecked("Ljava/lang/Thread;") }.parse()?,
+			unsafe { ReturnDescriptorSlice::from_inner_unchecked("Ljava/lang/Thread;".into()) }.parse()?,
 			ParsedReturnDescriptor(Some(Type::Object(JAVA_LANG_THREAD.to_owned()))),
 		);
 		assert_eq!(
@@ -730,7 +742,7 @@ mod testing {
 		);
 
 		assert_eq!(
-			unsafe { ReturnDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;") }.parse()?,
+			unsafe { ReturnDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;".into()) }.parse()?,
 			ParsedReturnDescriptor(Some(Type::Object(JAVA_LANG_OBJECT.to_owned()))),
 		);
 		assert_eq!(
@@ -744,14 +756,14 @@ mod testing {
 
 	#[test]
 	fn return_parse_err() -> Result<()> {
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("") }.parse().is_err());
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("(") }.parse().is_err());
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked(")") }.parse().is_err());
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("()") }.parse().is_err());
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("[V") }.parse().is_err());
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("()V") }.parse().is_err());
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("(D)I") }.parse().is_err());
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("L;DV") }.parse().is_err());
+		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("".into()) }.parse().is_err());
+		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("(".into()) }.parse().is_err());
+		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked(")".into()) }.parse().is_err());
+		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("()".into()) }.parse().is_err());
+		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("[V".into()) }.parse().is_err());
+		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("()V".into()) }.parse().is_err());
+		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("(D)I".into()) }.parse().is_err());
+		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("L;DV".into()) }.parse().is_err());
 		Ok(())
 	}
 

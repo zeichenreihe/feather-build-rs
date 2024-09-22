@@ -1,5 +1,6 @@
 use std::ops::ControlFlow;
 use anyhow::Result;
+use java_string::JavaString;
 use crate::tree::class::{ClassName, ClassSignature, EnclosingMethod, InnerClass};
 use crate::tree::field::{FieldAccess, FieldDescriptor, FieldName};
 use crate::tree::method::{MethodAccess, MethodDescriptor, MethodName};
@@ -46,8 +47,8 @@ where
 	fn visit_enclosing_method(&mut self, enclosing_method: EnclosingMethod) -> Result<()>;
 	fn visit_signature(&mut self, signature: ClassSignature) -> Result<()>;
 
-	fn visit_source_file(&mut self, source_file: String) -> Result<()>;
-	fn visit_source_debug_extension(&mut self, source_debug_extension: String) -> Result<()>;
+	fn visit_source_file(&mut self, source_file: JavaString) -> Result<()>;
+	fn visit_source_debug_extension(&mut self, source_debug_extension: JavaString) -> Result<()>;
 
 	// TODO: check all ControlFlow usages, only use it where the ::interests isn't enough
 	fn visit_annotations(self, visible: bool) -> Result<(Self::AnnotationsResidual, Self::AnnotationsVisitor)>;
