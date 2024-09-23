@@ -4,7 +4,7 @@ use anyhow::{bail, Result};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
 use java_string::{JavaStr, JavaString};
-use crate::macros::make_string_str_like;
+use crate::macros::{make_display, make_string_str_like};
 use crate::tree::annotation::{Annotation, ElementValue};
 use crate::tree::attribute::Attribute;
 use crate::tree::class::ClassName;
@@ -239,17 +239,7 @@ make_string_str_like!(
 		bail!("invalid method name: must be either `<init>`, `<clinit>`, or non-empty and not contain any of `.`, `;`, `[`, `/`, `<`, and `>`");
 	};
 );
-
-impl Display for MethodName {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		Display::fmt(self.as_slice(), f)
-	}
-}
-impl Display for MethodNameSlice {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.as_inner())
-	}
-}
+make_display!(MethodName, MethodNameSlice);
 
 impl MethodName {
 	// SAFETY: `<init>` and `<clinit>` are always valid.
@@ -262,6 +252,7 @@ make_string_str_like!(
 	pub MethodDescriptorSlice(JavaStr);
 	is_valid(s) = Ok(()); // TODO: parse the desc and fail if invalid
 );
+make_display!(MethodDescriptor, MethodDescriptorSlice);
 
 make_string_str_like!(
 	pub MethodSignature(JavaString);
@@ -284,6 +275,7 @@ make_string_str_like!(
 		bail!("invalid parameter name: must be non-empty and not contain any of `.`, `;`, `[` and `/`");
 	};
 );
+make_display!(ParameterName, ParameterNameSlice);
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct ParameterFlags {

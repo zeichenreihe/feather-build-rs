@@ -7,7 +7,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use java_string::JavaString;
 use duke::tree::class::ClassNameSlice;
-use duke::tree::method::MethodName;
+use duke::tree::field::FieldNameAndDesc;
+use duke::tree::method::{MethodName, MethodNameAndDesc};
 use crate::action::extend_inner_class_names::ClassNameSliceExt;
 use crate::enigma_file::enigma_line::EnigmaLine;
 use crate::lines::WithMoreIdentIter;
@@ -304,13 +305,13 @@ fn write_class(class_key: &ClassNameSlice, class: &ClassNowodeMapping<2>, w: &mu
 
 	let mut fields: Vec<_> = class.fields.iter().collect();
 	fields.sort_by(|a, b| a.1.info.names.cmp(&b.1.info.names).then_with(|| a.1.info.desc.cmp(&b.1.info.desc)));
-	for (key, field) in fields {
-		write!(w, "{indent}\tFIELD {}", key.name)?;
+	for (FieldNameAndDesc { name, desc }, field) in fields {
+		write!(w, "{indent}\tFIELD {name}")?;
 		let [_, dst] = field.info.names.names();
 		if let Some(dst) = dst {
 			write!(w, " {dst}")?;
 		}
-		writeln!(w, " {}", key.desc.as_inner())?;
+		writeln!(w, " {desc}")?;
 
 		if let Some(javadoc) = &field.javadoc {
 			for line in javadoc.0.split('\n') {
@@ -321,13 +322,13 @@ fn write_class(class_key: &ClassNameSlice, class: &ClassNowodeMapping<2>, w: &mu
 
 	let mut methods: Vec<_> = class.methods.iter().collect();
 	methods.sort_by(|a, b| a.1.info.names.cmp(&b.1.info.names).then_with(|| a.1.info.desc.cmp(&b.1.info.desc)));
-	for (key, method) in methods {
-		write!(w, "{indent}\tMETHOD {}", key.name)?;
+	for (method_key @ MethodNameAndDesc { name, desc }, method) in methods {
+		write!(w, "{indent}\tMETHOD {name}")?;
 		let [_, dst] = method.info.names.names();
 		if let Some(dst) = dst.as_ref().filter(|&dst| dst != MethodName::INIT) {
 			write!(w, " {dst}")?;
 		}
-		writeln!(w, " {}", key.desc.as_inner())?;
+		writeln!(w, " {desc}")?;
 
 		if let Some(javadoc) = &method.javadoc {
 			for line in javadoc.0.split('\n') {
@@ -340,9 +341,10 @@ fn write_class(class_key: &ClassNameSlice, class: &ClassNowodeMapping<2>, w: &mu
 		for parameter in parameters {
 			let index = parameter.info.index;
 			let [_, dst] = parameter.info.names.names();
-			let dst = dst.as_ref().unwrap(); // TODO: unwrap
+			let dst = dst.as_ref()
+				.with_context(|| anyhow!("no dst parameter name given for {:?} on method {:?} in class {:?}", parameter.info, method_key, class_key))?;
 
-			writeln!(w, "{indent}\t\tARG {index} {}", dst.as_inner())?;
+			writeln!(w, "{indent}\t\tARG {index} {dst}")?;
 
 			if let Some(javadoc) = &parameter.javadoc {
 				for line in javadoc.0.split('\n') {

@@ -1,3 +1,21 @@
+macro_rules! make_display {
+	($owned:ident, $borrowed:ident) => {
+		impl Display for $owned {
+			fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+				Display::fmt(self.as_slice(), f)
+			}
+		}
+		impl Display for $borrowed {
+			fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+				let inner: &java_string::JavaStr = self.as_inner();
+				inner.as_str()
+					.map_err(|_| std::fmt::Error)
+					.and_then(|s| write!(f, "{}", s))
+			}
+		}
+	}
+}
+
 macro_rules! make_string_str_like {
 	(
 		$( #[$owned_doc:meta] )*
@@ -185,4 +203,4 @@ macro_rules! make_string_str_like {
 	}
 }
 
-pub(crate) use make_string_str_like;
+pub(crate) use {make_display, make_string_str_like};

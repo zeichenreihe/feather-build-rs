@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display, Formatter};
 use anyhow::{bail, Result};
 use std::ops::ControlFlow;
 use java_string::{JavaStr, JavaString};
-use crate::macros::make_string_str_like;
+use crate::macros::{make_display, make_string_str_like};
 use crate::tree::annotation::Annotation;
 use crate::tree::attribute::Attribute;
 use crate::tree::field::Field;
@@ -316,6 +316,7 @@ make_string_str_like!(
 		bail!("invalid class name: must be either array field descriptor; or must consist out of `/` separated non-empty parts, and not contain any of `.`, `;`, `[`")
 	};
 );
+make_display!(ClassName, ClassNameSlice);
 
 impl ClassName {
 	/// A constant holding the class name of `Object`.
@@ -326,17 +327,6 @@ impl ClassName {
 		let s = self.as_inner();
 		s.rsplit_once('/')
 			.map_or(s, |(_, simple)| simple)
-	}
-}
-
-impl Display for ClassName {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		Display::fmt(self.as_slice(), f)
-	}
-}
-impl Display for ClassNameSlice {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.as_inner())
 	}
 }
 

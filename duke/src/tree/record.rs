@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
 use java_string::{JavaStr, JavaString};
-use crate::macros::make_string_str_like;
+use crate::macros::{make_display, make_string_str_like};
 use crate::tree::annotation::Annotation;
 use crate::tree::attribute::Attribute;
 use crate::tree::field::{FieldDescriptor, FieldSignature};
@@ -103,15 +103,4 @@ make_string_str_like!(
 	pub RecordNameSlice(JavaStr);
 	is_valid(s) = Ok(()); // TODO: see JVMS
 );
-
-impl Display for RecordName {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		Display::fmt(self.as_slice(), f)
-	}
-}
-impl Display for RecordNameSlice {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.as_inner())
-	}
-}
-
+make_display!(RecordName, RecordNameSlice);

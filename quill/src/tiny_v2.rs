@@ -12,6 +12,7 @@
 //!
 //! Note that all writing sorts the tiny files.
 
+use std::fmt::Display;
 use std::fs::File;
 use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
@@ -215,11 +216,13 @@ fn write_namespaces<const N: usize>(w: &mut impl Write, namespaces: &Namespaces<
 	Ok(())
 }
 
-fn write_names<const N: usize>(w: &mut impl Write, names: &Names<N, impl AsRef<JavaStr>>) -> Result<()> {
+fn write_names<const N: usize>(w: &mut impl Write, names: &Names<N, impl Display>) -> Result<()> {
 	for name in names.names() {
-		let name = name.as_ref().map(|x| x.as_ref());
-		write!(w, "\t{}", name.map_or("", |x| x.as_str().expect("some name contained unmatched surrogates")))?; // TODO: unwrap
-		// TODO: the enigma writing currently uses unicode replacement char for them, failure might be better!
+		if let Some(name) = name {
+			write!(w, "\t{name}")?;
+		} else {
+			write!(w, "\t")?;
+		}
 	}
 	writeln!(w)?;
 	Ok(())

@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
 use java_string::{JavaStr, JavaString};
-use crate::macros::make_string_str_like;
+use crate::macros::{make_display, make_string_str_like};
 use crate::tree::annotation::Annotation;
 use crate::tree::attribute::Attribute;
 use crate::tree::class::ClassName;
@@ -196,23 +196,14 @@ make_string_str_like!(
 		bail!("invalid field name: must be non-empty and not contain any of `.`, `;`, `[` and `/`")
 	};
 );
-
-impl Display for FieldName {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		Display::fmt(self.as_slice(), f)
-	}
-}
-impl Display for FieldNameSlice {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.as_inner())
-	}
-}
+make_display!(FieldName, FieldNameSlice);
 
 make_string_str_like!(
 	pub FieldDescriptor(JavaString);
 	pub FieldDescriptorSlice(JavaStr);
 	is_valid(__) = Ok(()); // TODO: parse the desc and fail if invalid
 );
+make_display!(FieldDescriptor, FieldDescriptorSlice);
 
 make_string_str_like!(
 	pub FieldSignature(JavaString);

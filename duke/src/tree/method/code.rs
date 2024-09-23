@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 use anyhow::{bail, Result};
 use java_string::{JavaStr, JavaString};
 use crate::class_constants::atype;
-use crate::macros::make_string_str_like;
+use crate::macros::{make_display, make_string_str_like};
 use crate::tree::attribute::Attribute;
 use crate::tree::class::ClassName;
 use crate::tree::field::{FieldDescriptor, FieldName, FieldRef, FieldSignature};
@@ -109,17 +109,7 @@ make_string_str_like!(
 		bail!("invalid local variable name: must be non-empty and not contain any of `.`, `;`, `[` and `/`")
 	};
 );
-
-impl Display for LocalVariableName {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		Display::fmt(self.as_slice(), f)
-	}
-}
-impl Display for LocalVariableNameSlice {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.as_inner())
-	}
-}
+make_display!(LocalVariableName, LocalVariableNameSlice);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Exception {

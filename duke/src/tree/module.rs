@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 use java_string::{JavaStr, JavaString};
-use crate::macros::make_string_str_like;
+use crate::macros::{make_display, make_string_str_like};
 use crate::tree::class::ClassName;
 
 //TODO: consider making a "ModuleVersion" kind of make_string_str_like! struct, but first figure out
@@ -23,17 +23,7 @@ make_string_str_like!(
 	pub ModuleNameSlice(JavaStr);
 	is_valid(s) = Ok(()); // TODO: see JVMS 4.2.3
 );
-
-impl Display for ModuleName {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		Display::fmt(self.as_slice(), f)
-	}
-}
-impl Display for ModuleNameSlice {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.as_inner())
-	}
-}
+make_display!(ModuleName, ModuleNameSlice);
 
 make_string_str_like!(
 	pub PackageName(JavaString);
