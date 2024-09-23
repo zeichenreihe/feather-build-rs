@@ -1,8 +1,11 @@
 
 use anyhow::Result;
 use indexmap::{IndexMap, IndexSet};
+use java_string::JavaString;
 use pretty_assertions::assert_eq;
-use duke::tree::class::ClassName;
+use duke::tree::class::{ClassName, ClassNameSlice};
+use duke::tree::field::{FieldDescriptorSlice, FieldNameSlice};
+use duke::tree::method::{MethodDescriptorSlice, MethodNameSlice};
 use quill::remapper::{ARemapper, BRemapper, JarSuperProv};
 use quill::tree::mappings::Mappings;
 
@@ -13,22 +16,22 @@ fn remap() -> Result<()> {
 	let input_a: Mappings<2> = quill::tiny_v2::read(input_a.as_bytes())?;
 
 	let super_classes_provider = JarSuperProv { super_classes: IndexMap::from([
-		(ClassName::from("classS1"), IndexSet::from([
-			ClassName::from("classS2"),
-			ClassName::from("classS3"),
-			ClassName::from("classS4"),
+		(unsafe { ClassName::from_inner_unchecked("classS1".to_owned().into()) }, IndexSet::from([
+			unsafe { ClassName::from_inner_unchecked("classS2".to_owned().into()) },
+			unsafe { ClassName::from_inner_unchecked("classS3".to_owned().into()) },
+			unsafe { ClassName::from_inner_unchecked("classS4".to_owned().into()) },
 		])),
-		(ClassName::from("classS2"), IndexSet::from([
-			ClassName::from("classS5"),
+		(unsafe { ClassName::from_inner_unchecked("classS2".to_owned().into()) }, IndexSet::from([
+			unsafe { ClassName::from_inner_unchecked("classS5".to_owned().into()) },
 		])),
-		(ClassName::from("classS3"), IndexSet::from([
-			ClassName::from("classS5"),
+		(unsafe { ClassName::from_inner_unchecked("classS3".to_owned().into()) }, IndexSet::from([
+			unsafe { ClassName::from_inner_unchecked("classS5".to_owned().into()) },
 		])),
-		(ClassName::from("classS4"), IndexSet::from([
-			ClassName::from("classS5"),
+		(unsafe { ClassName::from_inner_unchecked("classS4".to_owned().into()) }, IndexSet::from([
+			unsafe { ClassName::from_inner_unchecked("classS5".to_owned().into()) },
 		])),
-		(ClassName::from("classS5"), IndexSet::from([
-			ClassName::from("java/lang/Object"),
+		(unsafe { ClassName::from_inner_unchecked("classS5".to_owned().into()) }, IndexSet::from([
+			unsafe { ClassName::from_inner_unchecked("java/lang/Object".to_owned().into()) },
 		])),
 	]) };
 
@@ -36,27 +39,27 @@ fn remap() -> Result<()> {
 	let to = input_a.get_namespace("namespaceB")?;
 	let remapper = input_a.remapper_b(from, to, &super_classes_provider)?;
 
-	let class = |class: &'static str| -> Result<String> {
-		let class = class.into();
+	let class = |class: &'static str| -> Result<JavaString> {
+		let class = unsafe { ClassNameSlice::from_inner_unchecked(class.into()) };
 
 		let class_new = remapper.map_class(class)?;
 
 		Ok(class_new.into())
 	};
-	let field = |class: &'static str, field: &'static str, descriptor: &'static str| -> Result<(String, String, String)> {
-		let class = class.into();
-		let field_name = field.into();
-		let field_desc = descriptor.into();
+	let field = |class: &'static str, field: &'static str, descriptor: &'static str| -> Result<(JavaString, JavaString, JavaString)> {
+		let class = unsafe { ClassNameSlice::from_inner_unchecked(class.into()) };
+		let field_name = unsafe { FieldNameSlice::from_inner_unchecked(field.into()) };
+		let field_desc = unsafe { FieldDescriptorSlice::from_inner_unchecked(descriptor.into()) };
 
 		let class_new = remapper.map_class(class)?;
 		let field_new = remapper.map_field(class, field_name, field_desc)?;
 
 		Ok((class_new.into(), field_new.name.into(), field_new.desc.into()))
 	};
-	let method = |class: &'static str, method: &'static str, descriptor: &'static str| -> Result<(String, String, String)> {
-		let class = class.into();
-		let method_name = method.into();
-		let method_desc = descriptor.into();
+	let method = |class: &'static str, method: &'static str, descriptor: &'static str| -> Result<(JavaString, JavaString, JavaString)> {
+		let class = unsafe { ClassNameSlice::from_inner_unchecked(class.into()) };
+		let method_name = unsafe { MethodNameSlice::from_inner_unchecked(method.into()) };
+		let method_desc = unsafe { MethodDescriptorSlice::from_inner_unchecked(descriptor.into()) };
 
 		let class_new = remapper.map_class(class)?;
 		let method_new = remapper.map_method(class, method_name, method_desc)?;

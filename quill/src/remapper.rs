@@ -18,6 +18,7 @@ use std::borrow::Borrow;
 use std::hash::{Hash, Hasher};
 use anyhow::{bail, Result};
 use indexmap::{IndexMap, IndexSet};
+use java_string::{JavaCodePoint, JavaStr, JavaString};
 use duke::tree::class::{ClassName, ClassNameSlice};
 use duke::tree::descriptor::{ReturnDescriptor, ReturnDescriptorSlice};
 use duke::tree::field::{FieldDescriptor, FieldDescriptorSlice, FieldNameAndDesc, FieldNameSlice, FieldRef};
@@ -46,7 +47,7 @@ pub trait ARemapper {
 	/// Do not implement this yourself.
 	fn map_field_desc(&self, desc: &FieldDescriptorSlice) -> Result<FieldDescriptor> {
 		// SAFETY: `desc` is a field descriptor.
-		unsafe { self.map_desc(desc.as_inner()) }
+		unsafe { map_desc(self, desc.as_inner()) }
 			// SAFETY: The returned field descriptor string is always valid.
 			.map(|string| unsafe { FieldDescriptor::from_inner_unchecked(string) })
 	}
@@ -58,7 +59,7 @@ pub trait ARemapper {
 	/// Do not implement this yourself.
 	fn map_method_desc(&self, desc: &MethodDescriptorSlice) -> Result<MethodDescriptor> {
 		// SAFETY: `desc` is a method descriptor.
-		unsafe { self.map_desc(desc.as_inner()) }
+		unsafe { map_desc(self, desc.as_inner()) }
 			// SAFETY: The returned method descriptor string is always valid.
 			.map(|string| unsafe { MethodDescriptor::from_inner_unchecked(string) })
 	}
@@ -70,55 +71,50 @@ pub trait ARemapper {
 	/// Do not implement this yourself.
 	fn map_return_desc(&self, desc: &ReturnDescriptorSlice) -> Result<ReturnDescriptor> {
 		// SAFETY: `desc` is a return descriptor.
-		unsafe { self.map_desc(desc.as_inner()) }
+		unsafe { map_desc(self, desc.as_inner()) }
 			// SAFETY: The returned return descriptor string is always valid.
 			.map(|string| unsafe { ReturnDescriptor::from_inner_unchecked(string) })
 	}
+}
 
-	// TODO: separate fn from trait, as impls of trait could break the safety assumptions of callers (that it always returns a valid x-desc if an x-desc is put in)
-	/// Maps a descriptor to a new one.
-	///
-	/// This is what [`ARemapper::map_field_desc`] and [`ARemapper::map_method_desc`] use internally. Most likely you want
-	/// to call one of these methods instead.
-	///
-	/// Do not implement this yourself.
-	///
-	/// # Safety
-	/// `desc` must be a valid field, method or return descriptor.
-	// TODO: what about returning Cow<'a, str> ('a on the &'a str)? would return `desc` if no remapping
-	//  was done, and a String if it was
-	unsafe fn map_desc(&self, desc: &str) -> Result<String> {
-		let mut s = String::new();
 
-		let mut iter = desc.chars();
+/// Maps a descriptor to a new one.
+///
+/// # Safety
+/// `desc` must be a valid field, method or return descriptor.
+// TODO: what about returning Cow<'a, str> ('a on the &'a str)? would return `desc` if no remapping
+//  was done, and a String if it was
+unsafe fn map_desc(remapper: &(impl ARemapper + ?Sized), desc: &JavaStr) -> Result<JavaString> {
+	let mut s = JavaString::new();
 
-		while let Some(ch) = iter.next() {
-			s.push(ch);
+	let mut iter = desc.chars();
 
-			if ch == 'L' {
-				let mut class_name = String::new();
-				for ch in iter.by_ref() {
-					class_name.push(ch);
-					if ch == ';' {
-						break;
-					}
+	while let Some(ch) = iter.next() {
+		s.push_java(ch);
+
+		if ch == 'L' {
+			let mut class_name = JavaString::new();
+			for ch in iter.by_ref() {
+				class_name.push_java(ch);
+				if ch == ';' {
+					break;
 				}
-				if class_name.pop() != Some(';') {
-					bail!("descriptor {desc:?} has a missing semicolon somewhere");
-				}
-
-				// String to ClassName doesn't allocate new memory, so it's fine
-				// SAFETY: `class_name` is a valid class name since it comes from a valid descriptor.
-				let old_class_name = unsafe { ClassName::from_inner_unchecked(class_name) };
-				let new_class_name = self.map_class(&old_class_name)?;
-
-				s.push_str(new_class_name.as_inner());
-				s.push(';');
 			}
-		}
+			if class_name.pop() != Some(JavaCodePoint::from_char(';')) {
+				bail!("descriptor {desc:?} has a missing semicolon somewhere");
+			}
 
-		Ok(s)
+			// String to ClassName doesn't allocate new memory, so it's fine
+			// SAFETY: `class_name` is a valid class name since it comes from a valid descriptor.
+			let old_class_name = unsafe { ClassName::from_inner_unchecked(class_name) };
+			let new_class_name = remapper.map_class(&old_class_name)?;
+
+			s.push_java_str(new_class_name.as_inner());
+			s.push(';');
+		}
 	}
+
+	Ok(s)
 }
 
 #[derive(Debug)]

@@ -2,6 +2,7 @@ use std::fs::File;
 use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
+use java_string::JavaString;
 use duke::tree::class::ClassName;
 use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc};
 use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc};
@@ -35,7 +36,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 
 	WithMoreIdentIter::new(&mut lines).on_every_line(|iter, mut line| {
 		if line.first_field == "c" {
-			let class_key: ClassName = line.next()?.try_into()?;
+			let class_key: ClassName = JavaString::from(line.next()?).try_into()?;
 
 			let action = line.action()?;
 			let class = ClassNowodeDiff::new(action);
@@ -43,8 +44,8 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 
 			iter.next_level().on_every_line(|iter, mut line| {
 				if line.first_field == "f" {
-					let desc: FieldDescriptor = line.next()?.try_into()?;
-					let name: FieldName = line.next()?.try_into()?;
+					let desc: FieldDescriptor = JavaString::from(line.next()?).try_into()?;
+					let name: FieldName = JavaString::from(line.next()?).try_into()?;
 					let field_key = FieldNameAndDesc { desc, name };
 
 					let action = line.action()?;
@@ -59,8 +60,8 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 						}
 					}).context("reading field sub-sections")
 				} else if line.first_field == "m" {
-					let desc: MethodDescriptor = line.next()?.try_into()?;
-					let name: MethodName = line.next()?.try_into()?;
+					let desc: MethodDescriptor = JavaString::from(line.next()?).try_into()?;
+					let name: MethodName = JavaString::from(line.next()?).try_into()?;
 					let method_key = MethodNameAndDesc { desc, name };
 
 					let action = line.action()?;
@@ -114,7 +115,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 }
 
 fn add_comment(javadoc: &mut Option<Action<JavadocMapping>>, line: TinyLine) -> Result<()> {
-	let action: Action<String> = line.action()?;
+	let action: Action<String> = line.action_string()?;
 	let action = match action {
 		Action::Add(b) => Action::Add(JavadocMapping(unescape(b))),
 		Action::Remove(a) => Action::Remove(JavadocMapping(unescape(a))),

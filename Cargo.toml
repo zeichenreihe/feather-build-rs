@@ -63,6 +63,7 @@ bytes = { workspace = true }
 clap = { workspace = true }
 fern = { workspace = true }
 indexmap = { workspace = true }
+java_string = { workspace = true }
 log = { workspace = true }
 petgraph = { workspace = true }
 reqwest = { workspace = true }

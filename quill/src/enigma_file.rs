@@ -5,6 +5,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
+use java_string::JavaString;
 use duke::tree::class::ClassNameSlice;
 use duke::tree::method::MethodName;
 use crate::action::extend_inner_class_names::ClassNameSliceExt;
@@ -89,7 +90,7 @@ pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
 					mappings: &mut Mappings<2>,
 					iter: &mut WithMoreIdentIter<impl Iterator<Item=Result<EnigmaLine>>>,
 					line: EnigmaLine,
-					parent: Option<(&String, &String)>
+					parent: Option<(&JavaString, &JavaString)>
 				) -> Result<()> {
 					let (src, dst) = match line.fields.as_slice() {
 						[src] => (src, None),
@@ -98,11 +99,13 @@ pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
 						[src, dst, _mod] => (src, Some(dst)),
 						slice => bail!("illegal number of arguments ({}) for class mapping, expected 1-3, got {slice:?}", slice.len()),
 					};
+					let src = JavaString::from(src);
+					let dst = dst.map(JavaString::from);
 
 					let (src, dst) = if let Some((parent_src, parent_dst)) = parent {
-						(format!("{parent_src}${src}"), dst.map(|dst| format!("{parent_dst}${dst}")))
+						(format!("{parent_src}${src}").into(), dst.map(|dst| format!("{parent_dst}${dst}").into()))
 					} else {
-						(src.clone(), dst.cloned())
+						(src.clone(), dst.clone())
 					};
 					let parent_src = src.clone();
 					let parent_dst = dst.clone().unwrap_or_else(|| parent_src.clone());
@@ -121,6 +124,10 @@ pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
 									[src, dst, desc, _mod] => (src, Some(dst), desc),
 									slice => bail!("illegal number of arguments ({}) for field mapping, expected 2-4, got {slice:?}", slice.len()),
 								};
+								let src = JavaString::from(src);
+								let dst = dst.map(JavaString::from);
+								let desc = JavaString::from(desc);
+
 								let field = FieldNowodeMapping::new(FieldMapping {
 									desc: desc.to_owned().try_into()?,
 									names: Names::try_from([Some(src.clone().try_into()?), dst.map(|x| x.clone().try_into()).transpose()?])?,
@@ -142,6 +149,10 @@ pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
 									[src, dst, desc, _mod] => (src, Some(dst), desc),
 									slice => bail!("illegal number of arguments ({}) for method mapping, expected 2-4, got {slice:?}", slice.len()),
 								};
+								let src = JavaString::from(src);
+								let dst = dst.map(JavaString::from);
+								let desc = JavaString::from(desc);
+
 								let method = MethodNowodeMapping::new(MethodMapping {
 									desc: desc.to_owned().try_into()?,
 									names: Names::try_from([Some(src.clone().try_into()?), dst.map(|x| x.clone().try_into()).transpose()?])?,
@@ -155,6 +166,7 @@ pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
 												[raw_index, dst] => (raw_index, dst),
 												slice => bail!("illegal number of arguments ({}) for parameter mapping, expected 2, got {slice:?}", slice.len()),
 											};
+											let dst = JavaString::from(dst);
 
 											let index: usize = raw_index.parse()
 												.with_context(|| anyhow!("illegal parameter index {raw_index:?}, index cannot be negative"))?;
@@ -366,7 +378,7 @@ impl Placement<'_> {
 }
 
 /// Creates a mapping from path for file to a tree of class nodes to put in there
-fn figure_out_files(mappings: &Mappings<2>) -> Placement<'_> {
+fn figure_out_files(mappings: &Mappings<2>) -> Result<Placement<'_>> {
 	let mut child_map = IndexMap::new();
 	let mut file_map = IndexMap::new();
 
@@ -385,6 +397,8 @@ fn figure_out_files(mappings: &Mappings<2>) -> Placement<'_> {
 		// in any other case, add a file to the output list
 		let dst = class.info.names.names()[1].as_ref().map(|x| x.as_inner());
 		let file_name = dst.unwrap_or(src.as_inner());
+		let file_name = file_name.as_str()
+			.with_context(|| anyhow!("unmatched surrogates in class name for creating file name: {file_name:?}"))?;
 		file_map.insert(file_name, Node { src, class });
 	}
 
@@ -396,7 +410,7 @@ fn figure_out_files(mappings: &Mappings<2>) -> Placement<'_> {
 	child_map.values_mut()
 		.for_each(|x| x.sort_unstable_by_key(|x| x.src));
 
-	Placement { file_map, child_map }
+	Ok(Placement { file_map, child_map })
 }
 
 #[allow(clippy::tabs_in_doc_comments)]
@@ -489,7 +503,7 @@ fn figure_out_files(mappings: &Mappings<2>) -> Placement<'_> {
 /// assert_eq!(written, output);
 /// ```
 pub fn write_all(mappings: &Mappings<2>, w: &mut impl Write) -> Result<()> {
-	let f = figure_out_files(mappings);
+	let f = figure_out_files(mappings)?;
 
 	for (file_name, node) in f.file_map {
 		writeln!(w, "#\n# {file_name}")?;
@@ -506,7 +520,7 @@ pub(crate) fn write_all_for_each<W>(
 where
 	W: Write,
 {
-	let f = figure_out_files(mappings);
+	let f = figure_out_files(mappings)?;
 
 	for (file_name, node) in f.file_map {
 		let mut writer = make_writer(file_name)
@@ -582,7 +596,7 @@ where
 /// ```
 /// Note how the [`write_one`] call up there gets `"B"` and not `"A"`.
 pub fn write_one(mappings: &Mappings<2>, dst_class_name: &str, w: &mut impl Write) -> Result<()> {
-	let f = figure_out_files(mappings);
+	let f = figure_out_files(mappings)?;
 
 	let Some(&node) = f.file_map.get(dst_class_name) else {
 		bail!("class {dst_class_name:?} (dst name) isn't parent-free");

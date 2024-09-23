@@ -1,16 +1,17 @@
 use anyhow::{anyhow, Context, Result};
+use java_string::{JavaStr, JavaString};
 use duke::tree::class::{ClassName, ClassNameSlice};
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, Mappings};
 use crate::tree::names::{Names, Namespace};
 
 pub(crate) trait ClassNameExt {
-	fn from_inner_class_parent(parent: ClassName, inner_name: impl AsRef<str>) -> ClassName;
+	fn from_inner_class_parent(parent: ClassName, inner_name: impl AsRef<JavaStr>) -> ClassName;
 }
 impl ClassNameExt for ClassName {
-	fn from_inner_class_parent(parent: ClassName, inner_name: impl AsRef<str>) -> ClassName {
-		let mut s: String = parent.into();
+	fn from_inner_class_parent(parent: ClassName, inner_name: impl AsRef<JavaStr>) -> ClassName {
+		let mut s: JavaString = parent.into_inner();
 		s.push('$');
-		s.push_str(inner_name.as_ref());
+		s.push_java_str(inner_name.as_ref());
 		unsafe { ClassName::from_inner_unchecked(s) }
 	}
 }

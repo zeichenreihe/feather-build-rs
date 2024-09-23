@@ -32,6 +32,7 @@ pub mod names {
 	use std::fmt::{Debug, Formatter};
 	use std::ops::{Index, IndexMut};
 	use anyhow::{anyhow, bail, Context, Error, Result};
+	use java_string::JavaStr;
 
 	/// Describes a given namespace of a mapping tree.
 	///
@@ -244,7 +245,7 @@ pub mod names {
 	/// Note that empty inputs are converted into `None`.
 	///
 	/// Emptiness is determined by the `AsRef<str>` implementation, and then `.is_empty()`.
-	impl<const N: usize, T> From<[T; N]> for Names<N, T> where T: AsRef<str> {
+	impl<const N: usize, T> From<[T; N]> for Names<N, T> where T: AsRef<JavaStr> {
 		fn from(value: [T; N]) -> Self {
 			let names = value.map(|x| if x.as_ref().is_empty() { None } else { Some(x) });
 
@@ -252,7 +253,7 @@ pub mod names {
 		}
 	}
 
-	impl<const N: usize, T> TryFrom<[Option<T>; N]> for Names<N, T> where T: AsRef<str> + Debug {
+	impl<const N: usize, T> TryFrom<[Option<T>; N]> for Names<N, T> where T: AsRef<JavaStr> + Debug {
 		type Error = Error;
 
 		fn try_from(value: [Option<T>; N]) -> Result<Self> {

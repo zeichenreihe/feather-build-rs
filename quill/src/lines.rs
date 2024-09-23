@@ -65,6 +65,7 @@ where
 
 pub(crate) mod tiny_line {
 	use anyhow::{anyhow, bail, Context, Result};
+	use java_string::{JavaStr, JavaString};
 	use crate::lines::Line;
 	use crate::tree::mappings_diff::Action;
 	use crate::tree::names::{Names, Namespaces};
@@ -123,9 +124,9 @@ pub(crate) mod tiny_line {
 
 		pub(crate) fn into_names<const N: usize, T>(self) -> Result<Names<N, T>>
 		where
-			T: TryFrom<String, Error=anyhow::Error> + std::fmt::Debug + AsRef<str>,
+			T: TryFrom<JavaString, Error=anyhow::Error> + std::fmt::Debug + AsRef<JavaStr>,
 		{
-			self.fields.map(T::try_from)
+			self.fields.map(|string| T::try_from(JavaString::from(string)))
 				.collect::<Result<Vec<T>>>()
 				.with_context(|| anyhow!("failed to create names entries"))
 				.and_then(|vec| <[T; N]>::try_from(vec)
@@ -136,11 +137,11 @@ pub(crate) mod tiny_line {
 
 		pub(crate) fn action<T>(mut self) -> Result<Action<T>>
 			where
-				T: TryFrom<String>,
+				T: TryFrom<JavaString> + PartialEq,
 				T::Error: Into<anyhow::Error>,
 		{
-			let a = self.fields.next().filter(|x| !x.is_empty());
-			let b = self.fields.next().filter(|x| !x.is_empty());
+			let a = self.fields.next().filter(|x| !x.is_empty()).map(|string| T::try_from(JavaString::from(string))).transpose().map_err(Into::into)?;
+			let b = self.fields.next().filter(|x| !x.is_empty()).map(|string| T::try_from(JavaString::from(string))).transpose().map_err(Into::into)?;
 
 			if !self.fields.as_slice().is_empty() {
 				bail!("line {} contained more fields than expected: {:?}", self.line_number, self);
@@ -148,10 +149,30 @@ pub(crate) mod tiny_line {
 
 			Ok(match (a, b) {
 				(None, None) => Action::None,
-				(None, Some(b)) => Action::Add(b.try_into().map_err(Into::into)?),
-				(Some(a), None) => Action::Remove(a.try_into().map_err(Into::into)?),
+				(None, Some(b)) => Action::Add(b),
+				(Some(a), None) => Action::Remove(a),
 				(Some(a), Some(b)) if a == b => Action::None,
-				(Some(a), Some(b)) => Action::Edit(a.try_into().map_err(Into::into)?, b.try_into().map_err(Into::into)?),
+				(Some(a), Some(b)) => Action::Edit(a, b),
+			})
+		}
+		pub(crate) fn action_string<T>(mut self) -> Result<Action<T>>
+			where
+				T: TryFrom<String> + PartialEq,
+				T::Error: Into<anyhow::Error>,
+		{
+			let a = self.fields.next().filter(|x| !x.is_empty()).map(|string| T::try_from(string)).transpose().map_err(Into::into)?;
+			let b = self.fields.next().filter(|x| !x.is_empty()).map(|string| T::try_from(string)).transpose().map_err(Into::into)?;
+
+			if !self.fields.as_slice().is_empty() {
+				bail!("line {} contained more fields than expected: {:?}", self.line_number, self);
+			}
+
+			Ok(match (a, b) {
+				(None, None) => Action::None,
+				(None, Some(b)) => Action::Add(b),
+				(Some(a), None) => Action::Remove(a),
+				(Some(a), Some(b)) if a == b => Action::None,
+				(Some(a), Some(b)) => Action::Edit(a, b),
 			})
 		}
 	}

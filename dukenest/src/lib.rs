@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use anyhow::{Context, Result};
 use indexmap::{IndexMap, IndexSet};
+use java_string::{JavaCodePoint, JavaStr, JavaString};
 use duke::tree::class::{ClassAccess, ClassFile, ClassName, ClassNameSlice, EnclosingMethod, InnerClass, InnerClassFlags};
 use duke::tree::method::MethodNameAndDesc;
 use dukebox::storage::{BasicFileAttributes, ClassRepr, IsClass, IsOther, Jar, JarEntry, JarEntryEnum, OpenedJar, ParsedJar, ParsedJarEntry};
@@ -23,7 +24,7 @@ pub(crate) struct Nest {
 	pub(crate) encl_class_name: ClassName,
 	pub(crate) encl_method: Option<MethodNameAndDesc>,
 
-	pub(crate) inner_name: String,
+	pub(crate) inner_name: JavaString,
 	pub(crate) inner_access: InnerClassFlags,
 }
 
@@ -157,9 +158,9 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 				.map(|nest| remap(this_nests, nest))
 				.unwrap_or_else(|| corresponding_nest.encl_class_name.clone());
 
-			let mut s: String = result.into();
+			let mut s: JavaString = result.into_inner();
 			s.push('$');
-			s.push_str(corresponding_nest.inner_name.as_str());
+			s.push_java_str(&corresponding_nest.inner_name);
 			unsafe { ClassName::from_inner_unchecked(s) }
 		}
 
@@ -179,7 +180,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 	// end of that
 
 	for new_class in jar_new_classes.into_values() {
-		let name = new_class.name.as_inner().to_owned() + ".class";
+		let name = new_class.name.as_inner().to_owned().into_string().expect("a class name contained unmatched surrogate pairs") + ".class"; // TODO: unwrap
 
 		let class_node = do_nested_class_attribute_class_visitor(&this_nests, new_class);
 
@@ -285,10 +286,10 @@ fn do_nested_class_attribute_class_visitor(this_nests: &IndexMap<ClassName, Nest
 	class_node
 }
 
-fn strip_local_class_prefix(inner_name: &str) -> &str {
+fn strip_local_class_prefix(inner_name: &JavaStr) -> &JavaStr {
 	// local class names start with a number prefix
 	// remove all of that
-	let stripped = inner_name.trim_start_matches(|ch: char| ch.is_ascii_digit());
+	let stripped = inner_name.trim_start_matches(|ch: JavaCodePoint| ch.is_ascii_digit());
 
 	if stripped.is_empty() {
 		// entire inner name is a number, so this class is anonymous, not local
@@ -328,9 +329,9 @@ pub fn map_nests(mappings: &Mappings<2>, nests: Nests) -> Result<Nests> {
 
 					// make sure the class does not have custom inner name
 					if nest.class_name.as_inner().ends_with(simple_name) {
-						let mut s = String::new();
-						s.push_str(prefix);
-						s.push_str(if let Some((_, substring)) = mapped_name.as_inner().rsplit_once('/') {
+						let mut s = JavaString::new();
+						s.push_java_str(prefix);
+						s.push_java_str(if let Some((_, substring)) = mapped_name.as_inner().rsplit_once('/') {
 							substring
 						} else {
 							mapped_name.as_inner()
@@ -386,11 +387,11 @@ mod testing {
 
 	#[test]
 	fn strip_local_class_prefix_test() {
-		assert_eq!(strip_local_class_prefix(""), "");
-		assert_eq!(strip_local_class_prefix("FooBar"), "FooBar");
-		assert_eq!(strip_local_class_prefix("1234"), "1234");
-		assert_eq!(strip_local_class_prefix("123Foo"), "Foo");
-		assert_eq!(strip_local_class_prefix("123Bar4"), "Bar4");
+		assert_eq!(strip_local_class_prefix("".into()), "");
+		assert_eq!(strip_local_class_prefix("FooBar".into()), "FooBar");
+		assert_eq!(strip_local_class_prefix("1234".into()), "1234");
+		assert_eq!(strip_local_class_prefix("123Foo".into()), "Foo");
+		assert_eq!(strip_local_class_prefix("123Bar4".into()), "Bar4");
 	}
 }
 

@@ -39,8 +39,8 @@ impl Nests {
 				None
 			} else {
 				Some(MethodNameAndDesc {
-					name: unsafe { MethodName::from_inner_unchecked(encl_method_name.to_owned()) },
-					desc: unsafe { MethodDescriptor::from_inner_unchecked(encl_method_desc.to_owned()) },
+					name: unsafe { MethodName::from_inner_unchecked(encl_method_name.to_owned().into()) },
+					desc: unsafe { MethodDescriptor::from_inner_unchecked(encl_method_desc.to_owned().into()) },
 				})
 			};
 
@@ -63,10 +63,10 @@ impl Nests {
 
 			let nest = Nest {
 				nest_type,
-				class_name: unsafe { ClassName::from_inner_unchecked(class_name.to_owned()) },
-				encl_class_name: unsafe { ClassName::from_inner_unchecked(encl_class_name.to_owned()) },
+				class_name: unsafe { ClassName::from_inner_unchecked(class_name.to_owned().into()) },
+				encl_class_name: unsafe { ClassName::from_inner_unchecked(encl_class_name.to_owned().into()) },
 				encl_method,
-				inner_name: inner_name.to_owned(),
+				inner_name: inner_name.to_owned().into(),
 				inner_access: InnerClassFlags::from(access),
 			};
 

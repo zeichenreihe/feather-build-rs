@@ -1,5 +1,6 @@
 use anyhow::Result;
 use indexmap::IndexMap;
+use java_string::JavaString;
 use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
 use duke::tree::class::{ClassFile, ClassName, ClassNameSlice, ClassSignature, EnclosingMethod, InnerClass};
 use duke::tree::field::{Field, FieldDescriptor, FieldRef, FieldSignature};
@@ -40,6 +41,7 @@ pub fn remap(jar: impl Jar, remapper: impl BRemapper) -> Result<ParsedJar<ClassR
 
 pub fn remap_jar_entry_name(name: &str, remapper: &impl BRemapper) -> Result<String> {
 	if let Some(name_without_class) = name.strip_suffix(".class") {
+		let name_without_class = name_without_class.into();
 		let name = remapper.map_class(unsafe { ClassNameSlice::from_inner_unchecked(name_without_class) })?;
 		Ok(format!("{name}.class"))
 	} else {
@@ -249,7 +251,7 @@ impl MappableWithClassName for Method {
 
 impl Mappable for InnerClass {
 	fn remap(self, remapper: &impl BRemapper) -> Result<Self> {
-		fn map_inner_class_name(remapper: &impl BRemapper, name: &ClassName, outer_class: Option<&ClassName>, inner_name: &String) -> Result<String> {
+		fn map_inner_class_name(remapper: &impl BRemapper, name: &ClassName, outer_class: Option<&ClassName>, inner_name: &JavaString) -> Result<JavaString> {
 			return Ok(inner_name.clone());
 			todo!()
 		}

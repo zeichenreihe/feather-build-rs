@@ -6,6 +6,7 @@ use crate::{PropagationOptions, PropagationDirection};
 use std::collections::{HashSet, VecDeque};
 use std::fmt::Debug;
 use indexmap::map::Entry;
+use java_string::{JavaStr, JavaString};
 use duke::tree::class::{ClassName, ClassNameSlice};
 use duke::tree::field::{FieldNameAndDesc, FieldNameSlice};
 use duke::tree::method::{MethodNameAndDesc, MethodNameSlice};
@@ -138,10 +139,11 @@ pub(crate) fn insert_mappings<'version>(
 											} else {
 												format!("{}{}", &from_inner[..(from_inner.len() - ofrom_simple.len())], to_simple)
 											};
+											let to_inner = JavaString::from(to_inner);
 
 											let to_ = unsafe { ClassName::from_inner_unchecked(to_inner) };
 
-											action_set(&mut sibling_change.info, DiffSide::A, Some(&from));
+											action_set(&mut sibling_change.info, DiffSide::A, Some(from));
 											action_set(&mut sibling_change.info, DiffSide::B, Some(&to_));
 										},
 										Mode::Javadocs => {
@@ -1035,18 +1037,18 @@ fn action_set_optional<T: Clone>(action: &mut Option<Action<T>>, side: DiffSide,
 	}
 }
 
-fn make_class_name_simple(class_name: &ClassName) -> &str {
+fn make_class_name_simple(class_name: &ClassName) -> &JavaStr {
 	class_name.get_simple_name()
 }
 
 
-fn make_class_name_stem_and_simple(class_name: &ClassName) -> (&str, &str) {
+fn make_class_name_stem_and_simple(class_name: &ClassName) -> (&JavaStr, &JavaStr) {
 	let s = class_name.as_inner();
-	s.rfind('/').map_or(("", s), |i| s.split_at(i))
+	s.rfind('/').map_or((JavaStr::from_str(""), s), |i| s.split_at(i))
 }
 
 
-fn get_id_internal(s: &str) -> &str {
+fn get_id_internal(s: &JavaStr) -> &JavaStr {
 	let mut chars = s.char_indices().rev().peekable();
 
 	while let Some((i, ch)) = chars.next() {

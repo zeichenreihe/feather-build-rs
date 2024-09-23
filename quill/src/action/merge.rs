@@ -68,7 +68,7 @@ where
 	F: Fn(&V) -> &N2 + Copy,
 	T: NodeInfo<V>,
 	for<'a> &'a N2: Into<&'a [Option<U>; 2]>,
-	[Option<U>; 3]: TryInto<N3, Error=Error>,
+	N3: TryFrom<[Option<U>; 3], Error=Error>,
 	U: Debug + Clone + PartialEq,
 {
 	match (a.map(NodeInfo::get_node_info).map(f), b.map(NodeInfo::get_node_info).map(f)) {

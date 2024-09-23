@@ -16,6 +16,7 @@ use std::fs::File;
 use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::path::Path;
+use java_string::{JavaStr, JavaString};
 use crate::lines::tiny_line::TinyLine;
 use crate::lines::WithMoreIdentIter;
 use crate::tree::mappings::{ClassMapping, FieldMapping, JavadocMapping, MappingInfo, MethodMapping, ParameterMapping, ClassNowodeMapping, FieldNowodeMapping, Mappings, MethodNowodeMapping, ParameterNowodeMapping};
@@ -105,7 +106,7 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 
 			iter.next_level().on_every_line(|iter, mut line| {
 				if line.first_field == "f" {
-					let desc = line.next()?.try_into()?;
+					let desc = JavaString::from(line.next()?).try_into()?;
 					let names = line.into_names()?;
 					let mapping = FieldMapping { desc, names };
 					let field: FieldNowodeMapping<N> = FieldNowodeMapping::new(mapping);
@@ -119,7 +120,7 @@ pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
 						}
 					}).context("reading field sub-sections")
 				} else if line.first_field == "m" {
-					let desc = line.next()?.try_into()?;
+					let desc = JavaString::from(line.next()?).try_into()?;
 					let names = line.into_names()?;
 					let mapping = MethodMapping { desc, names };
 					let method: MethodNowodeMapping<N> = MethodNowodeMapping::new(mapping);
@@ -214,10 +215,11 @@ fn write_namespaces<const N: usize>(w: &mut impl Write, namespaces: &Namespaces<
 	Ok(())
 }
 
-fn write_names<const N: usize>(w: &mut impl Write, names: &Names<N, impl AsRef<str>>) -> Result<()> {
+fn write_names<const N: usize>(w: &mut impl Write, names: &Names<N, impl AsRef<JavaStr>>) -> Result<()> {
 	for name in names.names() {
 		let name = name.as_ref().map(|x| x.as_ref());
-		write!(w, "\t{}", name.unwrap_or(""))?;
+		write!(w, "\t{}", name.map_or("", |x| x.as_str().expect("some name contained unmatched surrogates")))?; // TODO: unwrap
+		// TODO: the enigma writing currently uses unicode replacement char for them, failure might be better!
 	}
 	writeln!(w)?;
 	Ok(())

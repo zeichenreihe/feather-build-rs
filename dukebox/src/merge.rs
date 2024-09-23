@@ -3,6 +3,7 @@ use std::hash::Hash;
 use anyhow::{bail, Result};
 use indexmap::IndexMap;
 use indexmap::map::Entry;
+use java_string::JavaStr;
 use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
 use duke::tree::class::{ClassFile, ClassName, ClassNameSlice};
 use duke::tree::field::{Field, FieldDescriptor};
@@ -97,22 +98,22 @@ fn merge_from_client<T>(client: &T, server: &T) -> Result<T>
 }
 
 // SAFETY: All of these are valid class names.
-const ENVIRONMENT: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked("net/fabricmc/api/Environment") };
-const ENVIRONMENT_INTERFACE: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked("net/fabricmc/api/EnvironmentInterface") };
-const ENVIRONMENT_INTERFACES: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked("net/fabricmc/api/EnvironmentInterfaces") };
-const ENV_TYPE: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked("net/fabricmc/api/EnvType") };
+const ENVIRONMENT: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked(JavaStr::from_str("net/fabricmc/api/Environment")) };
+const ENVIRONMENT_INTERFACE: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked(JavaStr::from_str("net/fabricmc/api/EnvironmentInterface")) };
+const ENVIRONMENT_INTERFACES: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked(JavaStr::from_str("net/fabricmc/api/EnvironmentInterfaces")) };
+const ENV_TYPE: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked(JavaStr::from_str("net/fabricmc/api/EnvType")) };
 
 fn sided_annotation(side: Side) -> Annotation {
 	Annotation {
 		annotation_type: FieldDescriptor::from_class(ENVIRONMENT),
 		element_value_pairs: vec![
 			ElementValuePair {
-				name: "value".to_owned(),
+				name: "value".to_owned().into(),
 				value: ElementValue::Enum {
 					type_name: FieldDescriptor::from_class(ENV_TYPE),
 					const_name: match side {
-						Side::Client => "CLIENT".to_owned(),
-						Side::Server => "SERVER".to_owned(),
+						Side::Client => "CLIENT".to_owned().into(),
+						Side::Server => "SERVER".to_owned().into(),
 					},
 				}
 			}
@@ -221,17 +222,17 @@ fn class_merger_merge(client: ClassFile, server: ClassFile) -> Result<ClassFile>
 					annotation_type: FieldDescriptor::from_class(ENVIRONMENT_INTERFACE),
 					element_value_pairs: vec![
 						ElementValuePair {
-							name: "value".to_owned(),
+							name: "value".to_owned().into(),
 							value: ElementValue::Enum {
 								type_name: FieldDescriptor::from_class(ENV_TYPE),
 								const_name: match side {
-									Side::Client => "CLIENT".to_owned(),
-									Side::Server => "SERVER".to_owned(),
+									Side::Client => "CLIENT".to_owned().into(),
+									Side::Server => "SERVER".to_owned().into(),
 								},
 							},
 						},
 						ElementValuePair {
-							name: "itf".to_owned(),
+							name: "itf".to_owned().into(),
 							value: ElementValue::Class(FieldDescriptor::from_class(i).into())
 						},
 					],
@@ -248,7 +249,7 @@ fn class_merger_merge(client: ClassFile, server: ClassFile) -> Result<ClassFile>
 					annotation_type: FieldDescriptor::from_class(ENVIRONMENT_INTERFACES),
 					element_value_pairs: vec![
 						ElementValuePair {
-							name: "value".to_owned(),
+							name: "value".to_owned().into(),
 							value: ElementValue::ArrayType(array),
 						}
 					],

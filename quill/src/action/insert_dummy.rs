@@ -1,4 +1,5 @@
 use anyhow::Result;
+use java_string::JavaString;
 use duke::tree::class::ClassName;
 use duke::tree::method::ParameterName;
 use crate::tree::mappings_diff::{Action, MappingsDiff};
@@ -55,6 +56,7 @@ impl MappingsDiff {
 							// removing a mapping is changed into a dummy mapping
 
 							let name = format!("p_{}", k.index);
+							let name = JavaString::from(name);
 							// SAFETY: `p_` and a formatted `usize` is always a valid parameter name.
 							let b = unsafe { ParameterName::from_inner_unchecked(name) };
 
