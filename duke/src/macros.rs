@@ -69,8 +69,7 @@ macro_rules! make_string_str_like {
 			#[allow(clippy::needless_lifetimes)] // TODO: we're more explicit about the lifetime, switch to expect
 			pub const unsafe fn from_inner_unchecked<'a>(s: &'a $borrowed_inner) -> &'a $borrowed {
 				// SAFETY: &'a $borrowed and &'a $borrowed_inner have the same layout.
-				// TODO: give this to other people and ask if it's fine!
-				unsafe { std::mem::transmute(s) }
+				unsafe { std::mem::transmute::<&'a $borrowed_inner, &'a $borrowed>(s) }
 			}
 		}
 
@@ -90,7 +89,7 @@ macro_rules! make_string_str_like {
 			where $owned_inner: std::borrow::Borrow<$borrowed_inner>
 		{
 			fn borrow(&self) -> &$borrowed {
-				// SAFETY: $owned always contains valid content for $borrowed
+				// SAFETY: $owned always contains valid content for $borrowed.
 				unsafe { $borrowed::from_inner_unchecked(&self.0) }
 			}
 		}
@@ -103,7 +102,7 @@ macro_rules! make_string_str_like {
 			// deref may be inserted by the compiler at any time
 			// therefore the call path must not use deref itself...
 			fn deref(&self) -> &Self::Target {
-				// SAFETY: $owned always contains valid content for $borrowed
+				// SAFETY: $owned always contains valid content for $borrowed.
 				unsafe { $borrowed::from_inner_unchecked(&self.0) }
 			}
 		}
@@ -113,6 +112,7 @@ macro_rules! make_string_str_like {
 
 			fn try_from(value: &'a $borrowed_inner) -> anyhow::Result<&'a $borrowed> {
 				match $owned::is_valid(value) {
+					// SAFETY: We just checked that `value` is valid for $owned.
 					Ok(()) => Ok(unsafe { $borrowed::from_inner_unchecked(value) }),
 					Err(e) => {
 						use anyhow::Context;
@@ -126,6 +126,7 @@ macro_rules! make_string_str_like {
 
 			fn try_from(value: $owned_inner) -> anyhow::Result<$owned> {
 				match $owned::is_valid(&value) {
+					// SAFETY: We just checked that `value` is valid for $owned.
 					Ok(()) => Ok(unsafe { $owned::from_inner_unchecked(value) }),
 					Err(e) => {
 						use anyhow::Context;

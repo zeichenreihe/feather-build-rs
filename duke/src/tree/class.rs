@@ -320,7 +320,10 @@ make_display!(ClassName, ClassNameSlice);
 
 impl ClassName {
 	/// A constant holding the class name of `Object`.
-	pub const JAVA_LANG_OBJECT: &'static ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked(JavaStr::from_str("java/lang/Object")) };
+	pub const JAVA_LANG_OBJECT: &'static ClassNameSlice = {
+		// SAFETY: `java/lang/Object` is a valid class name.
+		unsafe { ClassNameSlice::from_inner_unchecked(JavaStr::from_str("java/lang/Object")) }
+	};
 
 	// TODO: doc, check with JVM spec
 	pub fn get_simple_name(&self) -> &JavaStr {

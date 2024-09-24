@@ -1,7 +1,8 @@
 use anyhow::Result;
 use java_string::JavaString;
-use duke::tree::class::ClassName;
+use duke::tree::class::{ClassName, ClassNameSlice};
 use duke::tree::method::ParameterName;
+use crate::action::extend_inner_class_names::ClassNameSliceExt;
 use crate::tree::mappings_diff::{Action, MappingsDiff};
 
 impl MappingsDiff {
@@ -108,16 +109,12 @@ impl MappingsDiff {
 				Action::Remove(a) => {
 					// removing a mapping is changed into a dummy mapping
 
-					fn get_simplified(name: &ClassName) -> ClassName {
-						name.as_ref().rsplit_once('$')
-							.map_or_else(|| name.clone(), |(_, inner)| {
-								let inner = inner.to_owned();
-								unsafe { ClassName::from_inner_unchecked(inner) }
-							})
+					fn get_simplified(name: &ClassName) -> &ClassNameSlice {
+						name.get_inner_class_name().unwrap_or(name)
 					}
 
 					let b = get_simplified(k);
-					v.info = Action::Edit(a.clone(), b);
+					v.info = Action::Edit(a.clone(), b.to_owned());
 					true
 				},
 				Action::Edit(_, _) => true,

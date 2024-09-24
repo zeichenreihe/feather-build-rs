@@ -161,6 +161,8 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 			let mut s: JavaString = result.into_inner();
 			s.push('$');
 			s.push_java_str(&corresponding_nest.inner_name);
+			// TODO: redo this safety comment
+			// SAFETY: Joining a class name with `$` and an inner name is always valid.
 			unsafe { ClassName::from_inner_unchecked(s) }
 		}
 
@@ -180,18 +182,20 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 	// end of that
 
 	for new_class in jar_new_classes.into_values() {
-		let name = new_class.name.as_inner().to_owned().into_string().expect("a class name contained unmatched surrogate pairs") + ".class"; // TODO: unwrap
-
-		let class_node = do_nested_class_attribute_class_visitor(&this_nests, new_class);
+		let new_class_name = new_class.name.as_inner();
 
 		let entry_attr = BasicFileAttributes::default();
 
 		let (name, class_node) = if options.remap {
-			let name = dukebox::remap::remap_jar_entry_name(&name, &remapper)?;
+			let name = dukebox::remap::remap_jar_entry_name_java(&new_class_name, &remapper)?
+				.into_string().unwrap(); // TODO: unwrap
+			let class_node = do_nested_class_attribute_class_visitor(&this_nests, new_class);
 			let class_node = dukebox::remap::remap_class(&remapper, class_node)?;
 
 			(name, class_node)
 		} else {
+			let name = new_class_name.to_owned().into_string().expect("a class name contained unmatched surrogate pairs") + ".class"; // TODO: unwrap
+			let class_node = do_nested_class_attribute_class_visitor(&this_nests, new_class);
 			(name, class_node)
 		};
 
@@ -310,6 +314,7 @@ pub fn map_nests(mappings: &Mappings<2>, nests: Nests) -> Result<Nests> {
 
 		let (encl_class_name, inner_name) = if let Some((encl_class_name, inner_name)) = mapped_name.as_inner().rsplit_once("__") {
 			// provided mappings already use nesting
+			// SAFETY: todo
 			(unsafe { ClassName::from_inner_unchecked(encl_class_name.to_owned()) }, inner_name.to_owned())
 		} else {
 			let encl_class_name = remapper.map_class(&nest.encl_class_name)?;

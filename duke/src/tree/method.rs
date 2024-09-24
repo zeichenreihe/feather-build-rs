@@ -242,9 +242,14 @@ make_string_str_like!(
 make_display!(MethodName, MethodNameSlice);
 
 impl MethodName {
-	// SAFETY: `<init>` and `<clinit>` are always valid.
-	pub const INIT: &'static MethodNameSlice = unsafe { MethodNameSlice::from_inner_unchecked(JavaStr::from_str("<init>")) };
-	pub const CLINIT: &'static MethodNameSlice = unsafe { MethodNameSlice::from_inner_unchecked(JavaStr::from_str("<clinit>")) };
+	pub const INIT: &'static MethodNameSlice = {
+		// SAFETY: `<init>` is a valid method name.
+		unsafe { MethodNameSlice::from_inner_unchecked(JavaStr::from_str("<init>")) }
+	};
+	pub const CLINIT: &'static MethodNameSlice = {
+		// SAFETY: `<clinit>` is a valid method name.
+		unsafe { MethodNameSlice::from_inner_unchecked(JavaStr::from_str("<clinit>")) }
+	};
 }
 
 make_string_str_like!(

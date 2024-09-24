@@ -1,5 +1,6 @@
 use std::io::{BufRead, BufReader, Read};
 use anyhow::{anyhow, bail, Context, Result};
+use java_string::JavaString;
 use duke::tree::class::{ClassName, InnerClassFlags};
 use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc};
 use crate::{Nest, Nests, NestType};
@@ -39,8 +40,10 @@ impl Nests {
 				None
 			} else {
 				Some(MethodNameAndDesc {
-					name: unsafe { MethodName::from_inner_unchecked(encl_method_name.to_owned().into()) },
-					desc: unsafe { MethodDescriptor::from_inner_unchecked(encl_method_desc.to_owned().into()) },
+					name: MethodName::try_from(JavaString::from(encl_method_name.to_owned()))
+						.with_context(|| anyhow!("in line {line_number}: {encl_method_name:?} is not a valid method name"))?,
+					desc: MethodDescriptor::try_from(JavaString::from(encl_method_desc.to_owned()))
+						.with_context(|| anyhow!("in line {line_number}: {encl_method_name:?} is not a valid method descriptor"))?,
 				})
 			};
 
@@ -63,8 +66,10 @@ impl Nests {
 
 			let nest = Nest {
 				nest_type,
-				class_name: unsafe { ClassName::from_inner_unchecked(class_name.to_owned().into()) },
-				encl_class_name: unsafe { ClassName::from_inner_unchecked(encl_class_name.to_owned().into()) },
+				class_name: ClassName::try_from(JavaString::from(class_name.to_owned()))
+					.with_context(|| anyhow!("in line {line_number}: {class_name:?} is not a valid class name"))?,
+				encl_class_name: ClassName::try_from(JavaString::from(encl_class_name.to_owned()))
+					.with_context(|| anyhow!("in line {line_number}: {encl_class_name:?} is not a valid class name"))?,
 				encl_method,
 				inner_name: inner_name.to_owned().into(),
 				inner_access: InnerClassFlags::from(access),

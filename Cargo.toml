@@ -40,8 +40,10 @@ unsafe_op_in_unsafe_fn = "forbid"
 #unsafe_code = "forbid"
 
 [workspace.lints.clippy]
-unwrap_used = "warn"
 expect_used = "warn"
+missing_safety_doc = "forbid"
+undocumented_unsafe_blocks = "forbid"
+unwrap_used = "warn"
 #panic = "warn"
 # can't use this, it complains about tests
 #panic_in_result_fn = "warn"

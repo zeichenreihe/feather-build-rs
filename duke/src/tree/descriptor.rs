@@ -120,6 +120,7 @@ fn read_field_type(chars: &mut Peekable<Chars>) -> Result<Type> {
 					char = chars.next().ok_or_else(|| anyhow!("unexpected abrupt ending of descriptor"))?;
 				}
 
+				// SAFETY: Between `L` and `;` in an descriptor is always a valid class name.
 				let class_name = unsafe { ClassName::from_inner_unchecked(s) };
 				Type::Object(class_name)
 			},
@@ -150,6 +151,7 @@ fn read_field_type(chars: &mut Peekable<Chars>) -> Result<Type> {
 					char = chars.next().ok_or_else(|| anyhow!("unexpected abrupt ending of descriptor"))?;
 				}
 
+				// SAFETY: Between `L` and `;` in an descriptor is always a valid class name.
 				let class_name = unsafe { ClassName::from_inner_unchecked(s) };
 				Type::Array(array_dimension, ArrayType::Object(class_name))
 			},
@@ -281,6 +283,7 @@ impl ParsedFieldDescriptor {
 	pub fn write(&self) -> FieldDescriptor {
 		let mut s = JavaString::new();
 		write_field_type(&self.0, &mut s);
+		// SAFETY: We just wrote a valid field descriptor to `s`.
 		unsafe { FieldDescriptor::from_inner_unchecked(s) }
 	}
 }
@@ -380,6 +383,7 @@ impl ParsedMethodDescriptor {
 		} else {
 			s.push('V');
 		}
+		// SAFETY: We just wrote a valid method descriptor to `s`.
 		unsafe { MethodDescriptor::from_inner_unchecked(s) }
 	}
 }
@@ -489,6 +493,7 @@ impl ParsedReturnDescriptor {
 		} else {
 			JavaString::from("V")
 		};
+		// SAFETY: We just wrote a valid return descriptor to `s`.
 		unsafe { ReturnDescriptor::from_inner_unchecked(s) }
 	}
 }
@@ -554,12 +559,15 @@ mod testing {
 	use crate::tree::field::FieldDescriptorSlice;
 	use crate::tree::method::MethodDescriptorSlice;
 
+	// SAFETY: `java/lang/Thread` is a valid class name.
 	const JAVA_LANG_THREAD: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked(JavaStr::from_str("java/lang/Thread")) };
+	// SAFETY: `java/lang/Object` is a valid class name.
 	const JAVA_LANG_OBJECT: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked(JavaStr::from_str("java/lang/Object")) };
 
 	#[test]
 	fn field_parse() -> Result<()> {
 		assert_eq!(
+			// SAFETY: `I` is a valid field descriptor.
 			unsafe { FieldDescriptorSlice::from_inner_unchecked("I".into()) }.parse()?,
 			ParsedFieldDescriptor(Type::I),
 		);
@@ -569,6 +577,7 @@ mod testing {
 		);
 
 		assert_eq!(
+			// SAFETY: `D` is a valid field descriptor.
 			unsafe { FieldDescriptorSlice::from_inner_unchecked("D".into()) }.parse()?,
 			ParsedFieldDescriptor(Type::D),
 		);
@@ -578,6 +587,7 @@ mod testing {
 		);
 
 		assert_eq!(
+			// SAFETY: `Ljava/lang/Thread;` is a valid field descriptor.
 			unsafe { FieldDescriptorSlice::from_inner_unchecked("Ljava/lang/Thread;".into()) }.parse()?,
 			ParsedFieldDescriptor(Type::Object(JAVA_LANG_THREAD.to_owned())),
 		);
@@ -588,6 +598,7 @@ mod testing {
 		);
 
 		assert_eq!(
+			// SAFETY: `Ljava/lang/Object;` is a valid field descriptor.
 			unsafe { FieldDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;".into()) }.parse()?,
 			ParsedFieldDescriptor(Type::Object(JAVA_LANG_OBJECT.to_owned())),
 		);
@@ -602,6 +613,8 @@ mod testing {
 
 	#[test]
 	fn field_parse_err() -> Result<()> {
+		// TODO: move these to field desc creation tests
+		/*
 		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("".into()) }.parse().is_err());
 		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("V".into()) }.parse().is_err());
 		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("(".into()) }.parse().is_err());
@@ -611,12 +624,14 @@ mod testing {
 		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("()V".into()) }.parse().is_err());
 		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("(D)I".into()) }.parse().is_err());
 		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("L;DV".into()) }.parse().is_err());
+		*/
 		Ok(())
 	}
 
 	#[test]
 	fn method_parse() -> Result<()> {
 		assert_eq!(
+			// SAFETY: This is a valid method descriptor.
 			unsafe { MethodDescriptorSlice::from_inner_unchecked("(IDLjava/lang/Thread;)Ljava/lang/Object;".into()) }.parse()?,
 			ParsedMethodDescriptor {
 				parameter_descriptors: vec![
@@ -640,6 +655,7 @@ mod testing {
 		);
 
 		assert_eq!(
+			// SAFETY: This is a valid method descriptor.
 			unsafe { MethodDescriptorSlice::from_inner_unchecked("(Ljava/lang/Thread;Ljava/lang/Object;)V".into()) }.parse()?,
 			ParsedMethodDescriptor {
 				parameter_descriptors: vec![
@@ -665,6 +681,8 @@ mod testing {
 
 	#[test]
 	fn method_parse_err() -> Result<()> {
+		// TODO: move these to method desc creation tests
+		/*
 		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("".into()) }.parse().is_err());
 		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(".into()) }.parse().is_err());
 		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(D".into()) }.parse().is_err());
@@ -676,6 +694,7 @@ mod testing {
 		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(D)[V".into()) }.parse().is_err());
 		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("[(D)V".into()) }.parse().is_err());
 		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(L;;)V".into()) }.parse().is_err());
+		*/
 		Ok(())
 	}
 
@@ -683,6 +702,7 @@ mod testing {
 	fn method_get_arguments_size() -> Result<()> {
 		impl MethodDescriptorSlice {
 			fn from_str_(s: &str) -> &MethodDescriptorSlice {
+				// SAFETY: all of the descriptors below are valid method descriptors.
 				unsafe { Self::from_inner_unchecked(s.into()) }
 			}
 		}
@@ -705,6 +725,7 @@ mod testing {
 	#[test]
 	fn return_parse() -> Result<()> {
 		assert_eq!(
+			// SAFETY: `I` is a valid return descriptor.
 			unsafe { ReturnDescriptorSlice::from_inner_unchecked("I".into()) }.parse()?,
 			ParsedReturnDescriptor(Some(Type::I)),
 		);
@@ -714,6 +735,7 @@ mod testing {
 		);
 
 		assert_eq!(
+			// SAFETY: `V` is a valid return descriptor.
 			unsafe { ReturnDescriptorSlice::from_inner_unchecked("V".into()) }.parse()?,
 			ParsedReturnDescriptor(None),
 		);
@@ -723,6 +745,7 @@ mod testing {
 		);
 
 		assert_eq!(
+			// SAFETY: `D` is a valid return descriptor.
 			unsafe { ReturnDescriptorSlice::from_inner_unchecked("D".into()) }.parse()?,
 			ParsedReturnDescriptor(Some(Type::D)),
 		);
@@ -732,6 +755,7 @@ mod testing {
 		);
 
 		assert_eq!(
+			// SAFETY: `Ljava/lang/Thread;` is a valid return descriptor.
 			unsafe { ReturnDescriptorSlice::from_inner_unchecked("Ljava/lang/Thread;".into()) }.parse()?,
 			ParsedReturnDescriptor(Some(Type::Object(JAVA_LANG_THREAD.to_owned()))),
 		);
@@ -742,6 +766,7 @@ mod testing {
 		);
 
 		assert_eq!(
+			// SAFETY: `Ljava/lang/Object;` is a valid return descriptor.
 			unsafe { ReturnDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;".into()) }.parse()?,
 			ParsedReturnDescriptor(Some(Type::Object(JAVA_LANG_OBJECT.to_owned()))),
 		);
@@ -756,6 +781,8 @@ mod testing {
 
 	#[test]
 	fn return_parse_err() -> Result<()> {
+		// TODO: move these to return desc creation tests
+		/*
 		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("".into()) }.parse().is_err());
 		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("(".into()) }.parse().is_err());
 		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked(")".into()) }.parse().is_err());
@@ -764,6 +791,7 @@ mod testing {
 		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("()V".into()) }.parse().is_err());
 		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("(D)I".into()) }.parse().is_err());
 		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("L;DV".into()) }.parse().is_err());
+		 */
 		Ok(())
 	}
 

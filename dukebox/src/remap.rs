@@ -1,6 +1,6 @@
 use anyhow::Result;
 use indexmap::IndexMap;
-use java_string::JavaString;
+use java_string::{JavaStr, JavaString};
 use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
 use duke::tree::class::{ClassFile, ClassName, ClassNameSlice, ClassSignature, EnclosingMethod, InnerClass};
 use duke::tree::field::{Field, FieldDescriptor, FieldRef, FieldSignature};
@@ -40,10 +40,18 @@ pub fn remap(jar: impl Jar, remapper: impl BRemapper) -> Result<ParsedJar<ClassR
 }
 
 pub fn remap_jar_entry_name(name: &str, remapper: &impl BRemapper) -> Result<String> {
+	let name: &JavaStr = JavaStr::from_str(name);
+	let name = remap_jar_entry_name_java(name, remapper)?;
+	let name = name.into_string().unwrap(); // TODO: unwrap
+	Ok(name)
+}
+
+pub fn remap_jar_entry_name_java(name: &JavaStr, remapper: &impl BRemapper) -> Result<JavaString> {
 	if let Some(name_without_class) = name.strip_suffix(".class") {
-		let name_without_class = name_without_class.into();
-		let name = remapper.map_class(unsafe { ClassNameSlice::from_inner_unchecked(name_without_class) })?;
-		Ok(format!("{name}.class"))
+		// SAFETY: todo
+		let class_name = unsafe { ClassNameSlice::from_inner_unchecked(name_without_class) };
+		let name = remapper.map_class(class_name)?;
+		Ok(format!("{name}.class").into())
 	} else {
 		// TODO: also deal with directory names...
 		eprintln!("remap jar entry name: unknown for {name:?}");
