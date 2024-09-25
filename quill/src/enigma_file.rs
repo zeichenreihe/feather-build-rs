@@ -9,7 +9,6 @@ use java_string::JavaString;
 use duke::tree::class::ClassNameSlice;
 use duke::tree::field::FieldNameAndDesc;
 use duke::tree::method::{MethodName, MethodNameAndDesc};
-use crate::action::extend_inner_class_names::ClassNameSliceExt;
 use crate::enigma_file::enigma_line::EnigmaLine;
 use crate::lines::WithMoreIdentIter;
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, FieldNowodeMapping, JavadocMapping, Mappings, MethodMapping, MethodNowodeMapping, ParameterMapping, ParameterNowodeMapping};

@@ -2,7 +2,6 @@ use anyhow::Result;
 use java_string::JavaString;
 use duke::tree::class::{ClassName, ClassNameSlice};
 use duke::tree::method::ParameterName;
-use crate::action::extend_inner_class_names::ClassNameSliceExt;
 use crate::tree::mappings_diff::{Action, MappingsDiff};
 
 impl MappingsDiff {

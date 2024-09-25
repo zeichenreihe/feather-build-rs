@@ -4,41 +4,13 @@ use duke::tree::class::{ClassName, ClassNameSlice};
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, Mappings};
 use crate::tree::names::{Names, Namespace};
 
-pub(crate) trait ClassNameExt {
-	fn from_inner_class_parent(parent: ClassName, inner_name: &ClassNameSlice) -> ClassName;
-}
-impl ClassNameExt for ClassName {
-	fn from_inner_class_parent(parent: ClassName, inner_name: &ClassNameSlice) -> ClassName {
-		let mut s: JavaString = parent.into_inner();
-		s.push('$');
-		s.push_java_str(inner_name.as_inner());
-		// SAFETY: Joining two class names with `$` together always creates a valid class name.
-		unsafe { ClassName::from_inner_unchecked(s) }
-	}
-}
-
-pub(crate) trait ClassNameSliceExt {
-	fn get_inner_class_parent(&self) -> Option<&ClassNameSlice>;
-	fn get_inner_class_name(&self) -> Option<&ClassNameSlice>;
-}
-impl ClassNameSliceExt for ClassNameSlice {
-	fn get_inner_class_parent(&self) -> Option<&ClassNameSlice> {
-		// SAFETY: todo!
-		self.as_inner().rsplit_once('$').map(|(parent, _)| unsafe { ClassNameSlice::from_inner_unchecked(parent) })
-	}
-	fn get_inner_class_name(&self) -> Option<&ClassNameSlice> {
-		// SAFETY: todo!
-		self.as_inner().rsplit_once('$').map(|(_, name)| unsafe { ClassNameSlice::from_inner_unchecked(name) })
-	}
-}
-
 fn map<const N: usize>(mappings: &Mappings<N>, namespace: Namespace<N>, name: &ClassNameSlice, mapped: &ClassNameSlice) -> Result<ClassName> {
 	Ok(if let Some(parent) = name.get_inner_class_parent() {
 		let mapped_parent = mappings.get_class_name(parent, namespace)?;
 
 		let result = map(mappings, namespace, parent, mapped_parent)?;
 
-		ClassName::from_inner_class_parent(result, mapped)
+		ClassName::from_inner_class(result, mapped)
 	} else {
 		mapped.to_owned()
 	})

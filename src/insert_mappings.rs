@@ -1037,10 +1037,6 @@ fn action_set_optional<T: Clone>(action: &mut Option<Action<T>>, side: DiffSide,
 	}
 }
 
-fn make_class_name_simple(class_name: &ClassName) -> &JavaStr {
-	class_name.get_simple_name()
-}
-
 
 fn make_class_name_stem_and_simple(class_name: &ClassName) -> (&JavaStr, &JavaStr) {
 	let s = class_name.as_inner();
@@ -1099,8 +1095,10 @@ fn find_class_sibling<'a>(
 				action_get(&change_class.info, DiffSide::A).is_none() != action_get(&sibling.info, side).is_none() &&
 					action_get(&d_class.info, side.opposite()).is_none() != action_get(&sibling.info, side.opposite()).is_none() &&
 					{
-						let simple = make_class_name_simple(action_get(&change_class.info, DiffSide::A).unwrap());
-						let sibling_simple = make_class_name_simple(action_get(&sibling.info, side.opposite()).unwrap());
+						let simple = action_get(&change_class.info, DiffSide::A).unwrap()
+							.get_simple_name().as_inner();
+						let sibling_simple = action_get(&sibling.info, side.opposite()).unwrap()
+							.get_simple_name().as_inner();
 
 						let ends_with = if simple.len() > sibling_simple.len() {
 							simple.ends_with(sibling_simple)
