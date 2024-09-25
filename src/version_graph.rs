@@ -79,12 +79,13 @@ const MAPPINGS_EXTENSION: &str = ".tiny";
 const DIFF_EXTENSION: &str = ".tinydiff";
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct NodeData {
 	name: String,
 	depth: Option<usize>,
 }
 
+#[derive(Debug)]
 struct EdgeData {
 	path: PathBuf,
 }
@@ -219,8 +220,11 @@ impl VersionGraph {
 
 		let mut walkers: VecDeque<_> = [ (Vec::new(), root) ].into();
 		while let Some((path, head)) = walkers.pop_front() {
-			if let Some(depth) = graph[head].depth.replace(path.len()) {
-				bail!("cannot set depth for node {:?} ({head:?}) twice: had {depth:?}, set new {:?}", graph[head].name, path.len());
+			if let Some(old_depth) = graph[head].depth.replace(path.len()) {
+				// we get two (or more) depths for a node:
+				let new_depth = path.len();
+				let depth = new_depth.min(old_depth);
+				graph[head].depth = Some(depth);
 			}
 
 			for v in graph.neighbors_directed(head, Direction::Outgoing) {
@@ -233,6 +237,15 @@ impl VersionGraph {
 
 				walkers.push_back((path, v));
 			}
+		}
+
+		if false {
+			// TODO: make this a task in main.rs
+			use std::io::Write;
+			let dot = petgraph::dot::Dot::new(&graph);
+			let mut f = std::fs::File::create("/tmp/graph_out.dot").unwrap();
+			write!(f, "{:?}", dot).unwrap();
+			panic!("explicit stop");
 		}
 
 		Ok(VersionGraph { root, root_mapping, versions, graph })
