@@ -16,21 +16,33 @@ fn remap() -> Result<()> {
 	let input_a: Mappings<2> = quill::tiny_v2::read(input_a.as_bytes())?;
 
 	let super_classes_provider = JarSuperProv { super_classes: IndexMap::from([
+		// SAFETY: is a valid class name
 		(unsafe { ClassName::from_inner_unchecked("classS1".to_owned().into()) }, IndexSet::from([
+			// SAFETY: is a valid class name
 			unsafe { ClassName::from_inner_unchecked("classS2".to_owned().into()) },
+			// SAFETY: is a valid class name
 			unsafe { ClassName::from_inner_unchecked("classS3".to_owned().into()) },
+			// SAFETY: is a valid class name
 			unsafe { ClassName::from_inner_unchecked("classS4".to_owned().into()) },
 		])),
+		// SAFETY: is a valid class name
 		(unsafe { ClassName::from_inner_unchecked("classS2".to_owned().into()) }, IndexSet::from([
+			// SAFETY: is a valid class name
 			unsafe { ClassName::from_inner_unchecked("classS5".to_owned().into()) },
 		])),
+		// SAFETY: is a valid class name
 		(unsafe { ClassName::from_inner_unchecked("classS3".to_owned().into()) }, IndexSet::from([
+			// SAFETY: is a valid class name
 			unsafe { ClassName::from_inner_unchecked("classS5".to_owned().into()) },
 		])),
+		// SAFETY: is a valid class name
 		(unsafe { ClassName::from_inner_unchecked("classS4".to_owned().into()) }, IndexSet::from([
+			// SAFETY: is a valid class name
 			unsafe { ClassName::from_inner_unchecked("classS5".to_owned().into()) },
 		])),
+		// SAFETY: is a valid class name
 		(unsafe { ClassName::from_inner_unchecked("classS5".to_owned().into()) }, IndexSet::from([
+			// SAFETY: is a valid class name
 			unsafe { ClassName::from_inner_unchecked("java/lang/Object".to_owned().into()) },
 		])),
 	]) };
@@ -40,6 +52,7 @@ fn remap() -> Result<()> {
 	let remapper = input_a.remapper_b(from, to, &super_classes_provider)?;
 
 	let class = |class: &'static str| -> Result<JavaString> {
+		// SAFETY: below are only valid class names
 		let class = unsafe { ClassNameSlice::from_inner_unchecked(class.into()) };
 
 		let class_new = remapper.map_class(class)?;
@@ -47,8 +60,11 @@ fn remap() -> Result<()> {
 		Ok(class_new.into())
 	};
 	let field = |class: &'static str, field: &'static str, descriptor: &'static str| -> Result<(JavaString, JavaString, JavaString)> {
+		// SAFETY: below are only valid class names
 		let class = unsafe { ClassNameSlice::from_inner_unchecked(class.into()) };
+		// SAFETY: below are only valid field names
 		let field_name = unsafe { FieldNameSlice::from_inner_unchecked(field.into()) };
+		// SAFETY: below are only valid field descs
 		let field_desc = unsafe { FieldDescriptorSlice::from_inner_unchecked(descriptor.into()) };
 
 		let class_new = remapper.map_class(class)?;
@@ -57,8 +73,11 @@ fn remap() -> Result<()> {
 		Ok((class_new.into(), field_new.name.into(), field_new.desc.into()))
 	};
 	let method = |class: &'static str, method: &'static str, descriptor: &'static str| -> Result<(JavaString, JavaString, JavaString)> {
+		// SAFETY: below are only valid class names
 		let class = unsafe { ClassNameSlice::from_inner_unchecked(class.into()) };
+		// SAFETY: below are only valid method names
 		let method_name = unsafe { MethodNameSlice::from_inner_unchecked(method.into()) };
+		// SAFETY: below are only valid method descs
 		let method_desc = unsafe { MethodDescriptorSlice::from_inner_unchecked(descriptor.into()) };
 
 		let class_new = remapper.map_class(class)?;
