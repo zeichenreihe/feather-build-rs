@@ -184,11 +184,7 @@ pub trait BRemapper: ARemapper {
 		let field_key = self.map_field(&field_ref.class, &field_ref.name, &field_ref.desc)?;
 		let class_name = self.map_class(&field_ref.class)?;
 
-		Ok(FieldRef {
-			class: class_name,
-			name: field_key.name,
-			desc: field_key.desc,
-		})
+		Ok(field_key.with_class(class_name))
 	}
 
 	/// Maps a method name and method descriptor to new ones, if the mapping exists.
@@ -229,11 +225,7 @@ pub trait BRemapper: ARemapper {
 		let method_key = self.map_method(&method_ref.class, &method_ref.name, &method_ref.desc)?;
 		let class_name = self.map_class(&method_ref.class)?;
 
-		Ok(MethodRef {
-			class: class_name,
-			name: method_key.name,
-			desc: method_key.desc,
-		})
+		Ok(method_key.with_class(class_name))
 	}
 }
 

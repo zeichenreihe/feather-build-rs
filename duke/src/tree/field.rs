@@ -113,6 +113,21 @@ impl Field {
 			ControlFlow::Break(visitor) => Ok(visitor)
 		}
 	}
+
+	pub fn into_name_and_desc(self) -> FieldNameAndDesc {
+		FieldNameAndDesc {
+			name: self.name,
+			desc: self.descriptor,
+		}
+	}
+
+	/// Clones `self.name` and `self.descriptor` into a new [`FieldNameAndDesc`].
+	pub fn as_name_and_desc(&self) -> FieldNameAndDesc {
+		FieldNameAndDesc {
+			name: self.name.clone(),
+			desc: self.descriptor.clone(),
+		}
+	}
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -185,6 +200,13 @@ pub struct FieldRef {
 pub struct FieldNameAndDesc {
 	pub name: FieldName,
 	pub desc: FieldDescriptor,
+}
+
+impl FieldNameAndDesc {
+	/// Add a [`ClassName`] to this [`FieldNameAndDesc`] to make a [`FieldRef`].
+	pub fn with_class(self, class: ClassName) -> FieldRef {
+		FieldRef { class, name: self.name, desc: self.desc }
+	}
 }
 
 make_string_str_like!(

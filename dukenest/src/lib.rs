@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use indexmap::{IndexMap, IndexSet};
 use java_string::{JavaCodePoint, JavaStr, JavaString};
 use duke::tree::class::{ClassAccess, ClassFile, ClassName, ClassNameSlice, EnclosingMethod, InnerClass, InnerClassFlags};
-use duke::tree::method::MethodNameAndDesc;
+use duke::tree::method::{Method, MethodNameAndDesc};
 use dukebox::storage::{BasicFileAttributes, ClassRepr, IsClass, IsOther, Jar, JarEntry, JarEntryEnum, OpenedJar, ParsedJar, ParsedJarEntry};
 use quill::remapper::{ARemapper, ARemapperAsBRemapper, BRemapper, NoSuperClassProvider};
 use quill::tree::mappings::Mappings;
@@ -86,10 +86,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 			}
 
 			let methods = class_node.methods.into_iter()
-				.map(|m| MethodNameAndDesc {
-					name: m.name,
-					desc: m.descriptor,
-				})
+				.map(Method::into_name_and_desc)
 				.collect();
 
 			classes_in_jar.insert(class_node.name.clone());

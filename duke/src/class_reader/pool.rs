@@ -5,7 +5,7 @@ use crate::class_constants::pool;
 use crate::{ClassRead, jstring};
 use crate::class_constants::pool::method_handle_reference;
 use crate::tree::class::ClassName;
-use crate::tree::field::{ConstantValue, FieldRef};
+use crate::tree::field::{ConstantValue, FieldDescriptor, FieldName, FieldNameAndDesc, FieldRef};
 use crate::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, MethodRef};
 use crate::tree::method::code::{ConstantDynamic, Handle, InvokeDynamic, Loadable};
 use crate::tree::module::{ModuleName, PackageName};
@@ -80,8 +80,7 @@ impl PoolEntry {
 			bail!("pool entry not `FieldRef`: {self:?}");
 		};
 		let class = pool.get_class(class_index)?;
-		let (name, desc) = pool.get_name_and_type(name_and_type_index)?;
-		Ok(FieldRef { class, name, desc })
+		Ok(pool.get_field_name_and_type(name_and_type_index)?.with_class(class))
 	}
 
 	fn as_method_ref(&self, pool: &PoolRead) -> Result<MethodRef> {
@@ -89,8 +88,7 @@ impl PoolEntry {
 			bail!("pool entry not `MethodRef`: {self:?}");
 		};
 		let class = pool.get_class(class_index)?;
-		let (name, desc) = pool.get_name_and_type(name_and_type_index)?;
-		Ok(MethodRef { class, name, desc })
+		Ok(pool.get_method_name_and_type(name_and_type_index)?.with_class(class))
 	}
 
 	fn as_interface_method_ref(&self, pool: &PoolRead) -> Result<MethodRef> {
@@ -98,8 +96,7 @@ impl PoolEntry {
 			bail!("pool entry not `InterfaceMethodRef`: {self:?}");
 		};
 		let class = pool.get_class(class_index)?;
-		let (name, desc) = pool.get_name_and_type(name_and_type_index)?;
-		Ok(MethodRef { class, name, desc })
+		Ok(pool.get_method_name_and_type(name_and_type_index)?.with_class(class))
 	}
 
 	/// `true` índicates it was an [`PoolEntry::InterfaceMethodRef`], `false` that it was a [`PoolEntry::MethodRef`]
@@ -111,8 +108,7 @@ impl PoolEntry {
 		};
 
 		let class = pool.get_class(class_index)?;
-		let (name, desc) = pool.get_name_and_type(name_and_type_index)?;
-		let method = MethodRef { class, name, desc };
+		let method = pool.get_method_name_and_type(name_and_type_index)?.with_class(class);
 		Ok((method, is_interface))
 	}
 
@@ -202,7 +198,7 @@ impl PoolEntry {
 			bail!("pool entry not `Dynamic`: {self:?}");
 		};
 
-		let (name, descriptor) = pool.get_name_and_type(name_and_type_index)?;
+		let FieldNameAndDesc { name, desc: descriptor } = pool.get_field_name_and_type(name_and_type_index)?;
 
 		let Some(bootstrap_methods_) = bootstrap_methods.as_ref() else {
 			bail!("cannot load `Dynamic` pool entry, as there's no `BootstrapMethods` attribute")
@@ -229,7 +225,7 @@ impl PoolEntry {
 			bail!("pool entry not `InvokeDynamic`: {self:?}");
 		};
 
-		let (name, descriptor) = pool.get_name_and_type(name_and_type_index)?;
+		let MethodNameAndDesc { name, desc: descriptor } = pool.get_method_name_and_type(name_and_type_index)?;
 
 		let Some(bootstrap_methods_) = bootstrap_methods.as_ref() else {
 			bail!("cannot load `InvokeDynamic` pool entry, as there's no `BootstrapMethods` attribute");
@@ -431,10 +427,12 @@ impl PoolRead {
 		self.get(index)?.as_module(self).pool_context(index)
 	}
 
-	// TODO: deprecate this in favour of the one below
-	fn get_name_and_type<A: TryFrom<JavaString,Error=anyhow::Error>, B: TryFrom<JavaString,Error=anyhow::Error>>(&self, index: u16) -> Result<(A, B)> {
+	fn get_field_name_and_type(&self, index: u16) -> Result<FieldNameAndDesc> {
 		self.get(index)?.as_name_and_type(self).pool_context(index)
-			.and_then(|(a, b)| Ok((A::try_from(a.clone())?, B::try_from(b.clone())?)))
+			.and_then(|(name, desc)| Ok(FieldNameAndDesc {
+				name: FieldName::try_from(name.clone())?,
+				desc: FieldDescriptor::try_from(desc.clone())?,
+			}))
 	}
 
 	pub(crate) fn get_method_name_and_type(&self, index: u16) -> Result<MethodNameAndDesc> {
@@ -443,10 +441,6 @@ impl PoolRead {
 				name: MethodName::try_from(name.clone())?,
 				desc: MethodDescriptor::try_from(desc.clone())?,
 			}))
-	}
-
-	fn get_name_and_type_ref(&self, index: u16) -> Result<(&JavaString, &JavaString)> {
-		self.get(index)?.as_name_and_type(self).pool_context(index)
 	}
 
 	pub(crate) fn get_field_ref(&self, index: u16) -> Result<FieldRef> {
@@ -540,21 +534,21 @@ impl Debug for PoolRead {
 					},
 					&PoolEntry::FieldRef { class_index, name_and_type_index } => {
 						let class = self.get_class(class_index)?;
-						let (name, descriptor) = self.get_name_and_type_ref(name_and_type_index)?;
+						let FieldNameAndDesc { name, desc } = self.get_field_name_and_type(name_and_type_index)?;
 
-						format!("FieldRef: {class}.{name}:{descriptor}")
+						format!("FieldRef: {class}.{name}:{desc}")
 					},
 					&PoolEntry::MethodRef { class_index, name_and_type_index } => {
 						let class = self.get_class(class_index)?;
-						let (name, descriptor) = self.get_name_and_type_ref(name_and_type_index)?;
+						let MethodNameAndDesc { name, desc } = self.get_method_name_and_type(name_and_type_index)?;
 
-						format!("MethodRef: {class}.{name}:{descriptor}")
+						format!("MethodRef: {class}.{name}:{desc}")
 					},
 					&PoolEntry::InterfaceMethodRef { class_index, name_and_type_index } => {
 						let class = self.get_class(class_index)?;
-						let (name, descriptor) = self.get_name_and_type_ref(name_and_type_index)?;
+						let MethodNameAndDesc { name, desc } = self.get_method_name_and_type(name_and_type_index)?;
 
-						format!("InterfaceMethodRef: {class}.{name}:{descriptor}")
+						format!("InterfaceMethodRef: {class}.{name}:{desc}")
 					},
 					&PoolEntry::String { string_index } => {
 						format!("String: {}", self.get_utf8_ref(string_index)?)

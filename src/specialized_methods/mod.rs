@@ -266,11 +266,7 @@ impl SimpleClassVisitor for ClassVisitorImpl {
 	}
 
 	fn finish_method(&mut self, method_visitor: Self::MethodVisitor) -> Result<()> {
-		let method_ref = MethodRef {
-			class: self.name.clone(),
-			name: method_visitor.name,
-			desc: method_visitor.descriptor,
-		};
+		let method_ref = method_visitor.as_name_and_desc().with_class(self.name.clone());
 
 		self.visitor.entry.methods.insert(method_ref.clone(), method_visitor.access);
 

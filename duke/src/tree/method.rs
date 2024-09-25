@@ -144,6 +144,21 @@ impl Method {
 			ControlFlow::Break(visitor) => Ok(visitor)
 		}
 	}
+
+	pub fn into_name_and_desc(self) -> MethodNameAndDesc {
+		MethodNameAndDesc {
+			name: self.name,
+			desc: self.descriptor,
+		}
+	}
+
+	/// Clones `self.name` and `self.descriptor` into a new [`MethodNameAndDesc`].
+	pub fn as_name_and_desc(&self) -> MethodNameAndDesc {
+		MethodNameAndDesc {
+			name: self.name.clone(),
+			desc: self.descriptor.clone(),
+		}
+	}
 }
 
 #[derive(Copy, Clone, Hash, Eq, PartialEq)]
@@ -228,6 +243,13 @@ pub struct MethodRef {
 pub struct MethodNameAndDesc {
 	pub name: MethodName,
 	pub desc: MethodDescriptor,
+}
+
+impl MethodNameAndDesc {
+	/// Add a [`ClassName`] to this [`MethodNameAndDesc`] to make a [`MethodRef`].
+	pub fn with_class(self, class: ClassName) -> MethodRef {
+		MethodRef { class, name: self.name, desc: self.desc }
+	}
 }
 
 make_string_str_like!(
