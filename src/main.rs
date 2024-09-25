@@ -533,17 +533,19 @@ enum Command {
         #[arg(long = "keep")]
         keep_directory: bool,
 
-        #[arg(value_enum)]
+        /// The direction to propagate the changes in
+        #[arg(short = 'd', long = "direction", value_enum, default_value_t)]
         direction: PropagationDirection,
 
         version: String,
     },
 }
 
-#[derive(Debug, Copy, Clone, ValueEnum)]
+// TODO: doc
+#[derive(Debug, Default, Copy, Clone, ValueEnum)]
 enum PropagationDirection {
-    // TODO: default?, doc!
     None,
+    #[default]
     Both,
     Up,
     Down,
