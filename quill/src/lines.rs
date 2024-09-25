@@ -126,12 +126,20 @@ pub(crate) mod tiny_line {
 		where
 			T: TryFrom<JavaString, Error=anyhow::Error> + std::fmt::Debug + AsRef<JavaStr>,
 		{
-			self.fields.map(|string| T::try_from(JavaString::from(string)))
-				.collect::<Result<Vec<T>>>()
+			self.fields.map(|string| {
+					if string.is_empty() {
+						None
+					} else {
+						Some(string)
+					}
+						.map(|string| T::try_from(JavaString::from(string)))
+						.transpose()
+				})
+				.collect::<Result<Vec<Option<T>>>>()
 				.with_context(|| anyhow!("failed to create names entries"))
-				.and_then(|vec| <[T; N]>::try_from(vec)
+				.and_then(|vec| <[Option<T>; N]>::try_from(vec)
 					.map_err(|vec| anyhow!("line contained more or less fields ({}) than the expected {N}: {:?}", vec.len(), vec)))
-				.map(Names::from)
+				.and_then(|array| Names::try_from(array).context("array doesn't contain any empty string"))
 				.with_context(|| anyhow!("on line {}", self.line_number))
 		}
 
