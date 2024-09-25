@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use anyhow::{anyhow, bail, Context, Result};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use indexmap::IndexMap;
 use petgraph::{Direction, Graph};
@@ -162,6 +163,13 @@ impl VersionGraph {
 			// TODO: call write_mappings or write_diffs depending on root/not root
 		}
 	}
+
+	pub(crate) fn write_as_dot(&self, w: &mut impl Write) -> Result<()> {
+		let dot = petgraph::dot::Dot::new(&self.graph);
+		write!(w, "{:?}", dot)
+			.with_context(|| anyhow!("failed to write version graph in `.dot` format"))
+	}
+
 	pub(crate) fn parents<'a>(&'a self, version: VersionEntry<'a>) -> impl Iterator<Item=VersionEntry<'a>> {
 		self.graph.neighbors_directed(version.node_index, Direction::Incoming)
 			.map(|index| VersionEntry::create(index, &self.graph[index]))
@@ -237,15 +245,6 @@ impl VersionGraph {
 
 				walkers.push_back((path, v));
 			}
-		}
-
-		if false {
-			// TODO: make this a task in main.rs
-			use std::io::Write;
-			let dot = petgraph::dot::Dot::new(&graph);
-			let mut f = std::fs::File::create("/tmp/graph_out.dot").unwrap();
-			write!(f, "{:?}", dot).unwrap();
-			panic!("explicit stop");
 		}
 
 		Ok(VersionGraph { root, root_mapping, versions, graph })

@@ -363,6 +363,16 @@ async fn main() -> Result<()> {
 
             Ok(())
         },
+        Command::DumpVersionGraph { output } => {
+            let version_graph = VersionGraph::resolve(mappings_dir)?;
+
+            let mut f = std::fs::File::create(&output)
+                .with_context(|| anyhow!("failed to create file {output:?}"))?;
+
+            version_graph.write_as_dot(&mut f)?;
+
+            Ok(())
+        },
     }
 }
 
@@ -538,6 +548,11 @@ enum Command {
         direction: PropagationDirection,
 
         version: String,
+    },
+
+    /// Write the version graph in '.dot' format. This is intended for debugging.
+    DumpVersionGraph {
+        output: PathBuf,
     },
 }
 
