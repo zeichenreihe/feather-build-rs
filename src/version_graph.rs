@@ -100,10 +100,9 @@ pub(crate) struct VersionGraph {
 	graph: Graph<NodeData, EdgeData>,
 }
 
-/// The version id used in the mappings diffs and mappings files.
-/// This can end in `-client` and `-server`, or not have any suffix at all.
+/// The version id without any `-client` or `-server`.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Version<'a>(&'a str);
+pub(crate) struct MinecraftVersionBorrowed<'a>(&'a str);
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Environment {
@@ -115,6 +114,8 @@ pub(crate) enum Environment {
 /// A version.
 ///
 /// PartialEq/Hash behave as if you'd do them on the version string.
+///
+/// This (with [`VersionEntry::as_str`]) can end in `-client` and `-server`, or not have any suffix at all.
 #[derive(Clone, Copy)]
 pub(crate) struct VersionEntry<'a> {
 	node_index: NodeIndex,
@@ -125,8 +126,6 @@ pub(crate) struct VersionEntryOwned {
 	node_index: NodeIndex,
 	node_data: NodeData,
 }
-
-
 
 impl NodeData {
 	fn new(name: &str) -> NodeData {
@@ -276,7 +275,7 @@ impl VersionGraph {
 			|_| 1,
 			|_| 0
 		)
-			.ok_or_else(|| anyhow!("there is no path in between {:?} and {:?}", &self.root, target_version.as_str()))?
+			.ok_or_else(|| anyhow!("there is no path in between {:?} and {:?}", &self.root, target_version))?
 			.1
 			.windows(2) // TODO: once array_windows is stable, use that
 			.try_fold(self.root_mapping.clone(), |m, x| {
@@ -294,36 +293,14 @@ impl VersionGraph {
 					.with_context(|| anyhow!("failed to parse version diff from {path:?}"))?;
 
 				diff.apply_to(m, "named")
-					.with_context(|| anyhow!("failed to apply diff from version {from:?} to version {to:?} to mappings, for version {:?}", target_version.as_str()))
+					.with_context(|| anyhow!("failed to apply diff from version {from:?} to version {to:?} to mappings, for version {:?}", target_version))
 			})
 	}
 }
 
-impl Version<'_> {
-	pub(crate) fn get_environment(&self) -> Environment {
-		if self.0.ends_with("-client") {
-			Environment::Client
-		} else if self.0.ends_with("-server") {
-			Environment::Server
-		} else {
-			Environment::Merged
-		}
-	}
-
-	pub(crate) fn get_minecraft_version(&self) -> MinecraftVersion {
-		if let Some(without) = self.0.strip_suffix("-client") {
-			MinecraftVersion(without.to_owned())
-		} else if let Some(without) = self.0.strip_suffix("-server") {
-			MinecraftVersion(without.to_owned())
-		} else {
-			MinecraftVersion(self.0.to_owned())
-		}
-	}
-}
-
-impl Display for Version<'_> {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		f.write_str(self.0)
+impl PartialEq<MinecraftVersionBorrowed<'_>> for MinecraftVersion {
+	fn eq(&self, other: &MinecraftVersionBorrowed<'_>) -> bool {
+		self.0 == other.0
 	}
 }
 
@@ -335,12 +312,11 @@ impl VersionEntry<'_> {
 		}
 	}
 
+	/// Gets the version string (possibly ending in `-client` or `-server`).
+	///
+	/// Do not use this for debug! This type implements [`Debug`].
 	pub(crate) fn as_str(&self) -> &str {
 		&self.node_data.name
-	}
-
-	pub(crate) fn version(&self) -> Version<'_> {
-		Version(&self.node_data.name)
 	}
 
 	pub(crate) fn depth(&self) -> Option<usize> {
@@ -352,6 +328,32 @@ impl VersionEntry<'_> {
 			node_index: self.node_index,
 			node_data: self.node_data.clone(),
 		}
+	}
+
+	pub(crate) fn get_minecraft_version(&self) -> MinecraftVersionBorrowed<'_> {
+		if let Some(without) = self.as_str().strip_suffix("-client") {
+			MinecraftVersionBorrowed(without)
+		} else if let Some(without) = self.as_str().strip_suffix("-server") {
+			MinecraftVersionBorrowed(without)
+		} else {
+			MinecraftVersionBorrowed(self.as_str())
+		}
+	}
+
+	pub(crate) fn get_environment(&self) -> Environment {
+		if self.as_str().ends_with("-client") {
+			Environment::Client
+		} else if self.as_str().ends_with("-server") {
+			Environment::Server
+		} else {
+			Environment::Merged
+		}
+	}
+}
+
+impl Debug for VersionEntry<'_> {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{:?}", self.as_str())
 	}
 }
 

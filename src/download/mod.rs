@@ -17,8 +17,7 @@ use crate::download::maven_metadata::MavenMetadata;
 use quill::tree::mappings::Mappings;
 use dukenest::Nests;
 use maven_dependency_resolver::maven_pom::MavenPom;
-use crate::Version;
-use crate::version_graph::Environment;
+use crate::version_graph::{Environment, VersionEntry};
 
 pub(crate) mod versions_manifest;
 pub(crate) mod version_manifest;
@@ -220,41 +219,42 @@ impl Downloader {
 			.parse_as_json().context("versions manifest")
 	}
 
-	async fn wanted_version_manifest(&self, versions_manifest: &VersionsManifest, version: Version<'_>) -> Result<VersionManifest> {
-		let minecraft_version = version.get_minecraft_version();
+	async fn wanted_version_manifest(&self, versions_manifest: &VersionsManifest, version: VersionEntry<'_>) -> Result<VersionManifest> {
+		let version = version.get_minecraft_version();
 
 		let manifest_version = versions_manifest.versions.iter()
-			.find(|it| it.id == minecraft_version)
+			.find(|it| it.id == version)
 			.with_context(|| anyhow!("no version data for minecraft version {version:?}"))?;
 
 		self.download(&manifest_version.url).await?
 			.parse_as_json().with_context(|| anyhow!("version manifest for version {version:?}"))
 	}
 
-	pub(crate) async fn version_details(&self, versions_manifest: &VersionsManifest, version: Version<'_>, environment: &Environment) -> Result<VersionDetails> {
-		let minecraft_version = version.get_minecraft_version();
+	pub(crate) async fn version_details(&self, versions_manifest: &VersionsManifest, version: VersionEntry<'_>) -> Result<VersionDetails> {
+		let environment = version.get_environment();
+		let version = version.get_minecraft_version();
 
 		let manifest_version = versions_manifest.versions.iter()
-			.find(|it| it.id == minecraft_version)
+			.find(|it| it.id == version)
 			.with_context(|| anyhow!("no version details for minecraft version {version:?}"))?;
 
 		let version_details: VersionDetails = self.download(&manifest_version.details).await?
 			.parse_as_json().with_context(|| anyhow!("version details for version {version:?}"))?;
 
 		if version_details.shared_mappings {
-			if &Environment::Merged != environment {
-				bail!("minecraft version {:?} is only available as merged but was requested for {:?}", version, environment);
+			if Environment::Merged != environment {
+				bail!("minecraft version {version:?} is only available as merged but was requested for {environment:?}");
 			}
 		} else {
 			match environment {
 				Environment::Merged => {
-					bail!("minecraft version {:?} cannot be merged - please select either the client or server environment!", version);
+					bail!("minecraft version {version:?} cannot be merged - please select either the client or server environment!");
 				},
 				Environment::Client if !version_details.client => {
-					bail!("minecraft version {:?} does not have a client jar!", version);
+					bail!("minecraft version {version:?} does not have a client jar!");
 				},
 				Environment::Server if !version_details.server => {
-					bail!("minecraft version {:?} does not have a server jar", version);
+					bail!("minecraft version {version:?} does not have a server jar");
 				},
 				_ => {},
 			}
@@ -266,8 +266,9 @@ impl Downloader {
 	/// Downloads the feather intermediary, calamus, for a given version.
 	///
 	/// The namespaces are `official` to `intermediary` (aka `calamus`) here.
-	pub(crate) async fn calamus_v2(&self, version: Version<'_>) -> Result<Mappings<2>> {
-		let url = format!("https://maven.ornithemc.net/releases/net/ornithemc/calamus-intermediary/{version}/calamus-intermediary-{version}-v2.jar");
+	pub(crate) async fn calamus_v2(&self, version: VersionEntry<'_>) -> Result<Mappings<2>> {
+		let url = format!("https://maven.ornithemc.net/releases/net/ornithemc/calamus-intermediary/{version}/calamus-intermediary-{version}-v2.jar",
+			version = version.as_str());
 
 		let mappings = self.download(&url).await?.mappings_from_zip_file()?;
 
@@ -276,7 +277,7 @@ impl Downloader {
 		Ok(mappings)
 	}
 
-	pub(crate) async fn mc_libs(&self, versions_manifest: &VersionsManifest, version: Version<'_>) -> Result<Vec<FileJar>> {
+	pub(crate) async fn mc_libs(&self, versions_manifest: &VersionsManifest, version: VersionEntry<'_>) -> Result<Vec<FileJar>> {
 		let version_file = self.wanted_version_manifest(versions_manifest, version).await?;
 
 		let mut libs = Vec::new();
@@ -292,8 +293,8 @@ impl Downloader {
 		Ok(libs)
 	}
 
-	pub(crate) async fn download_nests(&self, version: Version<'_>) -> Result<Option<Nests>> {
-		let url = format!("https://github.com/OrnitheMC/nests/raw/main/nests/{version}.nest");
+	pub(crate) async fn download_nests(&self, version: VersionEntry<'_>) -> Result<Option<Nests>> {
+		let url = format!("https://github.com/OrnitheMC/nests/raw/main/nests/{version}.nest", version = version.as_str());
 
 		if let Some(nests) = self.download_with_special_404(&url, true).await? {
 			let nests = nests.to_vec()?;

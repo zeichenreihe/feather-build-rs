@@ -15,7 +15,7 @@ use quill::tree::mappings::Mappings;
 use quill::tree::mappings_diff::MappingsDiff;
 use crate::download::Downloader;
 use crate::dukelaunch::JavaRunConfig;
-use crate::version_graph::{Version, VersionEntry, VersionGraph};
+use crate::version_graph::{VersionEntry, VersionGraph};
 
 mod version_graph;
 mod download;
@@ -95,10 +95,10 @@ async fn main() -> Result<()> {
     let mappings_dir = cli.mappings_dir
         .unwrap_or_else(|| default_mappings_dir.into());
 
-    let working_mappings_dir = |working_mappings_base_dir: Option<PathBuf>, version: Version<'_>| -> PathBuf {
+    let working_mappings_dir = |working_mappings_base_dir: Option<PathBuf>, version: VersionEntry<'_>| -> PathBuf {
         let mut x = working_mappings_base_dir
             .unwrap_or_else(|| default_working_mappings_base_dir.to_owned());
-        x.push(version.to_string()); // TODO: unnecessary cloning..
+        x.push(version.as_str());
         x
     };
 
@@ -271,12 +271,12 @@ async fn main() -> Result<()> {
             let version_graph = VersionGraph::resolve(mappings_dir)?;
             let version = version_graph.get(&version)?;
 
-            let working_mappings_dir = working_mappings_dir(working_mappings_base_dir, version.version());
+            let working_mappings_dir = working_mappings_dir(working_mappings_base_dir, version);
 
             // this is the "mainJar" remapped to calamus mappings
-            let calamus_jar = map_calamus_jar(&downloader, version.version()).await?;
+            let calamus_jar = map_calamus_jar(&downloader, version).await?;
 
-            let nested_jar = nest_jar(&downloader, version.version(), &calamus_jar).await?;
+            let nested_jar = nest_jar(&downloader, version, &calamus_jar).await?;
 
             let jar_path = enigma_prepared_jar.as_deref()
                 .unwrap_or(default_enigma_prepared_jar);
@@ -291,7 +291,7 @@ async fn main() -> Result<()> {
             let mappings = version_graph.apply_diffs(version)? // calamus -> named
                 .extend_inner_class_names("named")?;
 
-            let mappings = if let Some(nests) = patch_nests(&downloader, version.version()).await? {
+            let mappings = if let Some(nests) = patch_nests(&downloader, version).await? {
                 MappingUtils::apply_nests(mappings, nests)?
             } else {
                 mappings
@@ -321,9 +321,9 @@ async fn main() -> Result<()> {
 
             let version = version_graph.get(&version)?;
 
-            let working_mappings_dir = working_mappings_dir(working_mappings_base_dir, version.version());
+            let working_mappings_dir = working_mappings_dir(working_mappings_base_dir, version);
 
-            info!("saving mappings for {}", version.as_str());
+            info!("saving mappings for {version:?}");
 
             let separated_mappings = version_graph.apply_diffs(version)? // calamus -> named
                 .extend_inner_class_names("named")?;
@@ -336,7 +336,7 @@ async fn main() -> Result<()> {
 
             dbg!("reading enigma mappings took: {}", start.elapsed());
 
-            let calamus_nests_file = patch_nests(&downloader, version.version()).await?;
+            let calamus_nests_file = patch_nests(&downloader, version).await?;
 
             let working_mappings = if let Some(nests) = calamus_nests_file {
                 MappingUtils::undo_nests(working_mappings, nests)?
@@ -395,10 +395,9 @@ impl MappingUtils {
 
 // output is `calamusJar`
 // maps the mainJar (either server/client/mergedJar, selected in dlVersionDetails) from "official" to "calamus", to calamusJar
-async fn map_calamus_jar(downloader: &Downloader, version: Version<'_>) -> Result<ParsedJar<ClassRepr, Vec<u8>>> {
+async fn map_calamus_jar(downloader: &Downloader, version: VersionEntry<'_>) -> Result<ParsedJar<ClassRepr, Vec<u8>>> {
     let versions_manifest = downloader.get_versions_manifest().await?;
-    let environment = version.get_environment();
-    let version_details = downloader.version_details(&versions_manifest, version, &environment).await?;
+    let version_details = downloader.version_details(&versions_manifest, version).await?;
 
     let client = downloader.get_jar(&version_details.downloads.client.url).await?;
     let server = downloader.get_jar(&version_details.downloads.server.url).await?;
@@ -422,7 +421,7 @@ async fn map_calamus_jar(downloader: &Downloader, version: Version<'_>) -> Resul
     Ok(out_jar)
 }
 
-async fn nest_jar(downloader: &Downloader, version: Version<'_>, calamus_jar: &impl Jar) -> Result<Option<ParsedJar<ClassRepr, Vec<u8>>>> {
+async fn nest_jar(downloader: &Downloader, version: VersionEntry<'_>, calamus_jar: &impl Jar) -> Result<Option<ParsedJar<ClassRepr, Vec<u8>>>> {
 
     let calamus_nests_file = patch_nests(downloader, version).await?;
 
@@ -443,7 +442,7 @@ async fn nest_jar(downloader: &Downloader, version: Version<'_>, calamus_jar: &i
 }
 
 // note: `calamusNestsFile` is result of the `patchNests` task
-async fn patch_nests(downloader: &Downloader, version: Version<'_>) -> Result<Option<Nests>> {
+async fn patch_nests(downloader: &Downloader, version: VersionEntry<'_>) -> Result<Option<Nests>> {
     if let Some(nests) = downloader.download_nests(version).await? {
         let calamus = downloader.calamus_v2(version).await?;
 

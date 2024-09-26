@@ -1,21 +1,21 @@
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::Cursor;
-use std::time::Instant;
 use anyhow::{anyhow, bail, Context, Result};
+use log::info;
 use zip::write::FileOptions;
 use zip::ZipWriter;
 use duke::tree::class::ClassName;
 use duke::tree::method::MethodName;
-use dukebox::storage::{Jar, NamedMemJar};
+use dukebox::storage::{FileJar, Jar, NamedMemJar};
 use crate::download::Downloader;
 use crate::download::versions_manifest::VersionsManifest;
 use quill::tree::mappings::Mappings;
 use quill::tree::names::{Names, Namespace};
-use crate::version_graph::{Environment, Version, VersionEntry, VersionGraph};
+use crate::version_graph::{Environment, VersionEntry, VersionGraph};
 
 fn inspect<const N: usize>(mappings: &Mappings<N>, path: &str) -> Result<()> {
-	let start = Instant::now();
+	info!("starting inspecting to {path:?}");
 
 	// fix the order of the other file being looked at, which makes diffing easier...
 	/*
@@ -28,7 +28,7 @@ fn inspect<const N: usize>(mappings: &Mappings<N>, path: &str) -> Result<()> {
 	let mut file = File::create(path)?;
 	quill::tiny_v2::write(mappings, &mut file)?;
 
-	eprintln!("inspect: {:?}", start.elapsed());
+	info!("finished inspecting to {path:?}");
 	Ok(())
 }
 
@@ -38,41 +38,42 @@ pub(crate) async fn build(
 	versions_manifest: &VersionsManifest,
 	version: VersionEntry<'_>,
 ) -> Result<BuildResult> {
+	let version_details = downloader.version_details(versions_manifest, version).await?;
+
+	let feather_version = next_feather_version(downloader, version, false).await?;
+
+	let calamus_v2 = downloader.calamus_v2(version).await?;
+	let libraries = downloader.mc_libs(versions_manifest, version).await?;
+
 	// Get the jar from mojang. If it's a merged environment, then merge the two jars (client and server).
-
-	let environment = version.version().get_environment();
-	let version_details = downloader.version_details(versions_manifest, version.version(), &environment).await?;
-
-	match environment {
+	match version.get_environment() {
 		Environment::Merged => {
 			let client = downloader.get_jar(&version_details.downloads.client.url).await?;
 			let server = downloader.get_jar(&version_details.downloads.server.url).await?;
 
-			let start = Instant::now();
-
+			info!("{version:?} starting merging");
 			let main_jar = dukebox::merge::merge(client, server)
-				.with_context(|| anyhow!("failed to merge jars for version {}", version.as_str()))?;
+				.with_context(|| anyhow!("failed to merge jars for version {version:?}"))?;
+			info!("{version:?} finished merging");
 
-			println!("jar merging took {:?}", start.elapsed());
-
-			build_inner(downloader, version_graph, versions_manifest, version, &main_jar).await
+			build_inner(feather_version, calamus_v2, libraries, version_graph, version, &main_jar)
 		},
 		Environment::Client => {
 			let main_jar = downloader.get_jar(&version_details.downloads.client.url).await?;
 
-			build_inner(downloader, version_graph, versions_manifest, version, &main_jar).await
+			build_inner(feather_version, calamus_v2, libraries, version_graph, version, &main_jar)
 		},
 		Environment::Server => {
 			let main_jar = downloader.get_jar(&version_details.downloads.server.url).await?;
 
-			build_inner(downloader, version_graph, versions_manifest, version, &main_jar).await
+			build_inner(feather_version, calamus_v2, libraries, version_graph, version, &main_jar)
 		},
 	}
 }
 
-async fn next_feather_version(downloader: &Downloader, version: Version<'_>, local: bool) -> Result<String> {
+async fn next_feather_version(downloader: &Downloader, version: VersionEntry<'_>, local: bool) -> Result<String> {
 	if local {
-		Ok(format!("{version}+build.local"))
+		Ok(format!("{version}+build.local", version = version.as_str()))
 	} else {
 		let url = "https://maven.ornithemc.net/releases/net/ornithemc/feather/maven-metadata.xml";
 
@@ -93,27 +94,23 @@ async fn next_feather_version(downloader: &Downloader, version: Version<'_>, loc
 
 		let next_build_number = build_number + 1;
 
-		Ok(format!("{version}+build.{next_build_number}"))
+		Ok(format!("{version}+build.{next_build_number}", version = version.as_str()))
 	}
 }
 
-
-async fn build_inner(
-	downloader: &Downloader,
+fn build_inner(
+	feather_version: String,
+	calamus_v2: Mappings<2>,
+	libraries: Vec<FileJar>,
 	version_graph: &VersionGraph,
-	versions_manifest: &VersionsManifest,
 	version: VersionEntry<'_>,
 	main_jar: &impl Jar
 ) -> Result<BuildResult> {
-
-	let feather_version = next_feather_version(downloader, version.version(), false).await?;
-
+	info!("{version:?} starting getting mappings from version graph");
 	let mappings = version_graph.apply_diffs(version)? // calamus -> named
 		.extend_inner_class_names("named")?
 		.remove_dummy("named")?;
-
-	let calamus_v2 = downloader.calamus_v2(version.version()).await?;
-	let libraries = downloader.mc_libs(versions_manifest, version.version()).await?;
+	info!("{version:?} finished getting mappings from version graph");
 
 	let build_feather_tiny = crate::specialized_methods::add_specialized_methods_to_mappings(main_jar, &calamus_v2, &libraries, &mappings)
 		.context("failed to add specialized methods to mappings")?;

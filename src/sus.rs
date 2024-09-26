@@ -4,7 +4,7 @@ use std::time::Instant;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::map::Entry;
 use duke::tree::method::MethodName;
-use dukebox::storage::Jar;
+use dukebox::storage::{FileJar, Jar};
 use quill::remapper::{BRemapper, JarSuperProv};
 use quill::tree::mappings::{Mappings, MethodMapping, MethodNowodeMapping};
 use quill::tree::names::Names;
@@ -42,35 +42,38 @@ async fn sus(
 	versions_manifest: &VersionsManifest,
 	version: VersionEntry<'_>
 ) -> Result<SusResult> {
-	let environment = version.version().get_environment();
-	let version_details = downloader.version_details(versions_manifest, version.version(), &environment).await?;
+	let calamus_v2 = downloader.calamus_v2(version).await?;
+	let libraries = downloader.mc_libs(versions_manifest, version).await?;
 
-	match environment {
+	let version_details = downloader.version_details(versions_manifest, version).await?;
+
+	match version.get_environment() {
 		Environment::Merged => {
 			let client = downloader.get_jar(&version_details.downloads.client.url).await?;
 			let server = downloader.get_jar(&version_details.downloads.server.url).await?;
 
-			let main_jar = dukebox::merge::merge(client, server).with_context(|| anyhow!("failed to merge jars for version {}", version.as_str()))?;
+			let main_jar = dukebox::merge::merge(client, server)
+				.with_context(|| anyhow!("failed to merge jars for version {version:?}"))?;
 
-			sus_inner(downloader, version_graph, versions_manifest, version, &main_jar).await
+			sus_inner(calamus_v2, libraries, version_graph, version, &main_jar)
 		},
 		Environment::Client => {
 			let main_jar = downloader.get_jar(&version_details.downloads.client.url).await?;
 
-			sus_inner(downloader, version_graph, versions_manifest, version, &main_jar).await
+			sus_inner(calamus_v2, libraries, version_graph, version, &main_jar)
 		},
 		Environment::Server => {
 			let main_jar = downloader.get_jar(&version_details.downloads.server.url).await?;
 
-			sus_inner(downloader, version_graph, versions_manifest, version, &main_jar).await
+			sus_inner(calamus_v2, libraries, version_graph, version, &main_jar)
 		},
 	}
-
 }
-async fn sus_inner(
-	downloader: &Downloader,
+
+fn sus_inner(
+	calamus_v2: Mappings<2>,
+	libraries: Vec<FileJar>,
 	version_graph: &VersionGraph,
-	versions_manifest: &VersionsManifest,
 	version: VersionEntry<'_>,
 	main_jar: &impl Jar
 ) -> Result<SusResult> {
@@ -80,9 +83,6 @@ async fn sus_inner(
 	let mappings = version_graph.apply_diffs(version)?
 		.extend_inner_class_names("named")?
 		.remove_dummy("named")?;
-
-	let calamus_v2 = downloader.calamus_v2(version.version()).await?;
-	let libraries = downloader.mc_libs(versions_manifest, version.version()).await?;
 
 	let build_feather_tiny = add_specialized_methods_to_mappings(main_jar, &calamus_v2, &libraries, mappings)
 		.context("failed to add specialized methods to mappings")?;
@@ -96,8 +96,6 @@ async fn sus_inner(
 
 	Ok(SusResult)
 }
-
-
 
 trait ApplyFix: Sized { fn apply_our_fix(self) -> Result<Self>; }
 
