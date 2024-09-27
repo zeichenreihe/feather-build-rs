@@ -145,6 +145,11 @@ pub mod names {
 			value.names
 		}
 	}
+	impl<'a, const N: usize> From<&'a Namespaces<N>> for &'a [String; N] {
+		fn from(value: &'a Namespaces<N>) -> Self {
+			&value.names
+		}
+	}
 
 	/// A struct storing names for namespaces.
 	///
