@@ -9,25 +9,8 @@ use duke::tree::method::{MethodName, MethodNameAndDesc, ParameterName};
 use crate::tree::mappings::{JavadocMapping, ParameterKey};
 use crate::tree::{NodeInfo, NodeJavadocInfo};
 
-#[derive(Debug, Clone, Default)]
-pub enum Action<T> {
-	Add(T),
-	Remove(T),
-	Edit(T, T),
-	#[default]
-	None,
-}
-
-impl<T: PartialEq> Action<T> {
-	pub fn is_diff(&self) -> bool {
-		match self {
-			Action::Add(_) => true,
-			Action::Remove(_) => true,
-			Action::Edit(a, b) => a != b,
-			Action::None => false,
-		}
-	}
-}
+mod action;
+pub use action::*;
 
 fn add_child<Key, Node, Info>(map: &mut IndexMap<Key, Node>, key: Key, child: Node) -> Result<&mut Node>
 	where

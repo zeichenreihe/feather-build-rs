@@ -22,6 +22,7 @@ impl MappingsDiff {
 			v.fields.retain(|k, v| {
 
 				let validator_check = match &v.info {
+					Action::None => true,
 					Action::Add(_) => {
 						// new mappings should be ignored, as any un-mapped members should already be present as dummy mappings
 						eprintln!("ignoring illegal field change {v:?}");
@@ -35,7 +36,6 @@ impl MappingsDiff {
 						true
 					},
 					Action::Edit(_, _) => true,
-					Action::None => true,
 				};
 
 				validator_check && (
@@ -47,6 +47,7 @@ impl MappingsDiff {
 				v.parameters.retain(|k, v| {
 
 					let validator_check = match &v.info {
+						Action::None => true,
 						Action::Add(_) => {
 							// new mappings should be ignored, as any un-mapped members should already be present as dummy mappings
 							eprintln!("ignoring illegal parameter change {v:?}");
@@ -64,7 +65,6 @@ impl MappingsDiff {
 							true
 						},
 						Action::Edit(_, _) => true,
-						Action::None => true,
 					};
 
 					validator_check && (
@@ -74,6 +74,7 @@ impl MappingsDiff {
 				});
 
 				let validator_check = match &v.info {
+					Action::None => true,
 					Action::Add(_) => {
 						// new mappings should be ignored, as any un-mapped members should already be present as dummy mappings
 						eprintln!("ignoring illegal method change {v:?}");
@@ -87,7 +88,6 @@ impl MappingsDiff {
 						true
 					},
 					Action::Edit(_, _) => true,
-					Action::None => true,
 				};
 
 				(
@@ -100,6 +100,7 @@ impl MappingsDiff {
 			});
 
 			let validator_check = match &v.info {
+				Action::None => true,
 				Action::Add(_) => {
 					// new mappings should be ignored, as any un-mapped members should already be present as dummy mappings
 					eprintln!("ignoring illegal class change {v:?}");
@@ -117,7 +118,6 @@ impl MappingsDiff {
 					true
 				},
 				Action::Edit(_, _) => true,
-				Action::None => true,
 			};
 
 			(
