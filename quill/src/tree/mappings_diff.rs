@@ -23,7 +23,10 @@ fn add_child<Key, Node, Info>(map: &mut IndexMap<Key, Node>, key: Key, child: No
 	}
 }
 
-#[derive(Debug, Clone)]
+/// A diff on a whole mappings tree.
+///
+/// Implements [`Default`] with [`Action::None`].
+#[derive(Clone, Debug, Default)]
 pub struct MappingsDiff {
 	pub info: Action<String>,
 	pub classes: IndexMap<ClassName, ClassNowodeDiff>,
@@ -65,7 +68,10 @@ impl MappingsDiff {
 	}
 }
 
-#[derive(Debug, Clone)]
+/// A diff on a class node.
+///
+/// Implements [`Default`] with [`Action::None`].
+#[derive(Clone, Debug, Default)]
 pub struct ClassNowodeDiff {
 	pub info: Action<ClassName>,
 	pub fields: IndexMap<FieldNameAndDesc, FieldNowodeDiff>,
@@ -114,7 +120,10 @@ impl ClassNowodeDiff {
 	}
 }
 
-#[derive(Debug, Clone)]
+/// A diff on a field node.
+///
+/// Implements [`Default`] with [`Action::None`].
+#[derive(Clone, Debug, Default)]
 pub struct FieldNowodeDiff {
 	pub info: Action<FieldName>,
 	pub javadoc: Option<Action<JavadocMapping>>,
@@ -147,7 +156,10 @@ impl NodeJavadocInfo<Action<JavadocMapping>> for FieldNowodeDiff {
 	}
 }
 
-#[derive(Debug, Clone)]
+/// A diff on a method node.
+///
+/// Implements [`Default`] with [`Action::None`].
+#[derive(Clone, Debug, Default)]
 pub struct MethodNowodeDiff {
 	pub info: Action<MethodName>,
 	pub parameters: IndexMap<ParameterKey, ParameterNowodeDiff>,
@@ -189,7 +201,10 @@ impl MethodNowodeDiff {
 	}
 }
 
-#[derive(Debug, Clone)]
+/// A diff on a parameter node.
+///
+/// Implements [`Default`] with [`Action::None`].
+#[derive(Clone, Debug, Default)]
 pub struct ParameterNowodeDiff {
 	pub info: Action<ParameterName>,
 	pub javadoc: Option<Action<JavadocMapping>>,

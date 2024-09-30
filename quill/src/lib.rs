@@ -17,3 +17,17 @@ pub mod tree;
 mod action;
 
 pub mod remapper;
+
+
+/// NOT PART OF PUBLIC API!
+///
+/// pub here bc it's used in feather-build-rs for applying diffs in insert_mappings.rs
+pub fn apply_diff_option<T>(
+	diff: &Option<tree::mappings_diff::Action<T>>,
+	target: Option<T>,
+) -> anyhow::Result<Option<T>>
+	where
+		T: std::fmt::Debug + Clone + PartialEq,
+{
+	action::apply_diff::apply_diff_option(diff, target)
+}

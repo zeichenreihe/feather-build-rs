@@ -7,7 +7,7 @@ use crate::tree::mappings_diff::{Action, MappingsDiff};
 use crate::tree::names::Namespace;
 use crate::tree::{FromKey, GetNames, NodeInfo};
 
-fn apply_diff_option<T>(
+pub(crate) fn apply_diff_option<T>(
 	diff: &Option<Action<T>>,
 	target: Option<T>,
 ) -> Result<Option<T>>

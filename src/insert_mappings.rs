@@ -1,17 +1,17 @@
 use std::cmp::Ordering;
 use std::hash::Hash;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Result};
 use indexmap::{IndexMap, IndexSet};
-use crate::{PropagationOptions, PropagationDirection};
+use crate::{PropagationDirection, PropagationOptions};
 use std::collections::{HashSet, VecDeque};
 use std::fmt::Debug;
 use indexmap::map::Entry;
 use java_string::{JavaStr, JavaString};
-use duke::tree::class::{ClassName, ClassNameSlice};
-use duke::tree::field::{FieldNameAndDesc, FieldNameSlice};
-use duke::tree::method::{MethodNameAndDesc, MethodNameSlice};
-use quill::tree::mappings::{ClassMapping, ClassNowodeMapping, Mappings, MethodMapping, MethodNowodeMapping, ParameterKey};
-use quill::tree::mappings_diff::{Action, ClassNowodeDiff, FieldNowodeDiff, MappingsDiff, MethodNowodeDiff, ParameterNowodeDiff};
+use duke::tree::class::ClassName;
+use duke::tree::field::FieldNameAndDesc;
+use duke::tree::method::MethodNameAndDesc;
+use quill::tree::mappings::{ClassMapping, ClassNowodeMapping, Mappings, MethodMapping, MethodNowodeMapping};
+use quill::tree::mappings_diff::{Action, ClassNowodeDiff, FieldNowodeDiff, MappingsDiff, MethodNowodeDiff};
 use quill::tree::{FromKey, GetNames, NodeInfo, NodeJavadocInfo};
 use quill::tree::names::Namespace;
 use crate::version_graph::{VersionEntry, VersionGraph};
@@ -86,11 +86,11 @@ pub(crate) fn insert_mappings<'version>(
 					change_class.info.is_diff(),
 					change_class.javadoc.as_ref().is_some_and(Action::is_diff),
 					|mappings, mode| {
-						apply_change_5(class_key, change_class, &mut mappings.classes, mode)
+						apply_change_mappings(class_key, change_class, &mut mappings.classes, mode)
 					},
 					|diff, insert, side, mode| {
-						if let Some(d_class) = diffs_get_class_or_insert_dummy_if_true(diff, class_key, insert) {
-							apply_change_7(d_class, change_class, side, insert, mode)
+						if let Some(d_class) = map_get_or_default_if(&mut diff.classes, class_key, insert) {
+							apply_change_diffs(d_class, change_class, side, insert, mode)
 						} else {
 							false
 						}
@@ -109,49 +109,86 @@ pub(crate) fn insert_mappings<'version>(
 								side,
 								mode
 							);
+							// post condition here: depending on lengths, one.ends_with(another) for simple name of the opposite side of the returned sibling,
+							// and the simple name of `a` of change_class
 
 							if let Some((sibling_key, sibling)) = sibling {
 								let side = side.opposite();
 
 								let mut do_queue_changes = |version: VersionEntry<'version>| {
-									let changes = queued_changes.entry(version)
-										.or_insert_with(|| MappingsDiff::new(Action::None));
+									let changes = queued_changes.entry(version).or_default();
 
 									// originally calls add with sibling.get(side) for both a and b in Edit(a, b)
 									let sibling_change = diffs_get_class_or_insert_dummy(changes, sibling_key);
 
 									match mode {
 										Mode::Mappings => {
-											let ofrom = action_get(&change_class.info, DiffSide::A).unwrap();
+											let (ofrom, to) = change_class.info.as_ref().to_tuple();
+											let (ofrom, to) = (ofrom.unwrap(), to.unwrap());
+
+											// post condition from above: this is the one from sibling, and `ofrom` is the one from change_class
 											let from = action_get(&sibling.info, side).unwrap();
-											let to = action_get(&change_class.info, DiffSide::B).unwrap();
+
+											// ofrom = "OS" // "net/minecraft/client/Minecraft$OS"
+											// to = "OperatingSystem" // "net/minecraft/client/Minecraft$OperatingSystem"
+											// from = "net/minecraft/isom/IsomPreviewCanvas__OS"?
+
+											fn make_class_name_stem_and_simple(class_name: &ClassName) -> (&JavaStr, &JavaStr) {
+												let s = class_name.as_inner();
+												s.rfind('/').map_or((JavaStr::from_str(""), s), |i| s.split_at(i))
+											}
 
 											let (ofrom_stem, ofrom_simple) = make_class_name_stem_and_simple(ofrom);
 											let (from_stem, from_simple) = make_class_name_stem_and_simple(from);
 											let (to_stem, to_simple) = make_class_name_stem_and_simple(to);
 
-											let ofrom_inner = ofrom.as_inner();
-											let from_inner = from.as_inner();
-											let to_inner = to.as_inner();
 
-											let to_inner = if ofrom_simple.len() > from_simple.len() {
-												format!("{}{}", from_stem, &to_simple[(ofrom_simple.len() - from_simple.len())..])
+											// the post condition from the find_class_sibling fn
+											{
+												// TODO: use .cmp and match on Ordering::
+												let ends_with = if ofrom_simple.len() > from_simple.len() {
+													ofrom_simple.ends_with(from_simple)
+												} else {
+													from_simple.ends_with(ofrom_simple)
+												};
+												assert!(ends_with);
+											}
+
+											// ofrom_stem = "", ofrom_simple = "OS"
+											// from_stem = "net/minecraft/isom/", from_simple = "IsomPreviewCanvas__OS"
+											// to_stem = "", to_simple = "OperatingSystem"
+
+											// TODO: use .cmp and match on Ordering::
+											let (a, b) = if ofrom_simple.len() > from_simple.len() {
+												// Case where `ofrom`/`to` use `__` for inner classes, `from` is only the inner class name (on inner classes)
+
+												// here consider
+												// ofrom_stem = "net/minecraft/isom/", ofrom_simple = "IsomPreviewCanvas__OS"
+												// from_stem = "", from_simple = "OS"
+												// to_stem = "net/minecraft/isom/", to_simple = "IsomPreviewCanvas__OperatingSystem"
+												// gives us
+												// ("", "OperatingSystem")
+												(from_stem, &to_simple[(ofrom_simple.len() - from_simple.len())..])
 											} else {
-												format!("{}{}", &from_inner[..(from_inner.len() - ofrom_simple.len())], to_simple)
+												// Case where `from` uses `__`  for inner classes, `ofrom`/`to` is only the inner class name (on inner classes)
+
+												// ("IsomPreviewCanvas__", "OperatingSystem")
+												(&from_simple[..(from_simple.len() - ofrom_simple.len())], to_simple)
 											};
-											let to_inner = JavaString::from(to_inner);
+											let mut to_inner = JavaString::from(a);
+											to_inner.push_java_str(b);
 
-											let to_ = unsafe { ClassName::from_inner_unchecked(to_inner) };
+											let to_new = unsafe { ClassName::from_inner_unchecked(to_inner) };
 
-											action_set(&mut sibling_change.info, DiffSide::A, Some(from));
-											action_set(&mut sibling_change.info, DiffSide::B, Some(&to_));
+											sibling_change.info = Action::from_tuple(Some(from.clone()), Some(to_new));
 										},
 										Mode::Javadocs => {
 											let sibling_javadoc = &sibling.javadoc;
 											let javadoc_change = &change_class.javadoc;
 											let sibling_javadoc_change = &mut sibling_change.javadoc;
-											action_set_optional(sibling_javadoc_change, DiffSide::A, action_get_optional(sibling_javadoc, side));
-											action_set_optional(sibling_javadoc_change, DiffSide::B, action_get_optional(javadoc_change, DiffSide::B));
+											let a = action_get_optional(sibling_javadoc, side).cloned();
+											let b = action_get_optional(javadoc_change, DiffSide::B).cloned();
+											*sibling_javadoc_change = optional_action_from_tuple(a, b);
 										},
 									}
 								};
@@ -181,12 +218,12 @@ pub(crate) fn insert_mappings<'version>(
 						change_field.javadoc.as_ref().is_some_and(Action::is_diff),
 						|mappings, mode| {
 							let m_class = mappings_get_class_or_insert_dummy(mappings, class_key);
-							apply_change_5(field_key, change_field, &mut m_class.fields, mode)
+							apply_change_mappings(field_key, change_field, &mut m_class.fields, mode)
 						},
 						|diff, insert, side, mode| {
 							let d_class = diffs_get_class_or_insert_dummy(diff, class_key);
-							if let Some(d_field) = diffs_get_field_or_insert_dummy_if_true(d_class, field_key, insert) {
-								apply_change_7(d_field, change_field, side, insert, mode)
+							if let Some(d_field) = map_get_or_default_if(&mut d_class.fields, field_key, insert) {
+								apply_change_diffs(d_field, change_field, side, insert, mode)
 							} else {
 								false
 							}
@@ -215,8 +252,7 @@ pub(crate) fn insert_mappings<'version>(
 
 
 									let mut do_queue_changes = |version: VersionEntry<'version>| {
-										let changes = queued_changes.entry(version)
-											.or_insert_with(|| MappingsDiff::new(Action::None));
+										let changes = queued_changes.entry(version).or_default();
 
 										// originally calls add with parent_sibling.get(side) for both a and b in Edit(a, b)
 										let sibling_parent_change = diffs_get_class_or_insert_dummy(changes, parent_sibling_key);
@@ -225,17 +261,17 @@ pub(crate) fn insert_mappings<'version>(
 										match mode {
 											Mode::Mappings => {
 												let from = action_get(&sibling.info, side);
-												let to = action_get(&change_field.info, DiffSide::B);
+												let (_, to) = change_field.info.as_ref().to_tuple();
 
-												action_set(&mut sibling_change.info, DiffSide::A, from);
-												action_set(&mut sibling_change.info, DiffSide::B, to);
+												sibling_change.info = Action::from_tuple(from.cloned(), to.cloned());
 											},
 											Mode::Javadocs => {
 												let sibling_javadoc = &sibling.javadoc;
 												let javadoc_change = &change_field.javadoc;
 												let sibling_javadoc_change = &mut sibling_change.javadoc;
-												action_set_optional(sibling_javadoc_change, DiffSide::A, action_get_optional(sibling_javadoc, side));
-												action_set_optional(sibling_javadoc_change, DiffSide::B, action_get_optional(javadoc_change, DiffSide::B));
+												let a = action_get_optional(sibling_javadoc, side).cloned();
+												let b = action_get_optional(javadoc_change, DiffSide::B).cloned();
+												*sibling_javadoc_change = optional_action_from_tuple(a, b);
 											},
 										}
 									};
@@ -266,12 +302,12 @@ pub(crate) fn insert_mappings<'version>(
 						change_method.javadoc.as_ref().is_some_and(Action::is_diff),
 						|mappings, mode| {
 							let m_class = mappings_get_class_or_insert_dummy(mappings, class_key);
-							apply_change_5(method_key, change_method, &mut m_class.methods, mode)
+							apply_change_mappings(method_key, change_method, &mut m_class.methods, mode)
 						},
 						|diff, insert, side, mode| {
 							let d_class = diffs_get_class_or_insert_dummy(diff, class_key);
-							if let Some(d_method) = diffs_get_method_or_insert_dummy_if_true(d_class, method_key, insert) {
-								apply_change_7(d_method, change_method, side, insert, mode)
+							if let Some(d_method) = map_get_or_default_if(&mut d_class.methods, method_key, insert) {
+								apply_change_diffs(d_method, change_method, side, insert, mode)
 							} else {
 								false
 							}
@@ -299,8 +335,7 @@ pub(crate) fn insert_mappings<'version>(
 									let side = side.opposite();
 
 									let mut do_queue_changes = |version: VersionEntry<'version>| {
-										let changes = queued_changes.entry(version)
-											.or_insert_with(|| MappingsDiff::new(Action::None));
+										let changes = queued_changes.entry(version).or_default();
 
 										// originally calls add with parent_sibling.get(side) for both a and b in Edit(a, b)
 										let sibling_parent_change = diffs_get_class_or_insert_dummy(changes, parent_sibling_key);
@@ -309,17 +344,17 @@ pub(crate) fn insert_mappings<'version>(
 										match mode {
 											Mode::Mappings => {
 												let from = action_get(&sibling.info, side);
-												let to = action_get(&change_method.info, DiffSide::B);
+												let (_, to) = change_method.info.as_ref().to_tuple();
 
-												action_set(&mut sibling_change.info, DiffSide::A, from);
-												action_set(&mut sibling_change.info, DiffSide::B, to);
+												sibling_change.info = Action::from_tuple(from.cloned(), to.cloned());
 											},
 											Mode::Javadocs => {
 												let sibling_javadoc = &sibling.javadoc;
 												let javadoc_change = &change_method.javadoc;
 												let sibling_javadoc_change = &mut sibling_change.javadoc;
-												action_set_optional(sibling_javadoc_change, DiffSide::A, action_get_optional(sibling_javadoc, side));
-												action_set_optional(sibling_javadoc_change, DiffSide::B, action_get_optional(javadoc_change, DiffSide::B));
+												let a = action_get_optional(sibling_javadoc, side).cloned();
+												let b = action_get_optional(javadoc_change, DiffSide::B).cloned();
+												*sibling_javadoc_change = optional_action_from_tuple(a, b);
 											},
 										}
 									};
@@ -349,13 +384,13 @@ pub(crate) fn insert_mappings<'version>(
 							|mappings, mode| {
 								let m_class = mappings_get_class_or_insert_dummy(mappings, class_key);
 								let m_method = mappings_get_method_or_insert_dummy(m_class, method_key);
-								apply_change_5(parameter_key, change_parameter, &mut m_method.parameters, mode)
+								apply_change_mappings(parameter_key, change_parameter, &mut m_method.parameters, mode)
 							},
 							|diff, insert, side, mode| {
 								let d_class = diffs_get_class_or_insert_dummy(diff, class_key);
 								let d_method = diffs_get_method_or_insert_dummy(d_class, method_key);
-								if let Some(d_parameter) = diffs_get_parameter_or_insert_dummy_if_true(d_method, parameter_key, insert) {
-									apply_change_7(d_parameter, change_parameter, side, insert, mode)
+								if let Some(d_parameter) = map_get_or_default_if(&mut d_method.parameters, parameter_key, insert) {
+									apply_change_diffs(d_parameter, change_parameter, side, insert, mode)
 								} else {
 									false
 								}
@@ -391,8 +426,8 @@ fn propagate_change<'version>(
 	mut queue_sibling_changes: impl FnMut(&MappingsDiff, DiffSide, PropDir, VersionEntry<'version>, Mode),
 ) {
 	let mut propagate = |mode: Mode| {
-		let mut propagation = PropagationQueue::new();
-		propagation.offer(PropDir::Up, version);
+		let mut propagation = PropagationQueue::default();
+		propagation.offer_up(version);
 
 		while let Some((dir, n)) = propagation.poll() {
 			match dir {
@@ -405,7 +440,7 @@ fn propagate_change<'version>(
 
 						if success {
 							// success, now propagate in opposite direction
-							propagation.offer(PropDir::Down, n);
+							propagation.offer_down(n);
 
 							dirty.insert(n);
 						}
@@ -429,12 +464,12 @@ fn propagate_change<'version>(
 								}
 
 								// change applied, now propagate in the opposite direction
-								propagation.offer(PropDir::Down, n);
+								propagation.offer_down(n);
 
 								dirty.insert(n);
 							} else {
 								// change not applied to this version, propagate further
-								propagation.offer(PropDir::Up, p);
+								propagation.offer_up(p);
 							}
 						}
 					}
@@ -478,8 +513,8 @@ fn propagate_change<'version>(
 
 								// change came down from some version, but
 								// could be propagated up to other parents
-								propagation.offer(PropDir::Up, c);
-								propagation.offer(PropDir::Down, c);
+								propagation.offer_up(c);
+								propagation.offer_down(c);
 							}
 						}
 					}
@@ -519,7 +554,7 @@ fn mappings_get_method_or_insert_dummy<'a>(
 		})
 }
 
-fn apply_change_5<Key, Diff, Target, Name, Mapping, T> (
+fn apply_change_mappings<Key, Diff, Target, Name, Mapping, T> (
 	key: &Key,
 	change: &Diff,
 	parent_children: &mut IndexMap<Key, Target>,
@@ -533,14 +568,13 @@ fn apply_change_5<Key, Diff, Target, Name, Mapping, T> (
 		Mapping: FromKey<Key> + GetNames<2, Name>,
 		T: Debug + Clone + PartialEq,
 {
-
 	match mode {
-		Mode::Mappings => apply_change_5_mappings_impl(key, change, parent_children),
-		Mode::Javadocs => apply_change_5_javadoc_impl(key, change, parent_children),
+		Mode::Mappings => apply_change_mappings_mappings_impl(key, change, parent_children),
+		Mode::Javadocs => apply_change_mappings_javadoc_impl(key, change, parent_children),
 	}
 }
 
-fn apply_change_5_mappings_impl<Key, Diff, Target, Name, Mapping>(
+fn apply_change_mappings_mappings_impl<Key, Diff, Target, Name, Mapping>(
 	key: &Key,
 	change: &Diff,
 	parent_children: &mut IndexMap<Key, Target>,
@@ -555,8 +589,8 @@ fn apply_change_5_mappings_impl<Key, Diff, Target, Name, Mapping>(
 	let second_namespace: Namespace<2> = Namespace::new(1).unwrap();
 
 	match change.get_node_info() {
+		Action::None => true,
 		Action::Add(b) => {
-
 			let mut info = Mapping::from_key(key.clone());
 
 			info.get_names_mut()[second_namespace] = Some(b.clone());
@@ -602,11 +636,10 @@ fn apply_change_5_mappings_impl<Key, Diff, Target, Name, Mapping>(
 				false
 			}
 		},
-		Action::None => true,
 	}
 }
 
-fn apply_change_5_javadoc_impl<Key, Change, Target, T>(
+fn apply_change_mappings_javadoc_impl<Key, Change, Target, T>(
 	key: &Key,
 	change: &Change,
 	parent_children: &mut IndexMap<Key, Target>,
@@ -617,66 +650,17 @@ fn apply_change_5_javadoc_impl<Key, Change, Target, T>(
 		Target: NodeJavadocInfo<T>,
 		T: Debug + Clone + PartialEq,
 {
-	// copy from apply_diff.rs, modified for &mut as target
-	#[allow(clippy::unit_arg)]
-	fn apply_diff_option<T>(
-		diff: &Option<Action<T>>,
-		target: &mut Option<T>,
-	) -> Result<()>
-		where
-			T: Debug + Clone + PartialEq,
-	{
-		Ok(match diff {
-			None => {
-				// do nothing
-			},
-			Some(Action::Add(b)) => {
-				if let Some(target) = target {
-					bail!("cannot add {b:?} as there's already an existing target {target:?}");
-				} else {
-					*target = Some(b.clone());
-				}
-			},
-			Some(Action::Remove(a)) => {
-				if let Some(target_) = target {
-					if target_ != a {
-						bail!("cannot remove existing target {target:?} as {a:?}, because they are not equal");
-					}
-					*target = None;
-				} else {
-					bail!("cannot remove non existing target {a:?}");
-				}
-			},
-			Some(Action::Edit(a, b)) => {
-				if let Some(target_) = target {
-					if target_ != a {
-						bail!("cannot edit existing target {target:?} as {a:?}, because they are not equal");
-					}
-					*target = Some(b.clone());
-				} else {
-					bail!("cannot edit non existing target from {a:?} to {b:?}");
-				}
-			},
-			Some(Action::None) => {
-				if target.is_some() {
-					// As there is no child, we do not need to propagate down.
-
-					// do nothing
-				} else {
-					bail!("cannot not action on a non existing target");
-				}
-			}
-		})
-	}
-
-
 	if let Some(target) = parent_children.get_mut(key) {
 		let change = change.get_node_javadoc_info();
 		let target = target.get_node_javadoc_info_mut();
 
-		match apply_diff_option(change, target) {
-			Ok(()) => true,
+		match quill::apply_diff_option(change, target.take()) {
+			Ok(new) => {
+				*target = new;
+				true
+			},
 			Err(e) => {
+				eprintln!("{e:?}");
 				eprintln!("ignoring invalid change {:?} to ... - javadoc does not match!", change);
 				false
 			},
@@ -686,120 +670,46 @@ fn apply_change_5_javadoc_impl<Key, Change, Target, T>(
 	}
 }
 
-fn diffs_get_class_or_insert_dummy<'a>(
-	diffs: &'a mut MappingsDiff,
-	class_key: &'a ClassName
-) -> &'a mut ClassNowodeDiff {
-	diffs.classes.entry(class_key.clone())
+fn map_get_or_default_if<'a, K, V>(map: &'a mut IndexMap<K, V>, key: &'a K, insert: bool) -> Option<&'a mut V>
+	where
+		K: Clone + Eq + Hash,
+		V: Default,
+{
+	if insert {
 		// insert dummy mapping
-		.or_insert_with(|| ClassNowodeDiff::new(Action::None))
-}
-
-fn diffs_get_class_or_insert_dummy_if_true<'a>(
-	diffs: &'a mut MappingsDiff,
-	class_key: &'a ClassName,
-	insert: bool,
-) -> Option<&'a mut ClassNowodeDiff> {
-	match diffs.classes.entry(class_key.clone()) {
-		Entry::Occupied(e) => Some(e.into_mut()),
-		Entry::Vacant(e) => if insert {
-			// insert dummy mapping
-			Some(e.insert(ClassNowodeDiff::new(Action::None)))
-		} else {
-			None
-		},
+		Some(map.entry(key.clone()).or_default())
+	} else {
+		map.get_mut(key)
 	}
 }
 
-fn diffs_get_field_or_insert_dummy<'a>(
-	class: &'a mut ClassNowodeDiff,
-	field_key: &'a FieldNameAndDesc
-) -> &'a mut FieldNowodeDiff {
-	class.fields.entry(field_key.clone())
-		// insert dummy mapping
-		.or_insert_with(|| FieldNowodeDiff::new(Action::None))
+fn diffs_get_class_or_insert_dummy<'a>(diffs: &'a mut MappingsDiff, class_key: &'a ClassName) -> &'a mut ClassNowodeDiff {
+	diffs.classes.entry(class_key.clone()).or_default()
+}
+fn diffs_get_field_or_insert_dummy<'a>(class: &'a mut ClassNowodeDiff, field_key: &'a FieldNameAndDesc) -> &'a mut FieldNowodeDiff {
+	class.fields.entry(field_key.clone()).or_default()
 }
 
-
-
-fn diffs_get_field_or_insert_dummy_if_true<'a>(
-	class: &'a mut ClassNowodeDiff,
-	field_key: &'a FieldNameAndDesc,
-	insert: bool,
-) -> Option<&'a mut FieldNowodeDiff> {
-	match class.fields.entry(field_key.clone()) {
-		Entry::Occupied(e) => Some(e.into_mut()),
-		Entry::Vacant(e) => if insert {
-			// insert dummy mapping
-			Some(e.insert(FieldNowodeDiff::new(Action::None)))
-		} else {
-			None
-		},
-	}
+fn diffs_get_method_or_insert_dummy<'a>(class: &'a mut ClassNowodeDiff, method_key: &'a MethodNameAndDesc) -> &'a mut MethodNowodeDiff {
+	class.methods.entry(method_key.clone()).or_default()
 }
 
-
-fn diffs_get_method_or_insert_dummy<'a>(
-	class: &'a mut ClassNowodeDiff,
-	method_key: &'a MethodNameAndDesc,
-) -> &'a mut MethodNowodeDiff {
-	class.methods.entry(method_key.clone())
-		// insert dummy mapping
-		.or_insert_with(|| MethodNowodeDiff::new(Action::None))
-}
-
-
-fn diffs_get_method_or_insert_dummy_if_true<'a>(
-	class: &'a mut ClassNowodeDiff,
-	method_key: &'a MethodNameAndDesc,
-	insert: bool,
-) -> Option<&'a mut MethodNowodeDiff> {
-	match class.methods.entry(method_key.clone()) {
-		Entry::Occupied(e) => Some(e.into_mut()),
-		Entry::Vacant(e) => if insert {
-			// insert dummy mapping
-			Some(e.insert(MethodNowodeDiff::new(Action::None)))
-		} else {
-			None
-		},
-	}
-}
-
-fn diffs_get_parameter_or_insert_dummy<'a>(
-	method: &'a mut MethodNowodeDiff,
-	parameter_key: &'a ParameterKey
-) -> &'a mut ParameterNowodeDiff {
-	method.parameters.entry(parameter_key.clone())
-		// insert dummy mapping
-		.or_insert_with(|| ParameterNowodeDiff::new(Action::None))
-}
-
-
-
-fn diffs_get_parameter_or_insert_dummy_if_true<'a>(
-	method: &'a mut MethodNowodeDiff,
-	parameter_key: &'a ParameterKey,
-	insert: bool,
-) -> Option<&'a mut ParameterNowodeDiff> {
-	match method.parameters.entry(parameter_key.clone()) {
-		Entry::Occupied(e) => Some(e.into_mut()),
-		Entry::Vacant(e) => if insert {
-			// insert dummy mapping
-			Some(e.insert(ParameterNowodeDiff::new(Action::None)))
-		} else {
-			None
-		},
-	}
-}
-
-
-fn apply_change_to_diff<T: Debug + PartialEq + Clone /* TODO: Clone was necessary bc of action_set impl*/>(
+fn apply_change_to_diff<T: Debug + PartialEq + Clone /* TODO: Clone was necessary bc of cloned call */>(
 	target: &mut Action<T>,
 	change: &Action<T>,
 	side: DiffSide,
 ) -> Result<()> {
 	if action_get(target, side) == action_get(change, DiffSide::A) {
-		action_set(target, side, action_get(change, DiffSide::B));
+		let value = action_get(change, DiffSide::B).cloned();
+
+		let (a, b) = std::mem::take(target).to_tuple();
+
+		let (a, b) = match side {
+			DiffSide::A => (value, b),
+			DiffSide::B => (a, value),
+		};
+
+		*target = Action::from_tuple(a, b);
 		Ok(())
 	} else {
 		bail!("ignoring invalid change {:?} on {:?} - diff does not mach", change, target)
@@ -807,7 +717,7 @@ fn apply_change_to_diff<T: Debug + PartialEq + Clone /* TODO: Clone was necessar
 }
 
 
-fn apply_change_7<Target, Change, T, U>(
+fn apply_change_diffs<Target, Change, T, U>(
 	d: &mut Target,
 	change: &Change,
 	side: DiffSide,
@@ -821,12 +731,12 @@ fn apply_change_7<Target, Change, T, U>(
 		U: PartialEq + Debug + Clone, // TODO: debug and clone bc of impl of called fn
 {
 	match mode {
-		Mode::Mappings => apply_change_7_mappings_impl(d, change, side, insert),
-		Mode::Javadocs => apply_change_7_javadoc_impl(d, change, side, insert),
+		Mode::Mappings => apply_change_diffs_mappings_impl(d, change, side, insert),
+		Mode::Javadocs => apply_change_diffs_javadoc_impl(d, change, side, insert),
 	}
 }
 
-fn apply_change_7_mappings_impl<Target, Change, T>(
+fn apply_change_diffs_mappings_impl<Target, Change, T>(
 	d: &mut Target,
 	change: &Change,
 	side: DiffSide,
@@ -835,7 +745,7 @@ fn apply_change_7_mappings_impl<Target, Change, T>(
 	where
 		Target: NodeInfo<Action<T>>,
 		Change: NodeInfo<Action<T>>,
-		T: Debug + PartialEq + Clone /* TODO: Clone was necessary bc of impl of action_set... */,
+		T: Debug + PartialEq + Clone /* TODO: Clone was necessary bc of call to cloned... */,
 {
 	let d = d.get_node_info_mut();
 	let change = change.get_node_info();
@@ -853,15 +763,14 @@ fn apply_change_7_mappings_impl<Target, Change, T>(
 		}
 	} else if insert {
 		// might be dummy
-		action_set(d, side, action_get(change, DiffSide::B));
-		action_set(d, side.opposite(), action_get(change, DiffSide::A));
+		*d = action_flip_if_side_a(side)(change.clone());
 		true
 	} else {
 		false
 	}
 }
 
-fn apply_change_7_javadoc_impl<Target, Change, T, U>(
+fn apply_change_diffs_javadoc_impl<Target, Change, T, U>(
 	d: &mut Target,
 	change: &Change,
 	side: DiffSide,
@@ -887,23 +796,36 @@ fn apply_change_to_diff_optional<T: Debug + Clone + PartialEq>(
 	change: &Option<Action<T>>,
 	target: &mut Option<Action<T>>,
 ) -> bool {
-	if target.as_ref().is_some_and(|x| x.is_diff()) {
+	if target.as_ref().is_some_and(Action::is_diff) {
 		// not a dummy
 		if action_get_optional(target, side) == action_get_optional(change, DiffSide::A) {
-			action_set_optional(target, side, action_get_optional(change, DiffSide::B));
+			let value = action_get_optional(change, DiffSide::B).cloned();
+
+			let taken = target.take();
+
+			let (a, b) = taken.unwrap_or_default().to_tuple();
+
+			let (a, b) = match side {
+				DiffSide::A => (value, b),
+				DiffSide::B => (a, value),
+			};
+
+			let new = Some(Action::from_tuple(a, b)).filter(|action| !matches!(action, Action::None));
+
+			*target = new;
+
 			true
 		} else {
 			eprintln!("ignoring invalid change {:?} to ... - diff does not match!", change);
 			false
 		}
 	} else {
-		// might be dummy
-		action_set_optional(target, side, action_get_optional(change, DiffSide::B));
-		action_set_optional(target, side.opposite(), action_get_optional(change, DiffSide::A));
+		*target = action_from_action_optional_flip_if_a(side, change.clone());
 		true
 	}
 }
 
+#[derive(Default)]
 struct PropagationQueue<'version> {
 	queue_up: VecDeque<VersionEntry<'version>>,
 	queue_down: VecDeque<VersionEntry<'version>>,
@@ -913,37 +835,20 @@ struct PropagationQueue<'version> {
 }
 
 impl<'version> PropagationQueue<'version> {
-	fn new<'a>() -> PropagationQueue<'a> {
-		PropagationQueue {
-			queue_up: Default::default(),
-			queue_down: Default::default(),
-			version_up: Default::default(),
-			version_down: Default::default(),
+	fn offer_up(&mut self, version: VersionEntry<'version>) {
+		if self.version_up.insert(version) {
+			self.queue_up.push_back(version);
+			self.queue_up.make_contiguous()
+				.sort_by_key(|v| v.depth());
 		}
 	}
 
-	fn offer(&mut self, dir: PropDir, version: VersionEntry<'version>) -> bool {
-		match dir {
-			PropDir::Up => {
-				if self.version_up.insert(version) {
-					self.queue_up.push_back(version);
-					self.queue_up.make_contiguous()
-						.sort_by_key(|v| v.depth());
-					true
-				} else {
-					false
-				}
-			},
-			PropDir::Down => {
-				if self.version_down.insert(version) {
-					self.queue_down.push_back(version);
-					self.queue_down.make_contiguous()
-						.sort_by_key(|v| v.depth());
-					true
-				} else {
-					false
-				}
-			},
+
+	fn offer_down(&mut self, version: VersionEntry<'version>) {
+		if self.version_down.insert(version) {
+			self.queue_down.push_back(version);
+			self.queue_down.make_contiguous()
+				.sort_by_key(|v| v.depth());
 		}
 	}
 
@@ -968,112 +873,71 @@ fn is_add_or_remove_on_side<T>(diff: &Action<T>, side: DiffSide) -> bool {
 }
 
 fn action_get<T>(diff: &Action<T>, side: DiffSide) -> Option<&T> {
+	let (a, b) = diff.as_ref().to_tuple();
 	match side {
-		DiffSide::A => match diff {
-			Action::Add(_) => None,
-			Action::Remove(a) => Some(a),
-			Action::Edit(a, _) => Some(a),
-			Action::None => None,
-		},
-		DiffSide::B => match diff {
-			Action::Add(b) => Some(b),
-			Action::Remove(_) => None,
-			Action::Edit(_, b) => Some(b),
-			Action::None => None,
-		},
+		DiffSide::A => a,
+		DiffSide::B => b,
 	}
 }
 fn action_get_optional<T>(diff: &Option<Action<T>>, side: DiffSide) -> Option<&T> {
-	match diff {
-		Some(diff) => action_get(diff, side),
-		None => None,
+	diff.as_ref().and_then(|diff| action_get(diff, side))
+}
+
+fn action_flip_if_side_a<T>(side: DiffSide) -> impl Fn(Action<T>) -> Action<T> {
+	move |x| match side {
+		DiffSide::A => x.flip(),
+		DiffSide::B => x,
 	}
 }
 
-fn action_to_array<T>(action: Action<T>) -> [Option<T>; 2] {
-	match action {
-		Action::Add(b) => [None, Some(b)],
-		Action::Remove(a) => [Some(a), None],
-		Action::Edit(a, b) => [Some(a), Some(b)],
-		Action::None => [None, None],
-	}
-}
-fn array_to_action<T>(array: [Option<T>; 2]) -> Action<T> {
-	match array {
-		[None, None] => Action::None,
-		[None, Some(b)] => Action::Add(b),
-		[Some(a), None] => Action::Remove(a),
-		[Some(a), Some(b)] => Action::Edit(a, b),
+fn action_flip_if_side_b<T>(side: DiffSide) -> impl Fn(Action<T>) -> Action<T> {
+	move |x| match side {
+		DiffSide::A => x,
+		DiffSide::B => x.flip(),
 	}
 }
 
-fn action_set<T: Clone>(action: &mut Action<T>, side: DiffSide, value: Option<&T>) {
-	let mut array = action_to_array(action.clone());
-	match side {
-		DiffSide::A => array[0] = value.cloned(),
-		DiffSide::B => array[1] = value.cloned(),
-	}
-	let new_action = array_to_action(array);
-	*action = new_action;
+fn optional_action_to_action<T>(action: Option<Action<T>>) -> Action<T> {
+	action.unwrap_or_default()
 }
-fn action_set_optional<T: Clone>(action: &mut Option<Action<T>>, side: DiffSide, value: Option<&T>) {
-	match action {
-		Some(action_) => {
-			action_set(action_, side, value);
-
-			if matches!(action_, Action::None) {
-				*action = None;
-			}
-		},
-		None => {
-			let mut action_ = Action::None;
-
-			action_set(&mut action_, side, value);
-
-			if !matches!(action_, Action::None) {
-				*action = Some(action_);
-			}
-		}
-	}
+fn optional_action_from_action<T>(action: Action<T>) -> Option<Action<T>> {
+	Some(action).filter(|action| !matches!(action, Action::None))
 }
 
-
-fn make_class_name_stem_and_simple(class_name: &ClassName) -> (&JavaStr, &JavaStr) {
-	let s = class_name.as_inner();
-	s.rfind('/').map_or((JavaStr::from_str(""), s), |i| s.split_at(i))
+fn action_from_action_optional_flip_if_a<T>(
+	side: DiffSide,
+	source: Option<Action<T>>
+) -> Option<Action<T>> {
+	optional_action_from_action(action_flip_if_side_a(side)(optional_action_to_action(source)))
 }
 
-
-fn get_id_internal(s: &JavaStr) -> &JavaStr {
-	let mut chars = s.char_indices().rev().peekable();
-
-	while let Some((i, ch)) = chars.next() {
-		if ch == '$' || ch == '/' {
-			return &s[i..];
-		}
-
-		if ch == '_' {
-			if let Some(&(_, prev_ch)) = chars.peek() {
-				if prev_ch == 'C' || prev_ch == 'f' || prev_ch == 'm' || prev_ch == 'p' {
-					return &s[i..];
-				}
-			}
-		}
-	}
-
-	s
+fn optional_action_from_tuple<T>(value_a: Option<T>, value_b: Option<T>) -> Option<Action<T>> {
+	optional_action_from_action(Action::from_tuple(value_a, value_b))
 }
 
-fn get_id_class(class_key: &ClassName) -> &ClassNameSlice {
-	unsafe { ClassNameSlice::from_inner_unchecked(get_id_internal(class_key.as_inner())) }
+fn get_id_class(class_key: &ClassName) -> &JavaStr {
+	let s = class_key.as_inner();
+
+	s.rsplit_once("C_")
+		.or_else(|| s.rsplit_once(['$', '/'].as_slice()))
+		.map_or(s, |(_, id)| id)
 }
-fn get_id_field(field_key: &FieldNameAndDesc) -> &FieldNameSlice {
-	unsafe { FieldNameSlice::from_inner_unchecked(get_id_internal(field_key.name.as_inner())) }
+fn get_id_field(field_key: &FieldNameAndDesc) -> &JavaStr {
+	let s = field_key.name.as_inner();
+	s.rsplit_once("f_").map_or(s, |(_, id)| id)
 }
-fn get_id_method(method_key: &MethodNameAndDesc) -> &MethodNameSlice {
-	unsafe { MethodNameSlice::from_inner_unchecked(get_id_internal(method_key.name.as_inner())) }
+fn get_id_method(method_key: &MethodNameAndDesc) -> &JavaStr {
+	let s = method_key.name.as_inner();
+	s.rsplit_once("m_").map_or(s, |(_, id)| id)
 }
 
+/// postconditions:
+///
+/// `change_class` the side `a` get the simple name, call that `simple`
+///
+/// the returned sibling the opposite of `side` get the simple name, call that `sibling_simple`
+///
+/// guarantees: either `simple.ends_with(sibling_simple)` or `sibling_simple.ends_with(simple)` (choosing the longer one for the `self` arg)
 fn find_class_sibling<'a>(
 	diff: &'a MappingsDiff,
 	class_key: &'a ClassName,
@@ -1084,37 +948,42 @@ fn find_class_sibling<'a>(
 ) -> Option<(&'a ClassName, &'a ClassNowodeDiff)> {
 	let id = get_id_class(class_key);
 	let siblings: Vec<_> = diff.classes.iter()
-		.filter(|(key, diff)| get_id_class(key) == id &&
-			key != &class_key &&
-			diff.info.is_diff()
-		)
+		.filter(|(key, diff)| get_id_class(key) == id && key != &class_key && diff.info.is_diff())
 		.filter(|(_, sibling)| match mode {
 			Mode::Mappings => {
+				let (class_change_a, class_change_b) = change_class.info.as_ref().to_tuple();
+				let (sibling_side, sibling_side_op) = action_flip_if_side_b(side)(sibling.info.as_ref()).to_tuple();
+				let d_class_side_op = action_get(&d_class.info, side.opposite());
+
 				// for the side that the change was applied to,
 				// we need to check against the value before the change
-				action_get(&change_class.info, DiffSide::A).is_none() != action_get(&sibling.info, side).is_none() &&
-					action_get(&d_class.info, side.opposite()).is_none() != action_get(&sibling.info, side.opposite()).is_none() &&
+				class_change_a.is_none() != sibling_side.is_none() &&
+					d_class_side_op.is_none() != sibling_side_op.is_none() &&
 					{
-						let simple = action_get(&change_class.info, DiffSide::A).unwrap()
-							.get_simple_name().as_inner();
-						let sibling_simple = action_get(&sibling.info, side.opposite()).unwrap()
-							.get_simple_name().as_inner();
+						// The simple names must end with each other. This catches cases where Inner was renamed to Outer__Inner, and the other way around.
+						let simple = class_change_a.unwrap().get_simple_name().as_inner();
+						let sibling_simple = sibling_side_op.unwrap().get_simple_name().as_inner();
 
+						// TODO: use .cmp and match on Ordering::
 						let ends_with = if simple.len() > sibling_simple.len() {
 							simple.ends_with(sibling_simple)
 						} else {
 							sibling_simple.ends_with(simple)
 						};
 
-						ends_with && action_get(&change_class.info, DiffSide::B).unwrap().as_inner() != sibling_simple
+						ends_with && class_change_b.unwrap().as_inner() != sibling_simple
 					}
 			},
 			Mode::Javadocs => {
+				let class_change_a = action_get_optional(&change_class.javadoc, DiffSide::A);
+				let sibling_side = action_get_optional(&sibling.javadoc, side);
+				let sibling_side_op = action_get_optional(&sibling.javadoc, side.opposite());
+				let d_class_side_op = action_get_optional(&d_class.javadoc, side.opposite());
 				// for the side that the change was applied to,
 				// we need to check against the value before the change
-				action_get_optional(&change_class.javadoc, DiffSide::A).is_none() != action_get_optional(&sibling.javadoc, side).is_none() &&
-					action_get_optional(&d_class.javadoc, side.opposite()).is_none() != action_get_optional(&sibling.javadoc, side.opposite()).is_none() &&
-					action_get_optional(&change_class.javadoc, DiffSide::A) == action_get_optional(&sibling.javadoc, side.opposite())
+				class_change_a.is_none() != sibling_side.is_none() &&
+					d_class_side_op.is_none() != sibling_side_op.is_none() &&
+					class_change_a == sibling_side_op
 			},
 		})
 		.collect();
@@ -1158,10 +1027,7 @@ fn find_field_sibling<'a>(
 		.chain(sibling_parent)
 		.flat_map(|(class_key, class)| {
 			class.fields.iter()
-				.filter(|(key, diff)| get_id_field(key) == id &&
-					key != &field_key &&
-					diff.info.is_diff()
-				)
+				.filter(|(key, diff)| get_id_field(key) == id && key != &field_key && diff.info.is_diff())
 				.map(move |(field_key, field_diff)| (class_key, field_key, field_diff))
 		})
 		.filter(|(_, _, sibling)| {
@@ -1169,14 +1035,22 @@ fn find_field_sibling<'a>(
 			// we need to check against the value before the change
 			match mode {
 				Mode::Mappings => {
-					action_get(&change_field.info, DiffSide::A).is_none() != action_get(&sibling.info, side).is_none() &&
-						action_get(&d_field.info, side.opposite()).is_none() != action_get(&sibling.info, side.opposite()).is_none() &&
-						action_get(&change_field.info, DiffSide::A) == action_get(&sibling.info, side.opposite())
+					let (field_change_a, _) = change_field.info.as_ref().to_tuple();
+					let (sibling_side, sibling_side_op) = action_flip_if_side_b(side)(sibling.info.as_ref()).to_tuple();
+					let d_field_side_op = action_get(&d_field.info, side.opposite());
+					
+					field_change_a.is_none() != sibling_side.is_none() &&
+						d_field_side_op.is_none() != sibling_side_op.is_none() &&
+						field_change_a == sibling_side_op
 				},
 				Mode::Javadocs => {
-					action_get_optional(&change_field.javadoc, DiffSide::A).is_none() != action_get_optional(&sibling.javadoc, side).is_none() &&
-						action_get_optional(&d_field.javadoc, side.opposite()).is_none() != action_get_optional(&sibling.javadoc, side.opposite()).is_none() &&
-						action_get_optional(&change_field.javadoc, DiffSide::A) == action_get_optional(&sibling.javadoc, side.opposite())
+					let field_change_a = action_get_optional(&change_field.javadoc, DiffSide::A);
+					let sibling_side = action_get_optional(&sibling.javadoc, side);
+					let sibling_side_op = action_get_optional(&sibling.javadoc, side.opposite());
+					let d_field_side_op = action_get_optional(&d_field.javadoc, side.opposite());
+					field_change_a.is_none() != sibling_side.is_none() &&
+						d_field_side_op.is_none() != sibling_side_op.is_none() &&
+						field_change_a == sibling_side_op
 				},
 			}
 		})
@@ -1220,10 +1094,7 @@ fn find_method_sibling<'a>(
 		.chain(sibling_parent)
 		.flat_map(|(class_key, class)| {
 			class.methods.iter()
-				.filter(|(key, diff)| get_id_method(key) == id &&
-					key != &method_key &&
-					diff.info.is_diff()
-				)
+				.filter(|(key, diff)| get_id_method(key) == id && key != &method_key && diff.info.is_diff())
 				.map(move |(method_key, method_diff)| (class_key, method_key, method_diff))
 		})
 		.filter(|(_, _, sibling)| {
@@ -1231,14 +1102,23 @@ fn find_method_sibling<'a>(
 			// we need to check against the value before the change
 			match mode {
 				Mode::Mappings => {
-					action_get(&change_method.info, DiffSide::A).is_none() != action_get(&sibling.info, side).is_none() &&
-						action_get(&d_method.info, side.opposite()).is_none() != action_get(&sibling.info, side.opposite()).is_none() &&
-						action_get(&change_method.info, DiffSide::A) == action_get(&sibling.info, side.opposite())
+					let (method_change_a, _) = change_method.info.as_ref().to_tuple();
+					let (sibling_side, sibling_side_op) = action_flip_if_side_b(side)(sibling.info.as_ref()).to_tuple();
+					let d_method_side_op = action_get(&d_method.info, side.opposite());
+
+					method_change_a.is_none() != sibling_side.is_none() &&
+						d_method_side_op.is_none() != sibling_side_op.is_none() &&
+						method_change_a == sibling_side_op
 				},
 				Mode::Javadocs => {
-					action_get_optional(&change_method.javadoc, DiffSide::A).is_none() != action_get_optional(&sibling.javadoc, side).is_none() &&
-						action_get_optional(&d_method.javadoc, side.opposite()).is_none() != action_get_optional(&sibling.javadoc, side.opposite()).is_none() &&
-						action_get_optional(&change_method.javadoc, DiffSide::A) == action_get_optional(&sibling.javadoc, side.opposite())
+					let method_change_a = action_get_optional(&change_method.javadoc, DiffSide::A);
+					let sibling_side = action_get_optional(&sibling.javadoc, side);
+					let sibling_side_op = action_get_optional(&sibling.javadoc, side.opposite());
+					let d_method_side_op = action_get_optional(&d_method.javadoc, side.opposite());
+
+					method_change_a.is_none() != sibling_side.is_none() &&
+						d_method_side_op.is_none() != sibling_side_op.is_none() &&
+						method_change_a == sibling_side_op
 				},
 			}
 		})
