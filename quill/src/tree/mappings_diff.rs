@@ -30,7 +30,7 @@ fn add_child<Key, Node, Info>(map: &mut IndexMap<Key, Node>, key: Key, child: No
 pub struct MappingsDiff {
 	pub info: Action<String>,
 	pub classes: IndexMap<ClassName, ClassNowodeDiff>,
-	pub javadoc: Option<Action<JavadocMapping>>,
+	pub javadoc: Action<JavadocMapping>,
 }
 
 impl NodeInfo<Action<String>> for MappingsDiff {
@@ -45,18 +45,18 @@ impl NodeInfo<Action<String>> for MappingsDiff {
 	fn new(info: Action<String>) -> Self {
 		MappingsDiff {
 			info,
-			javadoc: None,
 			classes: IndexMap::new(),
+			javadoc: Action::None,
 		}
 	}
 }
 
 impl NodeJavadocInfo<Action<JavadocMapping>> for MappingsDiff {
-	fn get_node_javadoc_info(&self) -> &Option<Action<JavadocMapping>> {
+	fn get_node_javadoc_info(&self) -> &Action<JavadocMapping> {
 		&self.javadoc
 	}
 
-	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<Action<JavadocMapping>> {
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Action<JavadocMapping> {
 		&mut self.javadoc
 	}
 }
@@ -76,7 +76,7 @@ pub struct ClassNowodeDiff {
 	pub info: Action<ClassName>,
 	pub fields: IndexMap<FieldNameAndDesc, FieldNowodeDiff>,
 	pub methods: IndexMap<MethodNameAndDesc, MethodNowodeDiff>,
-	pub javadoc: Option<Action<JavadocMapping>>,
+	pub javadoc: Action<JavadocMapping>,
 }
 
 impl NodeInfo<Action<ClassName>> for ClassNowodeDiff {
@@ -93,17 +93,17 @@ impl NodeInfo<Action<ClassName>> for ClassNowodeDiff {
 			info,
 			fields: IndexMap::new(),
 			methods: IndexMap::new(),
-			javadoc: None,
+			javadoc: Action::None,
 		}
 	}
 }
 
 impl NodeJavadocInfo<Action<JavadocMapping>> for ClassNowodeDiff {
-	fn get_node_javadoc_info(&self) -> &Option<Action<JavadocMapping>> {
+	fn get_node_javadoc_info(&self) -> &Action<JavadocMapping> {
 		&self.javadoc
 	}
 
-	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<Action<JavadocMapping>> {
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Action<JavadocMapping> {
 		&mut self.javadoc
 	}
 }
@@ -126,7 +126,7 @@ impl ClassNowodeDiff {
 #[derive(Clone, Debug, Default)]
 pub struct FieldNowodeDiff {
 	pub info: Action<FieldName>,
-	pub javadoc: Option<Action<JavadocMapping>>,
+	pub javadoc: Action<JavadocMapping>,
 }
 
 impl NodeInfo<Action<FieldName>> for FieldNowodeDiff {
@@ -141,17 +141,17 @@ impl NodeInfo<Action<FieldName>> for FieldNowodeDiff {
 	fn new(info: Action<FieldName>) -> FieldNowodeDiff {
 		FieldNowodeDiff {
 			info,
-			javadoc: None,
+			javadoc: Action::None,
 		}
 	}
 }
 
 impl NodeJavadocInfo<Action<JavadocMapping>> for FieldNowodeDiff {
-	fn get_node_javadoc_info(&self) -> &Option<Action<JavadocMapping>> {
+	fn get_node_javadoc_info(&self) -> &Action<JavadocMapping> {
 		&self.javadoc
 	}
 
-	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<Action<JavadocMapping>> {
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Action<JavadocMapping> {
 		&mut self.javadoc
 	}
 }
@@ -163,7 +163,7 @@ impl NodeJavadocInfo<Action<JavadocMapping>> for FieldNowodeDiff {
 pub struct MethodNowodeDiff {
 	pub info: Action<MethodName>,
 	pub parameters: IndexMap<ParameterKey, ParameterNowodeDiff>,
-	pub javadoc: Option<Action<JavadocMapping>>,
+	pub javadoc: Action<JavadocMapping>,
 }
 
 impl NodeInfo<Action<MethodName>> for MethodNowodeDiff {
@@ -179,17 +179,17 @@ impl NodeInfo<Action<MethodName>> for MethodNowodeDiff {
 		MethodNowodeDiff {
 			info,
 			parameters: IndexMap::new(),
-			javadoc: None,
+			javadoc: Action::None,
 		}
 	}
 }
 
 impl NodeJavadocInfo<Action<JavadocMapping>> for MethodNowodeDiff {
-	fn get_node_javadoc_info(&self) -> &Option<Action<JavadocMapping>> {
+	fn get_node_javadoc_info(&self) -> &Action<JavadocMapping> {
 		&self.javadoc
 	}
 
-	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<Action<JavadocMapping>> {
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Action<JavadocMapping> {
 		&mut self.javadoc
 	}
 }
@@ -207,7 +207,7 @@ impl MethodNowodeDiff {
 #[derive(Clone, Debug, Default)]
 pub struct ParameterNowodeDiff {
 	pub info: Action<ParameterName>,
-	pub javadoc: Option<Action<JavadocMapping>>,
+	pub javadoc: Action<JavadocMapping>,
 }
 
 impl NodeInfo<Action<ParameterName>> for ParameterNowodeDiff {
@@ -222,17 +222,17 @@ impl NodeInfo<Action<ParameterName>> for ParameterNowodeDiff {
 	fn new(info: Action<ParameterName>) -> ParameterNowodeDiff {
 		ParameterNowodeDiff {
 			info,
-			javadoc: None,
+			javadoc: Action::None,
 		}
 	}
 }
 
 impl NodeJavadocInfo<Action<JavadocMapping>> for ParameterNowodeDiff {
-	fn get_node_javadoc_info(&self) -> &Option<Action<JavadocMapping>> {
+	fn get_node_javadoc_info(&self) -> &Action<JavadocMapping> {
 		&self.javadoc
 	}
 
-	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<Action<JavadocMapping>> {
+	fn get_node_javadoc_info_mut(&mut self) -> &mut Action<JavadocMapping> {
 		&mut self.javadoc
 	}
 }

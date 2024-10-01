@@ -40,7 +40,7 @@ impl MappingsDiff {
 
 				validator_check && (
 					v.info.is_diff() ||
-						v.javadoc.as_ref().is_some_and(Action::is_diff)
+						v.javadoc.as_ref().is_diff()
 				)
 			});
 			v.methods.retain(|k, v| {
@@ -69,7 +69,7 @@ impl MappingsDiff {
 
 					validator_check && (
 						v.info.is_diff() ||
-							v.javadoc.as_ref().is_some_and(Action::is_diff)
+							v.javadoc.as_ref().is_diff()
 					)
 				});
 
@@ -93,7 +93,7 @@ impl MappingsDiff {
 				(
 					validator_check && (
 						v.info.is_diff() ||
-							v.javadoc.as_ref().is_some_and(Action::is_diff)
+							v.javadoc.is_diff()
 					)
 				)
 					|| !v.parameters.is_empty()
@@ -123,7 +123,7 @@ impl MappingsDiff {
 			(
 				validator_check && (
 					v.info.is_diff() ||
-						v.javadoc.as_ref().is_some_and(Action::is_diff)
+						v.javadoc.is_diff()
 				)
 			)
 				|| !v.fields.is_empty()

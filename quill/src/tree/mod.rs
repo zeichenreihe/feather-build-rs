@@ -11,8 +11,8 @@ pub trait NodeInfo<I> {
 }
 
 pub trait NodeJavadocInfo<I> {
-	fn get_node_javadoc_info(&self) -> &Option<I>;
-	fn get_node_javadoc_info_mut(&mut self) -> &mut Option<I>;
+	fn get_node_javadoc_info(&self) -> &I;
+	fn get_node_javadoc_info_mut(&mut self) -> &mut I;
 }
 
 pub trait ToKey<K> {

@@ -48,7 +48,7 @@ impl<const N: usize> NodeInfo<MappingInfo<N>> for Mappings<N> {
 	}
 }
 
-impl<const N: usize> NodeJavadocInfo<JavadocMapping> for Mappings<N> {
+impl<const N: usize> NodeJavadocInfo<Option<JavadocMapping>> for Mappings<N> {
 	fn get_node_javadoc_info(&self) -> &Option<JavadocMapping> {
 		&self.javadoc
 	}
@@ -106,7 +106,7 @@ impl<const N: usize> NodeInfo<ClassMapping<N>> for ClassNowodeMapping<N> {
 	}
 }
 
-impl<const N: usize> NodeJavadocInfo<JavadocMapping> for ClassNowodeMapping<N> {
+impl<const N: usize> NodeJavadocInfo<Option<JavadocMapping>> for ClassNowodeMapping<N> {
 	fn get_node_javadoc_info(&self) -> &Option<JavadocMapping> {
 		&self.javadoc
 	}
@@ -151,7 +151,7 @@ impl<const N: usize> NodeInfo<FieldMapping<N>> for FieldNowodeMapping<N> {
 	}
 }
 
-impl<const N: usize> NodeJavadocInfo<JavadocMapping> for FieldNowodeMapping<N> {
+impl<const N: usize> NodeJavadocInfo<Option<JavadocMapping>> for FieldNowodeMapping<N> {
 	fn get_node_javadoc_info(&self) -> &Option<JavadocMapping> {
 		&self.javadoc
 	}
@@ -186,7 +186,7 @@ impl<const N: usize> NodeInfo<MethodMapping<N>> for MethodNowodeMapping<N> {
 	}
 }
 
-impl<const N: usize> NodeJavadocInfo<JavadocMapping> for MethodNowodeMapping<N> {
+impl<const N: usize> NodeJavadocInfo<Option<JavadocMapping>> for MethodNowodeMapping<N> {
 	fn get_node_javadoc_info(&self) -> &Option<JavadocMapping> {
 		&self.javadoc
 	}
@@ -226,7 +226,7 @@ impl<const N: usize> NodeInfo<ParameterMapping<N>> for ParameterNowodeMapping<N>
 	}
 }
 
-impl<const N: usize> NodeJavadocInfo<JavadocMapping> for ParameterNowodeMapping<N> {
+impl<const N: usize> NodeJavadocInfo<Option<JavadocMapping>> for ParameterNowodeMapping<N> {
 	fn get_node_javadoc_info(&self) -> &Option<JavadocMapping> {
 		&self.javadoc
 	}

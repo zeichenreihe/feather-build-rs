@@ -86,20 +86,15 @@ pub(crate) mod diff_and_merge {
 	}
 }
 
-fn gen_diff_javadoc<Target, Javadoc>(ab: Combination<&Target>) -> Option<Action<Javadoc>>
+fn gen_diff_javadoc<Target, Javadoc>(ab: Combination<&Target>) -> Action<Javadoc>
 	where
-		Target: NodeJavadocInfo<Javadoc>,
+		Target: NodeJavadocInfo<Option<Javadoc>>,
 		Javadoc: Clone,
 {
 	match ab.map(|target| target.get_node_javadoc_info().clone()) {
-		Combination::A(a) => a.map(Action::Remove),
-		Combination::B(b) => b.map(Action::Add),
-		Combination::AB(a, b) => match (a, b) {
-			(None, None) => None,
-			(None, Some(b)) => Some(Action::Add(b)),
-			(Some(a), None) => Some(Action::Remove(a)),
-			(Some(a), Some(b)) => Some(Action::Edit(a, b)),
-		},
+		Combination::A(a) => a.map_or(Action::None, Action::Remove),
+		Combination::B(b) => b.map_or(Action::None, Action::Add),
+		Combination::AB(a, b) => Action::from_tuple(a, b),
 	}
 }
 

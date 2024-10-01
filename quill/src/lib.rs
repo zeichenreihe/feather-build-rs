@@ -23,7 +23,7 @@ pub mod remapper;
 ///
 /// pub here bc it's used in feather-build-rs for applying diffs in insert_mappings.rs
 pub fn apply_diff_option<T>(
-	diff: &Option<tree::mappings_diff::Action<T>>,
+	diff: &tree::mappings_diff::Action<T>,
 	target: Option<T>,
 ) -> anyhow::Result<Option<T>>
 	where

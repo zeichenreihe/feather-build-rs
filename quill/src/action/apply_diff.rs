@@ -8,22 +8,24 @@ use crate::tree::names::Namespace;
 use crate::tree::{FromKey, GetNames, NodeInfo};
 
 pub(crate) fn apply_diff_option<T>(
-	diff: &Option<Action<T>>,
+	diff: &Action<T>,
 	target: Option<T>,
 ) -> Result<Option<T>>
 	where
 		T: Debug + Clone + PartialEq,
 {
 	Ok(match diff {
-		None => target,
-		Some(Action::Add(b)) => {
+		// This includes the case where the target doesn't exist.
+		// As there is no child, we do not need to propagate down.
+		Action::None => target,
+		Action::Add(b) => {
 			if let Some(target) = target {
 				bail!("cannot add {b:?} as there's already an existing target {target:?}");
 			} else {
 				Some(b.clone())
 			}
 		},
-		Some(Action::Remove(a)) => {
+		Action::Remove(a) => {
 			if let Some(target) = target {
 				if &target != a {
 					bail!("cannot remove existing target {target:?} as {a:?}, because they are not equal");
@@ -33,7 +35,7 @@ pub(crate) fn apply_diff_option<T>(
 				bail!("cannot remove non existing target {a:?}");
 			}
 		},
-		Some(Action::Edit(a, b)) => {
+		Action::Edit(a, b) => {
 			if let Some(target) = target {
 				if target != *a {
 					bail!("cannot edit existing target {target:?} as {a:?}, because they are not equal");
@@ -43,14 +45,6 @@ pub(crate) fn apply_diff_option<T>(
 				bail!("cannot edit non existing target from {a:?} to {b:?}");
 			}
 		},
-		Some(Action::None) => {
-			if target.is_some() {
-				// As there is no child, we do not need to propagate down.
-				target
-			} else {
-				bail!("cannot not action on a non existing target");
-			}
-		}
 	})
 }
 

@@ -8,7 +8,7 @@ use super::diff_mappings::diff_and_merge::*;
 
 fn merge_javadoc<Target, Javadoc>(ab: Combination<&Target>) -> Result<Option<Javadoc>>
 	where
-		Target: NodeJavadocInfo<Javadoc>,
+		Target: NodeJavadocInfo<Option<Javadoc>>,
 		Javadoc: Clone + Debug + PartialEq,
 {
 	Ok(match ab.map(NodeJavadocInfo::get_node_javadoc_info) {

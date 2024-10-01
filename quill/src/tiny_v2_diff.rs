@@ -42,6 +42,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 			let class = ClassNowodeDiff::new(action);
 			let class = mappings.add_class(class_key, class)?;
 
+			let mut had_comment = false;
 			iter.next_level().on_every_line(|iter, mut line| {
 				if line.first_field == "f" {
 					let desc: FieldDescriptor = JavaString::from(line.next()?).try_into()?;
@@ -52,9 +53,10 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 					let field = FieldNowodeDiff::new(action);
 					let field = class.add_field(field_key, field)?;
 
+					let mut had_comment = false;
 					iter.next_level().on_every_line(|_, line| {
 						if line.first_field == "c" {
-							add_comment(&mut field.javadoc, line)
+							add_comment(&mut had_comment, &mut field.javadoc, line)
 						} else {
 							Ok(())
 						}
@@ -68,6 +70,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 					let method = MethodNowodeDiff::new(action);
 					let method = class.add_method(method_key, method)?;
 
+					let mut had_comment = false;
 					iter.next_level().on_every_line(|iter, mut line| {
 						if line.first_field == "p" {
 							let index = line.next()?.parse()?;
@@ -82,21 +85,22 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 							let parameter = ParameterNowodeDiff::new(action);
 							let parameter = method.add_parameter(parameter_key, parameter)?;
 
+							let mut had_comment = false;
 							iter.next_level().on_every_line(|_, line| {
 								if line.first_field == "c" {
-									add_comment(&mut parameter.javadoc, line)
+									add_comment(&mut had_comment, &mut parameter.javadoc, line)
 								} else {
 									Ok(())
 								}
 							}).context("reading parameter sub-sections")
 						} else if line.first_field == "c" {
-							add_comment(&mut method.javadoc, line)
+							add_comment(&mut had_comment, &mut method.javadoc, line)
 						} else {
 							Ok(())
 						}
 					}).context("reading method sub-sections")
 				} else if line.first_field == "c" {
-					add_comment(&mut class.javadoc, line)
+					add_comment(&mut had_comment, &mut class.javadoc, line)
 				} else {
 					Ok(())
 				}
@@ -114,7 +118,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 	Ok(mappings)
 }
 
-fn add_comment(javadoc: &mut Option<Action<JavadocMapping>>, line: TinyLine) -> Result<()> {
+fn add_comment(had_comment: &mut bool, javadoc: &mut Action<JavadocMapping>, line: TinyLine) -> Result<()> {
 	let action: Action<String> = line.action_string()?;
 	let action = match action {
 		Action::Add(b) => Action::Add(JavadocMapping(unescape(b))),
@@ -122,10 +126,11 @@ fn add_comment(javadoc: &mut Option<Action<JavadocMapping>>, line: TinyLine) -> 
 		Action::Edit(a, b) => Action::Edit(JavadocMapping(unescape(a)), JavadocMapping(unescape(b))),
 		Action::None => Action::None,
 	};
-	if let Some(javadoc) = javadoc {
+	if *had_comment {
 		bail!("only one comment diff is allowed, got {javadoc:?} and {action:?}");
 	} else {
-		*javadoc = Some(action);
+		*had_comment = true;
+		*javadoc = action;
 		Ok(())
 	}
 }
