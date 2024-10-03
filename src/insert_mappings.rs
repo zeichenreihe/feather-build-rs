@@ -755,14 +755,7 @@ fn apply_change_diffs<Target, Change, T, U>(
 
 			if target.is_diff() {
 				// it's not a dummy
-				Ok(apply_change_to_diff(target, change, side)
-					.map(|()| Changed::Edited)
-					.unwrap_or_else(|e| {
-						eprintln!("{e:?}");
-						// TODO: shouldn't this be a failure instead of reporting editing success?
-						eprintln!("ignoring invalid change {:?} to ... - diff does not match!", change);
-						Changed::Edited
-					}))
+				apply_change_to_diff(target, change, side).map(|()| Changed::Edited)
 			} else if insert {
 				// might be dummy
 				*target = flip_if_side_b(side.opposite(), change.clone());
