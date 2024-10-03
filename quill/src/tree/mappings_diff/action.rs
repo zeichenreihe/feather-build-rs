@@ -53,12 +53,6 @@ impl<T> Action<T> {
 		}
 	}
 
-	/// Borrowing version of [`Action::to_tuple`].
-	#[deprecated]
-	pub fn as_tuple(&self) -> (Option<&T>, Option<&T>) {
-		self.as_ref().to_tuple()
-	}
-
 	/// Flips the direction of the action.
 	///
 	/// The inverse of this function is itself.
@@ -81,10 +75,17 @@ impl<T> Action<T> {
 			Action::Edit(a, b) => Action::Edit(b, a),
 		}
 	}
+}
 
-	/// Borrowing version of [`Action::flip`].
-	#[deprecated]
-	pub fn as_flip(&self) -> Action<&T> {
-		self.as_ref().flip()
+/// See [`Action::from_tuple`].
+impl<T> From<(Option<T>, Option<T>)> for Action<T> {
+	fn from(value: (Option<T>, Option<T>)) -> Self {
+		Action::from_tuple(value.0, value.1)
+	}
+}
+/// See [`Action::to_tuple`].
+impl<T> From<Action<T>> for (Option<T>, Option<T>) {
+	fn from(value: Action<T>) -> Self {
+		value.to_tuple()
 	}
 }
