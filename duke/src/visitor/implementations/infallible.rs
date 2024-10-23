@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 use anyhow::Result;
 use java_string::JavaString;
 use crate::tree::annotation::Object;
-use crate::tree::class::{ClassAccess, ClassName, ClassSignature, EnclosingMethod, InnerClass};
+use crate::tree::class::{ClassAccess, ClassName, ClassSignature, EnclosingMethod, InnerClass, ObjClassName};
 use crate::tree::descriptor::ReturnDescriptor;
 use crate::tree::field::{ConstantValue, FieldAccess, FieldDescriptor, FieldName, FieldSignature};
 use crate::tree::method::{MethodAccess, MethodDescriptor, MethodName, MethodParameter, MethodSignature};
@@ -25,7 +25,7 @@ impl MultiClassVisitor for Infallible {
 	type ClassVisitor = Infallible;
 	type ClassResidual = Self;
 
-	fn visit_class(self, _version: Version, _access: ClassAccess, _name: ClassName, _super_class: Option<ClassName>, _interfaces: Vec<ClassName>)
+	fn visit_class(self, _version: Version, _access: ClassAccess, _name: ObjClassName, _super_class: Option<ObjClassName>, _interfaces: Vec<ObjClassName>)
 			-> Result<ControlFlow<Self, (Self::ClassResidual, Self::ClassVisitor)>> {
 		unreachable!()
 	}

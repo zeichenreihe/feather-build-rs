@@ -234,6 +234,9 @@ impl From<MethodAccess> for u16 {
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct MethodRef {
+	/// Other than for fields, there can be references to methods on array classes.
+	/// One example is the `.clone()` method provided by `Object` and implemented (as any array `implements Cloneable`)
+	/// by any array.
 	pub class: ClassName,
 	pub name: MethodName,
 	pub desc: MethodDescriptor,
@@ -247,6 +250,8 @@ pub struct MethodNameAndDesc {
 
 impl MethodNameAndDesc {
 	/// Add a [`ClassName`] to this [`MethodNameAndDesc`] to make a [`MethodRef`].
+	///
+	/// This is a [`ClassName`], as there can be references to methods on array classes, such as `.clone()`.
 	pub fn with_class(self, class: ClassName) -> MethodRef {
 		MethodRef { class, name: self.name, desc: self.desc }
 	}

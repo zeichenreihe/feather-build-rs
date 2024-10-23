@@ -2,7 +2,7 @@ use std::iter::Peekable;
 use anyhow::{anyhow, bail, Context, Result};
 use java_string::{Chars, JavaCodePoint, JavaStr, JavaString};
 use crate::macros::make_string_str_like;
-use crate::tree::class::{ClassName, ClassNameSlice};
+use crate::tree::class::{ArrClassNameSlice, ClassName, ClassNameSlice, ObjClassName, ObjClassNameSlice};
 use crate::tree::field::{FieldDescriptor, FieldDescriptorSlice};
 use crate::tree::method::{MethodDescriptor, MethodDescriptorSlice};
 
@@ -50,7 +50,7 @@ pub enum Type {
 	/// A `boolean`. In rust, this is a `bool`.
 	Z,
 	/// An instance of the class specified by [`ClassName`].
-	Object(ClassName),
+	Object(ObjClassName),
 	/// An array type, represented by the dimension and the inner [`ArrayType`].
 	Array(u8, ArrayType),
 }
@@ -120,8 +120,8 @@ fn read_field_type(chars: &mut Peekable<Chars>) -> Result<Type> {
 					char = chars.next().ok_or_else(|| anyhow!("unexpected abrupt ending of descriptor"))?;
 				}
 
-				// SAFETY: Between `L` and `;` in an descriptor is always a valid class name.
-				let class_name = unsafe { ClassName::from_inner_unchecked(s) };
+				// SAFETY: Between `L` and `;` in an descriptor is always a valid object class name.
+				let class_name = unsafe { ObjClassName::from_inner_unchecked(s) };
 				Type::Object(class_name)
 			},
 			x => {
@@ -218,7 +218,7 @@ impl FieldDescriptorSlice {
 	/// # Examples
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use duke::tree::class::ClassName;
+	/// use duke::tree::class::ObjClassName;
 	/// use duke::tree::descriptor::{ArrayType, ParsedFieldDescriptor, Type};
 	/// use duke::tree::field::FieldDescriptorSlice;
 	///
@@ -228,7 +228,7 @@ impl FieldDescriptorSlice {
 	/// );
 	/// assert_eq!(
 	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;".into()) }.parse().unwrap(),
-	///     ParsedFieldDescriptor(Type::Object(ClassName::JAVA_LANG_OBJECT.to_owned()))
+	///     ParsedFieldDescriptor(Type::Object(ObjClassName::JAVA_LANG_OBJECT.to_owned()))
 	/// );
 	/// assert_eq!(
 	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("[[[D".into()) }.parse().unwrap(),
@@ -260,7 +260,7 @@ impl ParsedFieldDescriptor {
 	/// # Examples
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use duke::tree::class::ClassName;
+	/// use duke::tree::class::ObjClassName;
 	/// use duke::tree::descriptor::{ArrayType, ParsedFieldDescriptor, Type};
 	/// use duke::tree::field::FieldDescriptorSlice;
 	///
@@ -269,7 +269,7 @@ impl ParsedFieldDescriptor {
 	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("I".into()) },
 	/// );
 	/// assert_eq!(
-	///     ParsedFieldDescriptor(Type::Object(ClassName::JAVA_LANG_OBJECT.to_owned())).write(),
+	///     ParsedFieldDescriptor(Type::Object(ObjClassName::JAVA_LANG_OBJECT.to_owned())).write(),
 	///     unsafe { FieldDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;".into()) },
 	/// );
 	/// assert_eq!(
@@ -410,7 +410,7 @@ impl ReturnDescriptorSlice {
 	/// # Examples
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use duke::tree::class::ClassName;
+	/// use duke::tree::class::ObjClassName;
 	/// use duke::tree::descriptor::{ArrayType, ParsedReturnDescriptor, ReturnDescriptorSlice, Type};
 	///
 	/// assert_eq!(
@@ -423,7 +423,7 @@ impl ReturnDescriptorSlice {
 	/// );
 	/// assert_eq!(
 	///     unsafe { ReturnDescriptorSlice::from_inner_unchecked("Ljava/lang/Object;".into()) }.parse().unwrap(),
-	///     ParsedReturnDescriptor(Some(Type::Object(ClassName::JAVA_LANG_OBJECT.to_owned())))
+	///     ParsedReturnDescriptor(Some(Type::Object(ObjClassName::JAVA_LANG_OBJECT.to_owned())))
 	/// );
 	/// assert_eq!(
 	///     unsafe { ReturnDescriptorSlice::from_inner_unchecked("[[[D".into()) }.parse().unwrap(),
@@ -461,7 +461,7 @@ impl ParsedReturnDescriptor {
 	/// # Examples
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use duke::tree::class::ClassName;
+	/// use duke::tree::class::ObjClassName;
 	/// use duke::tree::descriptor::{ArrayType, ParsedReturnDescriptor, Type};
 	///
 	/// assert_eq!(
@@ -473,7 +473,7 @@ impl ParsedReturnDescriptor {
 	///     "V"
 	/// );
 	/// assert_eq!(
-	///     ParsedReturnDescriptor(Some(Type::Object(ClassName::JAVA_LANG_OBJECT.to_owned())))
+	///     ParsedReturnDescriptor(Some(Type::Object(ObjClassName::JAVA_LANG_OBJECT.to_owned())))
 	///         .write().as_inner(),
 	///     "Ljava/lang/Object;"
 	/// );
@@ -520,32 +520,35 @@ impl FieldDescriptor {
 	/// This is equivalent to something like `"L" + class_name + ";"`, but performs more checks:
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use duke::tree::class::ClassName;
+	/// use duke::tree::class::ObjClassName;
 	/// use duke::tree::field::FieldDescriptor;
 	/// let a = unsafe { FieldDescriptor::from_inner_unchecked("Ljava/lang/Object;".into()) };
-	/// let b = FieldDescriptor::from_class(ClassName::JAVA_LANG_OBJECT);
+	/// let b = FieldDescriptor::from_class(ObjClassName::JAVA_LANG_OBJECT.as_class_name());
 	/// assert_eq!(a, b);
 	// TODO: test cases, also one that fails, with array class name?
+	//  and like... document the below functions
 	/// ```
 	pub fn from_class(class_name: &ClassNameSlice) -> FieldDescriptor {
+		class_name.as_arr_and_obj()
+			.map_or_else(FieldDescriptor::from_obj_class, FieldDescriptor::from_arr_class)
+	}
+
+	pub fn from_arr_class(class_name: &ArrClassNameSlice) -> FieldDescriptor {
+		// For array classes, the class name is just a descriptor already
+		let desc = class_name.as_inner().to_owned();
+		// SAFETY: An array class name is a valid field descriptor.
+		unsafe { FieldDescriptor::from_inner_unchecked(desc) }
+	}
+
+	pub fn from_obj_class(class_name: &ObjClassNameSlice) -> FieldDescriptor {
 		let class_name = class_name.as_inner();
-		assert!(!class_name.starts_with('['));
-		// TODO: remove this? more generally: decide about array classes
-		//  (this includes searching for "assert!" and "["...)
 
-		if class_name.starts_with('[') {
-			// for array classes, the class name is just a descriptor already
-			let desc = class_name.to_owned();
-			// SAFETY: An array class name is a valid field descriptor.
-			unsafe { FieldDescriptor::from_inner_unchecked(desc) }
-		} else {
-			// otherwise, build a descriptor by L...;-ing the class name
-			let desc = JavaString::with_capacity(2 + class_name.len())
-				+ "L" + class_name + ";";
+		// Build a descriptor by L...;-ing the class name
+		let desc = JavaString::with_capacity(2 + class_name.len())
+			+ "L" + class_name + ";";
 
-			// SAFETY: `desc` is valid by construction.
-			unsafe { FieldDescriptor::from_inner_unchecked(desc) }
-		}
+		// SAFETY: `desc` is valid by construction.
+		unsafe { FieldDescriptor::from_inner_unchecked(desc) }
 	}
 }
 
@@ -554,15 +557,15 @@ mod testing {
 	use pretty_assertions::assert_eq;
 	use anyhow::Result;
 	use java_string::JavaStr;
-	use crate::tree::class::ClassNameSlice;
+	use crate::tree::class::ObjClassNameSlice;
 	use crate::tree::descriptor::{ParsedFieldDescriptor, ParsedMethodDescriptor, ParsedReturnDescriptor, ReturnDescriptorSlice, Type};
 	use crate::tree::field::FieldDescriptorSlice;
 	use crate::tree::method::MethodDescriptorSlice;
 
 	// SAFETY: `java/lang/Thread` is a valid class name.
-	const JAVA_LANG_THREAD: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked(JavaStr::from_str("java/lang/Thread")) };
+	const JAVA_LANG_THREAD: &ObjClassNameSlice = unsafe { ObjClassNameSlice::from_inner_unchecked(JavaStr::from_str("java/lang/Thread")) };
 	// SAFETY: `java/lang/Object` is a valid class name.
-	const JAVA_LANG_OBJECT: &ClassNameSlice = unsafe { ClassNameSlice::from_inner_unchecked(JavaStr::from_str("java/lang/Object")) };
+	const JAVA_LANG_OBJECT: &ObjClassNameSlice = unsafe { ObjClassNameSlice::from_inner_unchecked(JavaStr::from_str("java/lang/Object")) };
 
 	#[test]
 	fn field_parse() -> Result<()> {

@@ -19,9 +19,9 @@ use crate::visitor::MultiClassVisitor;
 pub struct ClassFile {
 	pub version: Version,
 	pub access: ClassAccess,
-	pub name: ClassName,
-	pub super_class: Option<ClassName>,
-	pub interfaces: Vec<ClassName>,
+	pub name: ObjClassName,
+	pub super_class: Option<ObjClassName>,
+	pub interfaces: Vec<ObjClassName>,
 
 	pub fields: Vec<Field>,
 	pub methods: Vec<Method>,
@@ -55,7 +55,7 @@ pub struct ClassFile {
 }
 
 impl ClassFile {
-	pub fn new(version: Version, access: ClassAccess, name: ClassName, super_class: Option<ClassName>, interfaces: Vec<ClassName>) -> ClassFile {
+	pub fn new(version: Version, access: ClassAccess, name: ObjClassName, super_class: Option<ObjClassName>, interfaces: Vec<ObjClassName>) -> ClassFile {
 		ClassFile {
 			version,
 			access,
@@ -294,11 +294,13 @@ impl From<ClassAccess> for u16 {
 make_string_str_like!(
 	/// Represents a class name.
 	///
-	/// The class name uses [internal binary names](https://docs.oracle.com/javase/specs/jvms/se22/html/jvms-4.html#jvms-4.2.1), i.e. with complete path
-	/// written out and using slashes.
+	/// The class name can both be an array class name as allowed by [`ArrClassName`] and an
+	/// object class name as allowed by [`ObjClassName`].
 	///
-	/// This type owns its contents, like [`String`]. If you don't want to own the contents, consider [`ClassNameSlice`].
+	/// Any valid [`ArrClassName`] or valid [`ObjClassName`] is also a valid [`ClassName`].
+	/// See [`ClassName::into_arr`] and [`ClassName::into_obj`] for converting to array or object class names.
 	///
+	// TODO: update these?
 	/// # Examples
 	/// The java class `java.lang.Thread` would get:
 	/// ```
@@ -307,9 +309,10 @@ make_string_str_like!(
 	/// ```
 	/// Note that there's an associated constant holding the name of the `java.lang.Object` class:
 	/// ```
-	/// use duke::tree::class::ClassName;
-	/// let java_lang_object = ClassName::JAVA_LANG_OBJECT.clone();
-	/// assert_eq!(java_lang_object, unsafe { ClassName::from_inner_unchecked("java/lang/Object".into()) });
+	/// # // TODO: doc is invalid
+	/// use duke::tree::class::ObjClassName;
+	/// let java_lang_object = ObjClassName::JAVA_LANG_OBJECT.clone();
+	/// assert_eq!(java_lang_object, unsafe { ObjClassName::from_inner_unchecked("java/lang/Object".into()) });
 	/// ```
 	// TODO: doc: array class names are also valid!
 	pub ClassName(JavaString);
@@ -324,38 +327,21 @@ make_string_str_like!(
 make_display!(ClassName, ClassNameSlice);
 
 impl ClassName {
-	/// A constant holding the class name of `Object`.
-	pub const JAVA_LANG_OBJECT: &'static ClassNameSlice = {
-		// SAFETY: `java/lang/Object` is a valid class name.
-		unsafe { ClassNameSlice::from_inner_unchecked(JavaStr::from_str("java/lang/Object")) }
-	};
+	pub(crate) fn into_arr_and_obj(self) -> Result<ArrClassName, ObjClassName> {
+		if self.is_array() {
+			// SAFETY: We just checked that it's an array class name.
+			Ok(unsafe { ArrClassName::from_inner_unchecked(self.into_inner()) })
+		} else {
+			// SAFETY: A non-array class name must be an object class name.
+			Err(unsafe { ObjClassName::from_inner_unchecked(self.into_inner()) })
+		}
+	}
 
-	/// Creates a class name for joining together an inner class parent name and an inner class name.
-	///
-	/// ```
-	/// # use pretty_assertions::assert_eq;
-	/// use duke::tree::class::{ClassName, ClassNameSlice};
-	///
-	/// // SAFETY: This is a valid class name.
-	/// let parent = unsafe { ClassName::from_inner_unchecked("org/example/OuterClass".into()) };
-	/// let inner = unsafe { ClassNameSlice::from_inner_unchecked("InnerClass".into()) };
-	///
-	/// let expected = unsafe { ClassNameSlice::from_inner_unchecked("org/example/OuterClass$InnerClass".into()) };
-	/// assert_eq!(ClassName::from_inner_class(parent, inner), expected);
-	/// ```
-	///
-	/// # Panics
-	/// If any of the arguments is an [array][ClassNameSlice::is_array] class.
-	pub fn from_inner_class(parent: ClassName, inner_name: &ClassNameSlice) -> ClassName {
-		assert!(!parent.is_array());
-		assert!(!inner_name.is_array());
-
-		let mut s: JavaString = parent.into_inner();
-		s.reserve(1 + inner_name.as_inner().len());
-		s.push('$');
-		s.push_java_str(inner_name.as_inner());
-		// SAFETY: Joining two (non array) class names with `$` together always creates a valid class name.
-		unsafe { ClassName::from_inner_unchecked(s) }
+	pub fn into_arr(self) -> Option<ArrClassName> {
+		self.into_arr_and_obj().ok()
+	}
+	pub fn into_obj(self) -> Option<ObjClassName> {
+		self.into_arr_and_obj().err()
 	}
 }
 
@@ -373,83 +359,203 @@ impl ClassNameSlice {
 	///
 	/// assert_eq!(array.is_array(), true);
 	///
-	/// assert_eq!(ClassName::JAVA_LANG_OBJECT.is_array(), false);
+	/// // assert_eq!(ClassName::JAVA_LANG_OBJECT.is_array(), false);
 	/// ```
+	// TODO: code
 	pub fn is_array(&self) -> bool {
 		self.as_inner().starts_with('[')
 	}
 
+	pub(crate) fn as_arr_and_obj(&self) -> Result<&ArrClassNameSlice, &ObjClassNameSlice> {
+		if self.is_array() {
+			// SAFETY: We just checked that it's an array class name.
+			Ok(unsafe { ArrClassNameSlice::from_inner_unchecked(self.as_inner()) })
+		} else {
+			// SAFETY: A non-array class name must be an object class name.
+			Err(unsafe { ObjClassNameSlice::from_inner_unchecked(self.as_inner()) })
+		}
+	}
+
+	pub fn as_arr(&self) -> Option<&ArrClassNameSlice> {
+		self.as_arr_and_obj().ok()
+	}
+	pub fn as_obj(&self) -> Option<&ObjClassNameSlice> {
+		self.as_arr_and_obj().err()
+	}
+}
+
+impl From<ArrClassName> for ClassName {
+	fn from(value: ArrClassName) -> Self {
+		// SAFETY: Array class names are a subset of all class names (including array ones).
+		unsafe { ClassName::from_inner_unchecked(value.into_inner()) }
+	}
+}
+impl From<ObjClassName> for ClassName {
+	fn from(value: ObjClassName) -> Self {
+		// SAFETY: Object class names are a subset of all class names (including array ones).
+		unsafe { ClassName::from_inner_unchecked(value.into_inner()) }
+	}
+}
+
+make_string_str_like!(
+	/// Represents an array class name.
+	///
+	/// Array class names always start with `[` followed by a field descriptor.
+	///
+	/// See the `ArrayType` part of [section 4.3.2](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.3.2).
+	pub ArrClassName(JavaString);
+	/// A [`ArrClassName`] slice.
+	pub ArrClassNameSlice(JavaStr);
+	is_valid(s) = if crate::tree::names::is_valid_arr_class_name(s) {
+		Ok(())
+	} else {
+		bail!("invalid array class name: must be an array field descriptor");
+	};
+);
+make_display!(ArrClassName, ArrClassNameSlice);
+
+impl ArrClassNameSlice {
+	/// Returns the dimension of the array class.
+	///
+	/// ```
+	/// # use pretty_assertions::assert_eq;
+	/// use duke::tree::class::ArrClassNameSlice;
+	///
+	/// // SAFETY: `[I` is a valid array class name.
+	/// let one_dimension = unsafe { ArrClassNameSlice::from_inner_unchecked("[I".into()) };
+	/// assert_eq!(one_dimension.dimension(), 1);
+	///
+	/// // SAFETY: `[[[D` is a valid array class name.
+	/// let three_dimensions = unsafe { ArrClassNameSlice::from_inner_unchecked("[[[D".into()) };
+	/// assert_eq!(three_dimensions.dimension(), 3);
+	/// ```
+	pub fn dimension(&self) -> u8 {
+		let dimension = self.as_inner().chars()
+			.take_while(|ch| *ch == '[')
+			.count() as u8;
+		assert_ne!(dimension, 0);
+		dimension
+	}
+}
+
+make_string_str_like!(
+	/// Represents an object class name.
+	///
+	/// The class name uses [internal binary names](https://docs.oracle.com/javase/specs/jvms/se22/html/jvms-4.html#jvms-4.2.1), i.e. with complete path
+	/// written out and using slashes.
+	///
+	/// See the `ClassName` part of [section 4.3.2](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.3.2).
+	pub ObjClassName(JavaString);
+	/// A [`ObjClassName`] slice.
+	pub ObjClassNameSlice(JavaStr);
+	is_valid(s) = if crate::tree::names::is_valid_obj_class_name(s) {
+		Ok(())
+	} else {
+		bail!("invalid array class name: must be an array field descriptor");
+	};
+);
+make_display!(ObjClassName, ObjClassNameSlice);
+
+impl ObjClassName {
+	/// A constant holding the class name of `Object`.
+	pub const JAVA_LANG_OBJECT: &'static ObjClassNameSlice = {
+		// SAFETY: `java/lang/Object` is a valid class name.
+		unsafe { ObjClassNameSlice::from_inner_unchecked(JavaStr::from_str("java/lang/Object")) }
+	};
+
+	/// Creates a class name for joining together an inner class parent name and an inner class name.
+	///
+	/// ```
+	/// # use pretty_assertions::assert_eq;
+	/// use duke::tree::class::{ObjClassName, ObjClassNameSlice};
+	///
+	/// // SAFETY: This is a valid class name.
+	/// let parent = unsafe { ObjClassName::from_inner_unchecked("org/example/OuterClass".into()) };
+	/// let inner = unsafe { ObjClassNameSlice::from_inner_unchecked("InnerClass".into()) };
+	///
+	/// let expected = unsafe { ObjClassNameSlice::from_inner_unchecked("org/example/OuterClass$InnerClass".into()) };
+	/// assert_eq!(ObjClassName::from_inner_class(parent, inner), expected);
+	/// ```
+	pub fn from_inner_class(parent: ObjClassName, inner_name: &ObjClassNameSlice) -> ObjClassName {
+		let mut s: JavaString = parent.into_inner();
+		s.reserve(1 + inner_name.as_inner().len());
+		s.push('$');
+		s.push_java_str(inner_name.as_inner());
+		// SAFETY: Joining two object class names with `$` together always creates a valid object class name.
+		unsafe { ObjClassName::from_inner_unchecked(s) }
+	}
+}
+
+impl ObjClassNameSlice {
+	// TODO: From impls?
+	pub fn as_class_name(&self) -> &ClassNameSlice {
+		// SAFETY: Object class names are a subset of all class names (including array ones).
+		unsafe { ClassNameSlice::from_inner_unchecked(self.as_inner()) }
+	}
+
 	/// Gets the simple name from a class name.
-	pub fn get_simple_name(&self) -> &ClassNameSlice {
-		assert!(!self.is_array());
+	pub fn get_simple_name(&self) -> &ObjClassNameSlice {
 		self.as_inner().rsplit_once('/')
-			// SAFETY: Each component in a non-array class is itself a valid class name.
-			.map_or(self, |(_, simple)| unsafe { ClassNameSlice::from_inner_unchecked(simple) })
+			// SAFETY: Each component in a object class name is itself a valid object class name.
+			.map_or(self, |(_, simple)| unsafe { ObjClassNameSlice::from_inner_unchecked(simple) })
 	}
 
 	/// Gets the inner class name from a class name.
 	///
 	/// The inner class name is the part after the last `$`, in the last (`/`-separated) section.
 	///
-	/// You can recombine the inner class parent name (from [`get_inner_class_parent`][ClassNameSlice::get_inner_class_parent])
+	/// You can recombine the inner class parent name (from [`get_inner_class_parent`][ObjClassNameSlice::get_inner_class_parent])
+	// TODO: references
 	/// and the inner class parent name with [`ClassName::from_inner_class`].
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use duke::tree::class::ClassNameSlice;
+	/// use duke::tree::class::ObjClassNameSlice;
 	///
-	/// // SAFETY: This is a valid class name.
-	/// let class_name = unsafe { ClassNameSlice::from_inner_unchecked("org/example/OuterClass$InnerClass".into()) };
+	/// // SAFETY: This is a valid object class name.
+	/// let class_name = unsafe { ObjClassNameSlice::from_inner_unchecked("org/example/OuterClass$InnerClass".into()) };
 	///
-	/// let expected = unsafe { ClassNameSlice::from_inner_unchecked("InnerClass".into()) };
+	/// let expected = unsafe { ObjClassNameSlice::from_inner_unchecked("InnerClass".into()) };
 	/// assert_eq!(class_name.get_inner_class_name(), Some(expected));
 	/// ```
-	///
-	/// # Panics
-	/// If the class name is an [array][ClassNameSlice::is_array] class.
-	pub fn get_inner_class_name(&self) -> Option<&ClassNameSlice> {
+	pub fn get_inner_class_name(&self) -> Option<&ObjClassNameSlice> {
 		self.split_inner_class_parent_and_name().map(|(_, inner)| inner)
 	}
 
 	/// Gets the inner class parent name from a class name.
 	///
-	/// This is returning the other side of the `$` where [`get_inner_class_name`][ClassNameSlice::get_inner_class_name]
+	/// This is returning the other side of the `$` where [`get_inner_class_name`][ObjClassNameSlice::get_inner_class_name]
 	/// cuts off.
 	///
 	/// The inner class parent name is the part before the last `$`, in the last (`/`-separated) section.
 	///
 	/// You can recombine the inner class parent name and the inner class name (from
-	/// [`get_inner_class_name`][ClassNameSlice::get_inner_class_name]) with [`ClassName::from_inner_class`].
+	// TODO: references
+	/// [`get_inner_class_name`][ObjClassNameSlice::get_inner_class_name]) with [`ClassName::from_inner_class`].
 	///
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use duke::tree::class::ClassNameSlice;
+	/// use duke::tree::class::ObjClassNameSlice;
 	///
-	/// // SAFETY: This is a valid class name.
-	/// let class_name = unsafe { ClassNameSlice::from_inner_unchecked("org/example/OuterClass$InnerClass".into()) };
+	/// // SAFETY: This is a valid object class name.
+	/// let class_name = unsafe { ObjClassNameSlice::from_inner_unchecked("org/example/OuterClass$InnerClass".into()) };
 	///
-	/// let expected = unsafe { ClassNameSlice::from_inner_unchecked("org/example/OuterClass".into()) };
+	/// let expected = unsafe { ObjClassNameSlice::from_inner_unchecked("org/example/OuterClass".into()) };
 	/// assert_eq!(class_name.get_inner_class_parent(), Some(expected));
 	/// ```
-	///
-	/// # Panics
-	/// If the class name is an array class.
-	pub fn get_inner_class_parent(&self) -> Option<&ClassNameSlice> {
+	pub fn get_inner_class_parent(&self) -> Option<&ObjClassNameSlice> {
 		self.split_inner_class_parent_and_name().map(|(parent, _)| parent)
 	}
 
+	// TODO: name is kinda bad...
 	/// Splits the class name in the inner class parent name and the inner class name.
-	///
-	/// # Panics
-	/// If the class name is an [array][ClassNameSlice::is_array] class.
-	fn split_inner_class_parent_and_name(&self) -> Option<(&ClassNameSlice, &ClassNameSlice)> {
-		assert!(!self.is_array());
+	pub fn split_inner_class_parent_and_name(&self) -> Option<(&ObjClassNameSlice, &ObjClassNameSlice)> {
 		if let Some((parent, inner)) = self.as_inner().rsplit_once('$') {
 			if !parent.is_empty() && !inner.is_empty() && !parent.ends_with('/') && !inner.contains('/') {
 
-				// SAFETY: The parent name is a valid class name, as it's non-empty and it's sections (`/`-separated) aren't empty.
-				let parent = unsafe { ClassNameSlice::from_inner_unchecked(parent) };
-				// SAFETY: The inner name is a valid class name, as it's non-empty and it doesn't contain a `/`.
-				let inner = unsafe { ClassNameSlice::from_inner_unchecked(inner) };
+				// SAFETY: The parent name is a valid object class name, as it's non-empty and it's sections (`/`-separated) aren't empty.
+				let parent = unsafe { ObjClassNameSlice::from_inner_unchecked(parent) };
+				// SAFETY: The inner name is a valid object class name, as it's non-empty and it doesn't contain a `/`.
+				let inner = unsafe { ObjClassNameSlice::from_inner_unchecked(inner) };
 
 				Some((parent, inner))
 			} else {

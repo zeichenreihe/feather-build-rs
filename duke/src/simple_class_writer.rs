@@ -51,12 +51,12 @@ pub(crate) fn write(class_writer: &mut impl ClassWrite, class: &ClassFile) -> Re
 	let mut writer = Vec::new();
 
 	writer.write_u16(class.access.into())?;
-	writer.write_u16(pool.put_class(&class.name)?)?;
-	writer.write_u16(pool.put_optional(class.super_class.as_ref(), PoolWrite::put_class)?)?;
+	writer.write_u16(pool.put_class(class.name.as_class_name())?)?;
+	writer.write_u16(pool.put_optional(class.super_class.as_deref(), |pool, super_class| pool.put_class(super_class.as_class_name()))?)?;
 	writer.write_slice(
 		&class.interfaces,
 		|w, size| w.write_usize_as_u16(size).with_context(|| anyhow!("failed to write the number of interfaces of class {:?}", class.name)),
-		|w, interface| w.write_u16(pool.put_class(interface)?)
+		|w, interface| w.write_u16(pool.put_class(interface.as_class_name())?)
 	)?;
 
 	// Important Note regarding bootstrap methods:
@@ -102,7 +102,7 @@ pub(crate) fn write(class_writer: &mut impl ClassWrite, class: &ClassFile) -> Re
 			w.write_usize_as_u16(inner_classes.len()).context("too many inner classes")?;
 			for inner_class in inner_classes {
 				w.write_u16(pool.put_class(&inner_class.inner_class)?)?;
-				w.write_u16(pool.put_optional(inner_class.outer_class.as_ref(), PoolWrite::put_class)?)?;
+				w.write_u16(pool.put_optional(inner_class.outer_class.as_deref(), PoolWrite::put_class)?)?;
 				w.write_u16(pool.put_optional(inner_class.inner_name.as_deref(), PoolWrite::put_utf8)?)?;
 				w.write_u16(inner_class.flags.into())?;
 			}
@@ -1098,7 +1098,7 @@ fn write_code<'a, 'b: 'a>(writer: &mut impl ClassWrite, code: &'b Code, pool: &m
 			w.write_u16(labels.try_get(&exception.start)?)?;
 			w.write_u16(labels.try_get(&exception.end)?)?;
 			w.write_u16(labels.try_get(&exception.handler)?)?;
-			w.write_u16(pool.put_optional(exception.catch.as_ref(), PoolWrite::put_class)?)
+			w.write_u16(pool.put_optional(exception.catch.as_deref(), PoolWrite::put_class)?)
 		}
 	)?;
 

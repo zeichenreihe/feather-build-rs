@@ -5,7 +5,7 @@ use java_string::JavaStr;
 use crate::class_constants::pool;
 use crate::{ClassWrite, jstring};
 use crate::class_constants::pool::method_handle_reference;
-use crate::tree::class::ClassName;
+use crate::tree::class::ClassNameSlice;
 use crate::tree::field::{ConstantValue, FieldRef};
 use crate::tree::method::{MethodDescriptor, MethodRef};
 use crate::tree::method::code::{ConstantDynamic, Handle, InvokeDynamic, Loadable};
@@ -51,7 +51,7 @@ impl PoolEntry<'_> {
 		Ok(PoolEntry::String { string_index: pool.put_utf8(value)? })
 	}
 
-	fn from_class<'a, 'b: 'a>(pool: &mut PoolWrite<'a>, value: &'b ClassName) -> Result<Self> {
+	fn from_class<'a, 'b: 'a>(pool: &mut PoolWrite<'a>, value: &'b ClassNameSlice) -> Result<Self> {
 		Ok(PoolEntry::Class { name_index: pool.put_utf8(value.as_inner())? })
 	}
 
@@ -64,7 +64,7 @@ impl PoolEntry<'_> {
 
 	fn from_field_ref<'a, 'b: 'a>(pool: &mut PoolWrite<'a>, value: &'b FieldRef) -> Result<Self> {
 		Ok(PoolEntry::FieldRef {
-			class_index: pool.put_class(&value.class)?,
+			class_index: pool.put_class(value.class.as_class_name())?,
 			name_and_type_index: pool.put_name_and_type(&value.name, &value.desc)?,
 		})
 	}
@@ -359,7 +359,7 @@ impl<'a> PoolWrite<'a> {
 		self.put(PoolEntry::from_utf8(value))
 	}
 
-	pub(crate) fn put_class<'b: 'a>(&mut self, value: &'b ClassName) -> Result<u16> {
+	pub(crate) fn put_class<'b: 'a>(&mut self, value: &'b ClassNameSlice) -> Result<u16> {
 		let entry = PoolEntry::from_class(self, value)?;
 		self.put(entry)
 	}

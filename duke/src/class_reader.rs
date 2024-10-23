@@ -65,11 +65,11 @@ pub(crate) fn read<V: MultiClassVisitor>(reader: &mut impl ClassRead, visitor: V
 	let pool = &pool_;
 
 	let access_flags: ClassAccess = reader.read_u16()?.into();
-	let this_class = pool.get_class(reader.read_u16()?)?;
-	let super_class = pool.get_optional(reader.read_u16()?, PoolRead::get_class)?;
+	let this_class = pool.get_obj_class(reader.read_u16()?)?;
+	let super_class = pool.get_optional(reader.read_u16()?, PoolRead::get_obj_class)?;
 	let interfaces = reader.read_vec(
 		|r| r.read_u16_as_usize(),
-		|r| pool.get_class(r.read_u16()?)
+		|r| pool.get_obj_class(r.read_u16()?)
 	)?;
 
 	// We take a reference to the start of the fields and methods items so that we can read them after we've visited the attributes of the class itself.

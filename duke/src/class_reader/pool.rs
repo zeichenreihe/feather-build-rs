@@ -4,7 +4,7 @@ use java_string::JavaString;
 use crate::class_constants::pool;
 use crate::{ClassRead, jstring};
 use crate::class_constants::pool::method_handle_reference;
-use crate::tree::class::ClassName;
+use crate::tree::class::{ClassName, ObjClassName};
 use crate::tree::field::{ConstantValue, FieldDescriptor, FieldName, FieldNameAndDesc, FieldRef};
 use crate::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, MethodRef};
 use crate::tree::method::code::{ConstantDynamic, Handle, InvokeDynamic, Loadable};
@@ -66,6 +66,14 @@ impl PoolEntry {
 		s.try_into()
 	}
 
+	fn as_obj_class(&self, pool: &PoolRead) -> Result<ObjClassName> {
+		let PoolEntry::Class { name_index } = *self else {
+			bail!("pool entry not `Class`: {self:?}");
+		};
+		let s = pool.get_utf8(name_index)?;
+		s.try_into()
+	}
+
 	fn as_name_and_type<'a>(&self, pool: &'a PoolRead) -> Result<(&'a JavaString, &'a JavaString)> {
 		let PoolEntry::NameAndType { name_index, descriptor_index } = *self else {
 			bail!("pool entry not `NameAndType`: {self:?}");
@@ -79,7 +87,7 @@ impl PoolEntry {
 		let PoolEntry::FieldRef { class_index, name_and_type_index } = *self else {
 			bail!("pool entry not `FieldRef`: {self:?}");
 		};
-		let class = pool.get_class(class_index)?;
+		let class = pool.get_obj_class(class_index)?;
 		Ok(pool.get_field_name_and_type(name_and_type_index)?.with_class(class))
 	}
 
@@ -417,6 +425,10 @@ impl PoolRead {
 
 	pub(crate) fn get_class(&self, index: u16) -> Result<ClassName> {
 		self.get(index)?.as_class(self).pool_context(index)
+	}
+
+	pub(crate) fn get_obj_class(&self, index: u16) -> Result<ObjClassName> {
+		self.get(index)?.as_obj_class(self).pool_context(index)
 	}
 
 	pub(crate) fn get_package(&self, index: u16) -> Result<PackageName> {

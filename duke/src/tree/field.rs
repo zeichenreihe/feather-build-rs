@@ -5,7 +5,7 @@ use java_string::{JavaStr, JavaString};
 use crate::macros::{make_display, make_string_str_like};
 use crate::tree::annotation::Annotation;
 use crate::tree::attribute::Attribute;
-use crate::tree::class::ClassName;
+use crate::tree::class::ObjClassName;
 use crate::tree::type_annotation::{TargetInfoField, TypeAnnotation};
 use crate::visitor::attribute::UnknownAttributeVisitor;
 use crate::visitor::class::ClassVisitor;
@@ -191,7 +191,7 @@ impl From<FieldAccess> for u16 {
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct FieldRef {
-	pub class: ClassName,
+	pub class: ObjClassName,
 	pub name: FieldName,
 	pub desc: FieldDescriptor,
 }
@@ -203,8 +203,8 @@ pub struct FieldNameAndDesc {
 }
 
 impl FieldNameAndDesc {
-	/// Add a [`ClassName`] to this [`FieldNameAndDesc`] to make a [`FieldRef`].
-	pub fn with_class(self, class: ClassName) -> FieldRef {
+	/// Add a [`ObjClassName`] to this [`FieldNameAndDesc`] to make a [`FieldRef`].
+	pub fn with_class(self, class: ObjClassName) -> FieldRef {
 		FieldRef { class, name: self.name, desc: self.desc }
 	}
 }

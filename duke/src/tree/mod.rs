@@ -33,6 +33,27 @@ mod names {
 		}
 	}
 
+	/// Checks if a class name is a valid array class name according to JVMS 4.2.1
+	pub(super) fn is_valid_arr_class_name(x: &JavaStr) -> bool {
+		if x.starts_with('[') {
+			// TODO: max 255 [ are allowed
+			// TODO: must be a field desc
+			true
+		} else {
+			false
+		}
+	}
+
+	/// Checks if a class name is a valid object class name according to JVMS 4.2.1
+	///
+	/// Doesn't accept array class names.
+	pub(super) fn is_valid_obj_class_name(x: &JavaStr) -> bool {
+		// doesn't start with [
+		// a list of identifiers split by /
+		// each identifier must be an unqualified name
+		!x.starts_with('[') && x.split('/').all(is_valid_unqualified_name)
+	}
+
 	/// Checks if a name is an unqualified name according to JVMS 4.2.2
 	///
 	/// This is used for field names, formal parameter names, local variable names.
@@ -59,6 +80,8 @@ mod names {
 	#[cfg(test)]
 	mod testing {
 		use crate::tree::names::*;
+
+		// TODO: arr and obj class name tests
 
 		#[test]
 		fn class_names() {

@@ -5,7 +5,7 @@ use crate::OptionExpansion;
 use crate::class_reader::pool::PoolRead;
 use crate::tree::annotation::{Annotation, ElementValue, ElementValuePair, Object};
 use crate::tree::attribute::Attribute;
-use crate::tree::class::{ClassAccess, ClassFile, ClassName, ClassSignature, EnclosingMethod, InnerClass};
+use crate::tree::class::{ClassAccess, ClassFile, ClassName, ClassSignature, EnclosingMethod, InnerClass, ObjClassName};
 use crate::tree::descriptor::ReturnDescriptor;
 use crate::tree::field::{ConstantValue, Field, FieldAccess, FieldDescriptor, FieldName, FieldSignature};
 use crate::tree::method::{Method, MethodAccess, MethodDescriptor, MethodName, MethodParameter, MethodSignature};
@@ -27,7 +27,7 @@ impl MultiClassVisitor for Option<ClassFile> {
 	type ClassVisitor = ClassFile;
 	type ClassResidual = ();
 
-	fn visit_class(self, version: Version, access: ClassAccess, name: ClassName, super_class: Option<ClassName>, interfaces: Vec<ClassName>)
+	fn visit_class(self, version: Version, access: ClassAccess, name: ObjClassName, super_class: Option<ObjClassName>, interfaces: Vec<ObjClassName>)
 			-> Result<ControlFlow<Self, (Self::ClassResidual, Self::ClassVisitor)>> {
 		if let Some(old) = self {
 			bail!("only one class visit allowed, but was called a second time: we had: {old:#?}, now got called with: {version:?} {access:?} {name:?} {super_class:?} {interfaces:?}")
@@ -44,7 +44,7 @@ impl MultiClassVisitor for Vec<ClassFile> {
 	type ClassVisitor = ClassFile;
 	type ClassResidual = Self;
 
-	fn visit_class(self, version: Version, access: ClassAccess, name: ClassName, super_class: Option<ClassName>, interfaces: Vec<ClassName>)
+	fn visit_class(self, version: Version, access: ClassAccess, name: ObjClassName, super_class: Option<ObjClassName>, interfaces: Vec<ObjClassName>)
 			-> Result<ControlFlow<Self, (Self::ClassResidual, Self::ClassVisitor)>> {
 		Ok(ControlFlow::Continue((self, ClassFile::new(version, access, name, super_class, interfaces))))
 	}
