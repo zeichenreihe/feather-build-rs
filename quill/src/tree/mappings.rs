@@ -23,6 +23,43 @@ where
 	}
 }
 
+pub fn map_with_key_from_iter<Key, Node, Info>(iter: impl IntoIterator<Item=Node>) -> Result<IndexMap<Key, Node>>
+where
+	Key: Debug + Eq + Hash,
+	Node: NodeInfo<Info>,
+	Info: ToKey<Key>,
+{
+	let iter = iter.into_iter();
+
+	let (low, _) = iter.size_hint();
+	let mut map = IndexMap::with_capacity(low);
+
+	for child in iter {
+		add_child(&mut map, child)?;
+	}
+
+	Ok(map)
+}
+
+
+pub fn map_with_key_from_result_iter<Key, Node, Info>(iter: impl IntoIterator<Item=Result<Node>>) -> Result<IndexMap<Key, Node>>
+	where
+		Key: Debug + Eq + Hash,
+		Node: NodeInfo<Info>,
+		Info: ToKey<Key>,
+{
+	let iter = iter.into_iter();
+
+	let (low, _) = iter.size_hint();
+	let mut map = IndexMap::with_capacity(low);
+
+	for child in iter {
+		add_child(&mut map, child?)?;
+	}
+
+	Ok(map)
+}
+
 #[derive(Debug, Clone)]
 pub struct Mappings<const N: usize> {
 	pub info: MappingInfo<N>,

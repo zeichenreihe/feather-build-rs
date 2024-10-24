@@ -1,9 +1,7 @@
 use anyhow::{anyhow, Context, Result};
-use indexmap::IndexMap;
 use crate::remapper::ARemapper;
 use crate::tree::names::Namespace;
-use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, FieldNowodeMapping, MappingInfo, Mappings, MethodMapping, MethodNowodeMapping, ParameterMapping, ParameterNowodeMapping};
-use crate::tree::NodeInfo;
+use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, FieldNowodeMapping, map_with_key_from_result_iter, MappingInfo, Mappings, MethodMapping, MethodNowodeMapping, ParameterMapping, ParameterNowodeMapping};
 
 impl<const N: usize> Mappings<N> {
 	#[allow(clippy::tabs_in_doc_comments)]
@@ -45,8 +43,6 @@ impl<const N: usize> Mappings<N> {
 	/// assert_eq!(output, c);
 	/// ```
 	pub fn reorder(&self, namespaces: [&str; N]) -> Result<Mappings<N>> {
-		// new CommandReorderTinyV2().run([self, return, "intermediary", "official"])
-
 		// at each position we have the namespace (and therefore the old index) to look to find the name
 		let mut table = [Namespace::new(0)?; N];
 		for i in 0..N {
@@ -55,73 +51,56 @@ impl<const N: usize> Mappings<N> {
 
 		let remapper = self.remapper_a(Namespace::new(0)?, table[0])?;
 
-		let mut m = Mappings::new(MappingInfo {
-			namespaces: self.info.namespaces.reorder(table),
-		});
-
-		for class in self.classes.values() {
-			let mapping = ClassMapping {
-				names: class.info.names.reorder(table)
-					.with_context(|| anyhow!("failed to reorder names for class {:?}", class.info.names))?,
-			};
-
-			let mut c = ClassNowodeMapping {
-				info: mapping,
-				javadoc: class.javadoc.clone(),
-				fields: IndexMap::new(),
-				methods: IndexMap::new(),
-			};
-
-			for field in class.fields.values() {
-				let mapping = FieldMapping {
-					desc: remapper.map_field_desc(&field.info.desc)?,
-					names: field.info.names.reorder(table)
-						.with_context(|| anyhow!("failed to reorder names for field {:?} in class {:?}", field.info.names, class.info.names))?,
-				};
-
-				let f = FieldNowodeMapping {
-					info: mapping,
-					javadoc: field.javadoc.clone(),
-				};
-
-				c.add_field(f)?;
-			}
-
-			for method in class.methods.values() {
-				let mapping = MethodMapping {
-					desc: remapper.map_method_desc(&method.info.desc)?,
-					names: method.info.names.reorder(table)
-						.with_context(|| anyhow!("failed to reorder names for method {:?} in class {:?}", method.info.names, class.info.names))?,
-				};
-
-				let mut m = MethodNowodeMapping {
-					info: mapping,
-					javadoc: method.javadoc.clone(),
-					parameters: IndexMap::new(),
-				};
-
-				for parameter in method.parameters.values() {
-					let mapping = ParameterMapping {
-						index: parameter.info.index,
-						names: parameter.info.names.reorder(table)
-							.with_context(|| anyhow!("failed to reorder names for parameter {:?} in method {:?} in class {:?}", parameter.info.names, method.info, class.info.names))?,
-					};
-
-					let p = ParameterNowodeMapping {
-						info: mapping,
-						javadoc: parameter.javadoc.clone(),
-					};
-
-					m.add_parameter(p)?;
-				}
-
-				c.add_method(m)?;
-			}
-
-			m.add_class(c)?;
-		}
-
-		Ok(m)
+		Ok(Mappings {
+			info: MappingInfo {
+				namespaces: self.info.namespaces.reorder(table),
+			},
+			classes: map_with_key_from_result_iter(self.classes.values()
+				.map(|class| {
+					Ok(ClassNowodeMapping {
+						info: ClassMapping {
+							names: class.info.names.reorder(table)
+								.with_context(|| anyhow!("failed to reorder names for class {:?}", class.info.names))?,
+						},
+						fields: map_with_key_from_result_iter(class.fields.values()
+							.map(|field| Ok(FieldNowodeMapping {
+								info: FieldMapping {
+									desc: remapper.map_field_desc(&field.info.desc)?,
+									names: field.info.names.reorder(table)
+										.with_context(|| anyhow!("failed to reorder names for field {:?}", field.info.names))?,
+								},
+								javadoc: field.javadoc.clone(),
+							}))
+						)
+							.with_context(|| anyhow!("in class {:?}", class.info.names))?,
+						methods: map_with_key_from_result_iter(class.methods.values()
+							.map(|method| Ok(MethodNowodeMapping {
+								info: MethodMapping {
+									desc: remapper.map_method_desc(&method.info.desc)?,
+									names: method.info.names.reorder(table)
+										.with_context(|| anyhow!("failed to reorder names for method {:?}", method.info.names))?,
+								},
+								parameters: map_with_key_from_result_iter(method.parameters.values()
+									.map(|parameter| Ok(ParameterNowodeMapping {
+										info: ParameterMapping {
+											index: parameter.info.index,
+											names: parameter.info.names.reorder(table)
+												.with_context(|| anyhow!("failed to reorder names for parameter {:?}", parameter.info.names))?,
+										},
+										javadoc: parameter.javadoc.clone(),
+									}))
+								)
+									.with_context(|| anyhow!("in method {:?}", method.info))?,
+								javadoc: method.javadoc.clone(),
+							}))
+						)
+							.with_context(|| anyhow!("in class {:?}", class.info.names))?,
+						javadoc: class.javadoc.clone(),
+					})
+				})
+			)?,
+			javadoc: self.javadoc.clone(),
+		})
 	}
 }
 
