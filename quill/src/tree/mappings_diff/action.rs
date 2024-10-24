@@ -3,7 +3,7 @@
 /// Represents an diff action.
 ///
 /// A diff action is isomorphic to `(Option<T>, Option<T>)`. [`Action::from_tuple`] and [`Action::to_tuple`] are the isomorphisms.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Action<T> {
 	#[default]
 	None,
@@ -61,7 +61,9 @@ impl<T> Action<T> {
 	/// ```
 	/// # use pretty_assertions::assert_eq;
 	/// use quill::tree::mappings_diff::Action;
-	/// for action in [Action::None, Action::Add(1), Action::Remove(2), Action::Edit(3, 4)] {
+	///
+	/// let actions: [Action<i32>; 4] = [Action::None, Action::Add(1), Action::Remove(2), Action::Edit(3, 4)];
+	/// for action in actions {
 	///     let (a, b) = action.clone().to_tuple();
 	///     let flipped = Action::from_tuple(b, a);
 	///     assert_eq!(action.flip(), flipped)
