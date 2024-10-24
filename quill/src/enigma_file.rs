@@ -6,7 +6,7 @@ use std::path::Path;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use java_string::JavaString;
-use duke::tree::class::ClassNameSlice;
+use duke::tree::class::ObjClassNameSlice;
 use duke::tree::field::FieldNameAndDesc;
 use duke::tree::method::{MethodName, MethodNameAndDesc};
 use crate::enigma_file::enigma_line::EnigmaLine;
@@ -65,9 +65,9 @@ pub fn read_file_into(path: impl AsRef<Path>, mappings: &mut Mappings<2>) -> Res
 ///
 /// assert_eq!(mappings.classes.len(), 1);
 ///
-/// use duke::tree::class::ClassNameSlice;
+/// use duke::tree::class::ObjClassNameSlice;
 /// assert_eq!(
-///     mappings.classes.get(ClassNameSlice::from_str("A")).unwrap()
+///     mappings.classes.get(unsafe { ObjClassNameSlice::from_inner_unchecked("A".into()) }).unwrap()
 ///         .javadoc.as_ref().map(|x| x.0.as_str()),
 ///     Some("A multiline\ncomment.")
 /// );
@@ -280,7 +280,7 @@ mod enigma_line {
 	}
 }
 
-fn write_class(class_key: &ClassNameSlice, class: &ClassNowodeMapping<2>, w: &mut impl Write, indent: usize) -> Result<()> {
+fn write_class(class_key: &ObjClassNameSlice, class: &ClassNowodeMapping<2>, w: &mut impl Write, indent: usize) -> Result<()> {
 	let indent = "\t".repeat(indent);
 
 	let [_, dst] = class.info.names.names();
@@ -359,7 +359,7 @@ fn write_class(class_key: &ClassNameSlice, class: &ClassNowodeMapping<2>, w: &mu
 /// a node `( src, Node )` in the class-parent tree
 #[derive(Clone, Copy)]
 struct Node<'a> {
-	src: &'a ClassNameSlice,
+	src: &'a ObjClassNameSlice,
 	class: &'a ClassNowodeMapping<2>,
 }
 struct Placement<'a> {
@@ -368,7 +368,7 @@ struct Placement<'a> {
 	/// This is a `&str` because it's the file name, and not a "class name".
 	file_map: IndexMap<&'a str, Node<'a>>,
 	/// `parent src -> Vec<( child src, child Node )>` for all other nodes
-	child_map: IndexMap<&'a ClassNameSlice, Vec<Node<'a>>>,
+	child_map: IndexMap<&'a ObjClassNameSlice, Vec<Node<'a>>>,
 }
 
 impl Placement<'_> {
@@ -608,7 +608,7 @@ pub fn write_one(mappings: &Mappings<2>, dst_class_name: &str, w: &mut impl Writ
 
 fn write_one_tree_starting_at(
 	node: Node,
-	child_map: &IndexMap<&ClassNameSlice, Vec<Node>>,
+	child_map: &IndexMap<&ObjClassNameSlice, Vec<Node>>,
 	w: &mut impl Write
 ) -> Result<()> {
 	let mut queue: VecDeque<_> = vec![ (node, 0) ].into();

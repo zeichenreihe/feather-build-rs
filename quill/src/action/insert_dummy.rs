@@ -1,6 +1,6 @@
 use anyhow::Result;
 use java_string::JavaString;
-use duke::tree::class::{ClassName, ClassNameSlice};
+use duke::tree::class::{ObjClassName, ObjClassNameSlice};
 use duke::tree::method::ParameterName;
 use crate::tree::mappings_diff::{Action, MappingsDiff};
 
@@ -109,7 +109,7 @@ impl MappingsDiff {
 				Action::Remove(a) => {
 					// removing a mapping is changed into a dummy mapping
 
-					fn get_simplified(name: &ClassName) -> &ClassNameSlice {
+					fn get_simplified(name: &ObjClassName) -> &ObjClassNameSlice {
 						name.get_inner_class_name().unwrap_or(name)
 					}
 

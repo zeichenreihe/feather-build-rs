@@ -3,7 +3,7 @@ use anyhow::Result;
 use indexmap::{IndexMap, IndexSet};
 use java_string::JavaString;
 use pretty_assertions::assert_eq;
-use duke::tree::class::{ClassName, ClassNameSlice};
+use duke::tree::class::{ObjClassName, ObjClassNameSlice};
 use duke::tree::field::{FieldDescriptorSlice, FieldNameSlice};
 use duke::tree::method::{MethodDescriptorSlice, MethodNameSlice};
 use quill::remapper::{ARemapper, BRemapper, JarSuperProv};
@@ -17,33 +17,33 @@ fn remap() -> Result<()> {
 
 	let super_classes_provider = JarSuperProv { super_classes: IndexMap::from([
 		// SAFETY: is a valid class name
-		(unsafe { ClassName::from_inner_unchecked("classS1".to_owned().into()) }, IndexSet::from([
+		(unsafe { ObjClassName::from_inner_unchecked("classS1".to_owned().into()) }, IndexSet::from([
 			// SAFETY: is a valid class name
-			unsafe { ClassName::from_inner_unchecked("classS2".to_owned().into()) },
+			unsafe { ObjClassName::from_inner_unchecked("classS2".to_owned().into()) },
 			// SAFETY: is a valid class name
-			unsafe { ClassName::from_inner_unchecked("classS3".to_owned().into()) },
+			unsafe { ObjClassName::from_inner_unchecked("classS3".to_owned().into()) },
 			// SAFETY: is a valid class name
-			unsafe { ClassName::from_inner_unchecked("classS4".to_owned().into()) },
+			unsafe { ObjClassName::from_inner_unchecked("classS4".to_owned().into()) },
 		])),
 		// SAFETY: is a valid class name
-		(unsafe { ClassName::from_inner_unchecked("classS2".to_owned().into()) }, IndexSet::from([
+		(unsafe { ObjClassName::from_inner_unchecked("classS2".to_owned().into()) }, IndexSet::from([
 			// SAFETY: is a valid class name
-			unsafe { ClassName::from_inner_unchecked("classS5".to_owned().into()) },
+			unsafe { ObjClassName::from_inner_unchecked("classS5".to_owned().into()) },
 		])),
 		// SAFETY: is a valid class name
-		(unsafe { ClassName::from_inner_unchecked("classS3".to_owned().into()) }, IndexSet::from([
+		(unsafe { ObjClassName::from_inner_unchecked("classS3".to_owned().into()) }, IndexSet::from([
 			// SAFETY: is a valid class name
-			unsafe { ClassName::from_inner_unchecked("classS5".to_owned().into()) },
+			unsafe { ObjClassName::from_inner_unchecked("classS5".to_owned().into()) },
 		])),
 		// SAFETY: is a valid class name
-		(unsafe { ClassName::from_inner_unchecked("classS4".to_owned().into()) }, IndexSet::from([
+		(unsafe { ObjClassName::from_inner_unchecked("classS4".to_owned().into()) }, IndexSet::from([
 			// SAFETY: is a valid class name
-			unsafe { ClassName::from_inner_unchecked("classS5".to_owned().into()) },
+			unsafe { ObjClassName::from_inner_unchecked("classS5".to_owned().into()) },
 		])),
 		// SAFETY: is a valid class name
-		(unsafe { ClassName::from_inner_unchecked("classS5".to_owned().into()) }, IndexSet::from([
+		(unsafe { ObjClassName::from_inner_unchecked("classS5".to_owned().into()) }, IndexSet::from([
 			// SAFETY: is a valid class name
-			unsafe { ClassName::from_inner_unchecked("java/lang/Object".to_owned().into()) },
+			unsafe { ObjClassName::from_inner_unchecked("java/lang/Object".to_owned().into()) },
 		])),
 	]) };
 
@@ -53,7 +53,7 @@ fn remap() -> Result<()> {
 
 	let class = |class: &'static str| -> Result<JavaString> {
 		// SAFETY: below are only valid class names
-		let class = unsafe { ClassNameSlice::from_inner_unchecked(class.into()) };
+		let class = unsafe { ObjClassNameSlice::from_inner_unchecked(class.into()) };
 
 		let class_new = remapper.map_class(class)?;
 
@@ -61,7 +61,7 @@ fn remap() -> Result<()> {
 	};
 	let field = |class: &'static str, field: &'static str, descriptor: &'static str| -> Result<(JavaString, JavaString, JavaString)> {
 		// SAFETY: below are only valid class names
-		let class = unsafe { ClassNameSlice::from_inner_unchecked(class.into()) };
+		let class = unsafe { ObjClassNameSlice::from_inner_unchecked(class.into()) };
 		// SAFETY: below are only valid field names
 		let field_name = unsafe { FieldNameSlice::from_inner_unchecked(field.into()) };
 		// SAFETY: below are only valid field descs
@@ -74,7 +74,7 @@ fn remap() -> Result<()> {
 	};
 	let method = |class: &'static str, method: &'static str, descriptor: &'static str| -> Result<(JavaString, JavaString, JavaString)> {
 		// SAFETY: below are only valid class names
-		let class = unsafe { ClassNameSlice::from_inner_unchecked(class.into()) };
+		let class = unsafe { ObjClassNameSlice::from_inner_unchecked(class.into()) };
 		// SAFETY: below are only valid method names
 		let method_name = unsafe { MethodNameSlice::from_inner_unchecked(method.into()) };
 		// SAFETY: below are only valid method descs

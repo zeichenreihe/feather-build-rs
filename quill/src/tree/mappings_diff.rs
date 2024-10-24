@@ -3,7 +3,7 @@ use std::hash::Hash;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use indexmap::map::Entry;
-use duke::tree::class::ClassName;
+use duke::tree::class::ObjClassName;
 use duke::tree::field::{FieldName, FieldNameAndDesc};
 use duke::tree::method::{MethodName, MethodNameAndDesc, ParameterName};
 use crate::tree::mappings::{JavadocMapping, ParameterKey};
@@ -29,7 +29,7 @@ fn add_child<Key, Node, Info>(map: &mut IndexMap<Key, Node>, key: Key, child: No
 #[derive(Clone, Debug, Default)]
 pub struct MappingsDiff {
 	pub info: Action<String>,
-	pub classes: IndexMap<ClassName, ClassNowodeDiff>,
+	pub classes: IndexMap<ObjClassName, ClassNowodeDiff>,
 	pub javadoc: Action<JavadocMapping>,
 }
 
@@ -62,7 +62,7 @@ impl NodeJavadocInfo<Action<JavadocMapping>> for MappingsDiff {
 }
 
 impl MappingsDiff {
-	pub(crate) fn add_class(&mut self, key: ClassName, child: ClassNowodeDiff) -> Result<&mut ClassNowodeDiff> {
+	pub(crate) fn add_class(&mut self, key: ObjClassName, child: ClassNowodeDiff) -> Result<&mut ClassNowodeDiff> {
 		add_child(&mut self.classes, key, child)
 			.with_context(|| anyhow!("failed to add class diff to mappings diff {:?}", self.info))
 	}
@@ -73,22 +73,22 @@ impl MappingsDiff {
 /// Implements [`Default`] with [`Action::None`].
 #[derive(Clone, Debug, Default)]
 pub struct ClassNowodeDiff {
-	pub info: Action<ClassName>,
+	pub info: Action<ObjClassName>,
 	pub fields: IndexMap<FieldNameAndDesc, FieldNowodeDiff>,
 	pub methods: IndexMap<MethodNameAndDesc, MethodNowodeDiff>,
 	pub javadoc: Action<JavadocMapping>,
 }
 
-impl NodeInfo<Action<ClassName>> for ClassNowodeDiff {
-	fn get_node_info(&self) -> &Action<ClassName> {
+impl NodeInfo<Action<ObjClassName>> for ClassNowodeDiff {
+	fn get_node_info(&self) -> &Action<ObjClassName> {
 		&self.info
 	}
 
-	fn get_node_info_mut(&mut self) -> &mut Action<ClassName> {
+	fn get_node_info_mut(&mut self) -> &mut Action<ObjClassName> {
 		&mut self.info
 	}
 
-	fn new(info: Action<ClassName>) -> Self {
+	fn new(info: Action<ObjClassName>) -> Self {
 		ClassNowodeDiff {
 			info,
 			fields: IndexMap::new(),

@@ -3,7 +3,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use java_string::JavaString;
-use duke::tree::class::ClassName;
+use duke::tree::class::ObjClassName;
 use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc};
 use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc};
 use crate::lines::tiny_line::TinyLine;
@@ -36,7 +36,7 @@ pub(crate) fn read(reader: impl Read) -> Result<MappingsDiff> {
 
 	WithMoreIdentIter::new(&mut lines).on_every_line(|iter, mut line| {
 		if line.first_field == "c" {
-			let class_key: ClassName = JavaString::from(line.next()?).try_into()?;
+			let class_key: ObjClassName = JavaString::from(line.next()?).try_into()?;
 
 			let action = line.action()?;
 			let class = ClassNowodeDiff::new(action);

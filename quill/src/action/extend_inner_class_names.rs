@@ -1,23 +1,22 @@
 use anyhow::{anyhow, Context, Result};
-use java_string::{JavaStr, JavaString};
-use duke::tree::class::{ClassName, ClassNameSlice};
+use duke::tree::class::{ObjClassName, ObjClassNameSlice};
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, Mappings};
 use crate::tree::names::{Names, Namespace};
 
-fn map<const N: usize>(mappings: &Mappings<N>, namespace: Namespace<N>, name: &ClassNameSlice, mapped: &ClassNameSlice) -> Result<ClassName> {
+fn map<const N: usize>(mappings: &Mappings<N>, namespace: Namespace<N>, name: &ObjClassNameSlice, mapped: &ObjClassNameSlice) -> Result<ObjClassName> {
 	Ok(if let Some(parent) = name.get_inner_class_parent() {
 		let mapped_parent = mappings.get_class_name(parent, namespace)?;
 
 		let result = map(mappings, namespace, parent, mapped_parent)?;
 
-		ClassName::from_inner_class(result, mapped)
+		ObjClassName::from_inner_class(result, mapped)
 	} else {
 		mapped.to_owned()
 	})
 }
 
-impl<const N: usize> Names<N, ClassName> {
-	fn extend_inner_class_name(&self, mappings: &Mappings<N>, namespace: Namespace<N>) -> Result<Names<N, ClassName>> {
+impl<const N: usize> Names<N, ObjClassName> {
+	fn extend_inner_class_name(&self, mappings: &Mappings<N>, namespace: Namespace<N>) -> Result<Names<N, ObjClassName>> {
 		let mut names = self.clone();
 
 		if let (src, Some(b)) = names.get_mut_with_src(namespace)? {

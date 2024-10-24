@@ -19,7 +19,7 @@ use std::hash::{Hash, Hasher};
 use anyhow::{bail, Result};
 use indexmap::{IndexMap, IndexSet};
 use java_string::{JavaCodePoint, JavaStr, JavaString};
-use duke::tree::class::{ClassName, ClassNameSlice};
+use duke::tree::class::{ClassName, ClassNameSlice, ObjClassName, ObjClassNameSlice};
 use duke::tree::descriptor::{ReturnDescriptor, ReturnDescriptorSlice};
 use duke::tree::field::{FieldDescriptor, FieldDescriptorSlice, FieldNameAndDesc, FieldNameSlice, FieldRef};
 use duke::tree::method::{MethodDescriptor, MethodDescriptorSlice, MethodNameAndDesc, MethodNameSlice, MethodRef};
@@ -31,12 +31,12 @@ pub trait ARemapper {
 	/// Maps a class name to a new one, if the mapping exists.
 	///
 	/// If the mapping doesn't exist, returns `Ok(None)`.
-	fn map_class_fail(&self, class: &ClassNameSlice) -> Result<Option<ClassName>>;
+	fn map_class_fail(&self, class: &ObjClassNameSlice) -> Result<Option<ObjClassName>>;
 
 	/// Maps a class name to a new one, if the mapping doesn't exist, return the old one.
 	///
 	/// Do not implement this yourself.
-	fn map_class(&self, class: &ClassNameSlice) -> Result<ClassName> {
+	fn map_class(&self, class: &ObjClassNameSlice) -> Result<ObjClassName> {
 		Ok(self.map_class_fail(class)?.unwrap_or_else(|| class.to_owned()))
 	}
 
@@ -106,7 +106,7 @@ unsafe fn map_desc(remapper: &(impl ARemapper + ?Sized), desc: &JavaStr) -> Resu
 
 			// String to ClassName doesn't allocate new memory, so it's fine
 			// SAFETY: `class_name` is a valid class name since it comes from a valid descriptor.
-			let old_class_name = unsafe { ClassName::from_inner_unchecked(class_name) };
+			let old_class_name = unsafe { ObjClassName::from_inner_unchecked(class_name) };
 			let new_class_name = remapper.map_class(&old_class_name)?;
 
 			s.push_java_str(new_class_name.as_inner());
@@ -119,13 +119,11 @@ unsafe fn map_desc(remapper: &(impl ARemapper + ?Sized), desc: &JavaStr) -> Resu
 
 #[derive(Debug)]
 pub struct ARemapperImpl<'a, const N: usize> {
-	classes: IndexMap<&'a ClassNameSlice, &'a ClassNameSlice>,
+	classes: IndexMap<&'a ObjClassNameSlice, &'a ObjClassNameSlice>,
 }
 
 impl<'a, const N: usize> ARemapper for ARemapperImpl<'a, N> {
-	fn map_class_fail(&self, class: &ClassNameSlice) -> Result<Option<ClassName>> {
-		// TODO: asserts/if-bail constructs for checking for a class name starting with [...
-		//  then also add a method for remapping these specifically (they're like descriptors)
+	fn map_class_fail(&self, class: &ObjClassNameSlice) -> Result<Option<ObjClassName>> {
 		match self.classes.get(class) {
 			None => Ok(None),
 			Some(&class) => Ok(Some(class.to_owned())),
@@ -162,13 +160,13 @@ pub trait BRemapper: ARemapper {
 	///
 	/// Note that in the `None` case you must map the field descriptor manually. See [`map_field`] for a method that
 	/// just takes the old name if no mapping exist (but yet maps the field descriptor).
-	fn map_field_fail(&self, owner_name: &ClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<Option<FieldNameAndDesc>>;
+	fn map_field_fail(&self, owner_name: &ObjClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<Option<FieldNameAndDesc>>;
 
 	/// Maps a field name and field descriptor to new ones, if the mapping doesn't exist returns the old name with a
 	/// mapped descriptor.
 	///
 	/// Do not implement this yourself.
-	fn map_field(&self, class: &ClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<FieldNameAndDesc> {
+	fn map_field(&self, class: &ObjClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<FieldNameAndDesc> {
 		self.map_field_fail(class, field_name, field_desc)?
 			.map(Ok)
 			.unwrap_or_else(|| Ok(FieldNameAndDesc {
@@ -193,14 +191,14 @@ pub trait BRemapper: ARemapper {
 	///
 	/// Note that in the `None` case you must map the method descriptor manually. See [`map_method`] for a method that
 	/// just takes the old name if no mapping exist (but yet maps the method descriptor).
-	fn map_method_fail(&self, owner_name: &ClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice)
+	fn map_method_fail(&self, owner_name: &ObjClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice)
 		-> Result<Option<MethodNameAndDesc>>;
 
 	/// Maps a method name and method descriptor to new ones, if the mapping doesn't exist returns the old name with a
 	/// mapped descriptor.
 	///
 	/// Do not implement this yourself.
-	fn map_method(&self, class: &ClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice) -> Result<MethodNameAndDesc> {
+	fn map_method(&self, class: &ObjClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice) -> Result<MethodNameAndDesc> {
 		self.map_method_fail(class, method_name, method_desc)?
 			.map(Ok)
 			.unwrap_or_else(|| Ok(MethodNameAndDesc {
@@ -214,16 +212,25 @@ pub trait BRemapper: ARemapper {
 	/// This is essentially just a call to [`BRemapper::map_method`].
 	///
 	/// Do not implement this yourself.
-	fn map_method_name_and_desc(&self, class: &ClassNameSlice, method_name_and_desc: &MethodNameAndDesc) -> Result<MethodNameAndDesc> {
+	fn map_method_name_and_desc(&self, class: &ObjClassNameSlice, method_name_and_desc: &MethodNameAndDesc) -> Result<MethodNameAndDesc> {
 		self.map_method(class, &method_name_and_desc.name, &method_name_and_desc.desc)
 	}
 
 	/// Maps a [`MethodRef`], taking care of the class name as well.
 	///
+	/// If the [`MethodRef`] references an array class, no remapping of the name or descriptor is performed.
+	///
 	/// Do not implement this yourself.
 	fn map_method_ref(&self, method_ref: &MethodRef) -> Result<MethodRef> {
-		let method_key = self.map_method(&method_ref.class, &method_ref.name, &method_ref.desc)?;
-		let class_name = self.map_class(&method_ref.class)?;
+		let method_key = if let Some(obj_class) = method_ref.class.as_obj() {
+			self.map_method(obj_class, &method_ref.name, &method_ref.desc)?
+		} else {
+			MethodNameAndDesc {
+				name: method_ref.name.clone(),
+				desc: method_ref.desc.clone(), // an array's class method can only contain descriptors with names from the JDK
+			}
+		};
+		let class_name = self.map_class_any(&method_ref.class)?;
 
 		Ok(method_key.with_class(class_name))
 	}
@@ -270,19 +277,19 @@ where
 
 #[derive(Debug)]
 struct BRemapperClass<'a> {
-	name: &'a ClassName,
+	name: &'a ObjClassName,
 	fields: IndexMap<TupleKey<&'a FieldNameSlice, FieldDescriptor>, TupleKey<&'a FieldNameSlice, FieldDescriptor>>,
 	methods: IndexMap<TupleKey<&'a MethodNameSlice, MethodDescriptor>, TupleKey<&'a MethodNameSlice, MethodDescriptor>>,
 }
 
 #[derive(Debug)]
 pub struct BRemapperImpl<'a, 'i, const N: usize, I> {
-	classes: IndexMap<&'a ClassNameSlice, BRemapperClass<'a>>,
+	classes: IndexMap<&'a ObjClassNameSlice, BRemapperClass<'a>>,
 	inheritance: &'i I,
 }
 
 impl<const N: usize, I> ARemapper for BRemapperImpl<'_, '_, N, I> {
-	fn map_class_fail(&self, class: &ClassNameSlice) -> Result<Option<ClassName>> {
+	fn map_class_fail(&self, class: &ObjClassNameSlice) -> Result<Option<ObjClassName>> {
 		match self.classes.get(class) {
 			None => Ok(None),
 			Some(class) => Ok(Some(class.name.clone())),
@@ -291,7 +298,7 @@ impl<const N: usize, I> ARemapper for BRemapperImpl<'_, '_, N, I> {
 }
 
 impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 'i, N, I> {
-	fn map_field_fail(&self, owner_name: &ClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<Option<FieldNameAndDesc>> {
+	fn map_field_fail(&self, owner_name: &ObjClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<Option<FieldNameAndDesc>> {
 		if owner_name.as_inner().is_empty() {
 			bail!("expected owner name to not be empty: {owner_name:?}");
 		}
@@ -319,7 +326,7 @@ impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 
 		Ok(None)
 	}
 
-	fn map_method_fail(&self, owner_name: &ClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice)
+	fn map_method_fail(&self, owner_name: &ObjClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice)
 			-> Result<Option<MethodNameAndDesc>> {
 		if owner_name.as_inner().is_empty() {
 			bail!("expected owner name to not be empty: {owner_name:?}");
@@ -332,6 +339,7 @@ impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 
 		//}
 		// TODO: remapper tests should probably test against [L...; . clone . ()Ljava/lang/Object;
 		//  and also against other methods from Object
+		// TODO: reconsider the changes with owner name to ObjClassName (from just ClassName!)
 		if owner_name.as_inner().starts_with('[') {
 			return Ok(None);
 		}
@@ -405,7 +413,7 @@ impl Mappings<2> {
 
 
 pub struct JarSuperProv {
-	pub super_classes: IndexMap<ClassName, IndexSet<ClassName>>,
+	pub super_classes: IndexMap<ObjClassName, IndexSet<ObjClassName>>,
 }
 
 impl JarSuperProv {
@@ -431,17 +439,17 @@ impl JarSuperProv {
 pub struct ARemapperAsBRemapper<T>(pub T) where T: ARemapper;
 
 impl<T> ARemapper for ARemapperAsBRemapper<T> where T: ARemapper {
-	fn map_class_fail(&self, class: &ClassNameSlice) -> Result<Option<ClassName>> {
+	fn map_class_fail(&self, class: &ObjClassNameSlice) -> Result<Option<ObjClassName>> {
 		self.0.map_class_fail(class)
 	}
 }
 
 impl<T> BRemapper for ARemapperAsBRemapper<T> where T: ARemapper {
-	fn map_field_fail(&self, owner_name: &ClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<Option<FieldNameAndDesc>> {
+	fn map_field_fail(&self, owner_name: &ObjClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<Option<FieldNameAndDesc>> {
 		Ok(None)
 	}
 
-	fn map_method_fail(&self, owner_name: &ClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice)
+	fn map_method_fail(&self, owner_name: &ObjClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice)
 			-> Result<Option<MethodNameAndDesc>> {
 		Ok(None)
 	}
@@ -449,17 +457,17 @@ impl<T> BRemapper for ARemapperAsBRemapper<T> where T: ARemapper {
 
 
 pub trait SuperClassProvider {
-	fn get_super_classes(&self, class: &ClassNameSlice) -> Result<Option<&IndexSet<ClassName>>>;
+	fn get_super_classes(&self, class: &ObjClassNameSlice) -> Result<Option<&IndexSet<ObjClassName>>>;
 }
 
 impl SuperClassProvider for JarSuperProv {
-	fn get_super_classes(&self, class: &ClassNameSlice) -> Result<Option<&IndexSet<ClassName>>> {
+	fn get_super_classes(&self, class: &ObjClassNameSlice) -> Result<Option<&IndexSet<ObjClassName>>> {
 		Ok(self.super_classes.get(class))
 	}
 }
 
 impl<S: SuperClassProvider> SuperClassProvider for Vec<S> {
-	fn get_super_classes(&self, class: &ClassNameSlice) -> Result<Option<&IndexSet<ClassName>>> {
+	fn get_super_classes(&self, class: &ObjClassNameSlice) -> Result<Option<&IndexSet<ObjClassName>>> {
 		for i in self {
 			if let Some(x) = i.get_super_classes(class)? {
 				return Ok(Some(x));
@@ -479,7 +487,7 @@ impl NoSuperClassProvider {
 }
 
 impl SuperClassProvider for NoSuperClassProvider {
-	fn get_super_classes(&self, class: &ClassNameSlice) -> Result<Option<&IndexSet<ClassName>>> {
+	fn get_super_classes(&self, class: &ObjClassNameSlice) -> Result<Option<&IndexSet<ObjClassName>>> {
 		Ok(None)
 	}
 }

@@ -3,7 +3,7 @@ use std::hash::Hash;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
 use indexmap::map::Entry;
-use duke::tree::class::{ClassName, ClassNameSlice};
+use duke::tree::class::{ObjClassName, ObjClassNameSlice};
 use duke::tree::field::{FieldDescriptor, FieldName, FieldNameAndDesc};
 use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc, ParameterName};
 use crate::tree::names::{Names, Namespace, Namespaces};
@@ -13,7 +13,7 @@ fn add_child<Key, Node, Info>(map: &mut IndexMap<Key, Node>, child: Node) -> Res
 where
 	Node: NodeInfo<Info>,
 	Info: ToKey<Key>,
-	Key: Debug + PartialEq + Eq + Hash,
+	Key: Debug + Eq + Hash,
 {
 	let key = child.get_node_info().get_key().context("cannot add child: failed to get its key")?;
 
@@ -26,7 +26,7 @@ where
 #[derive(Debug, Clone)]
 pub struct Mappings<const N: usize> {
 	pub info: MappingInfo<N>,
-	pub classes: IndexMap<ClassName, ClassNowodeMapping<N>>,
+	pub classes: IndexMap<ObjClassName, ClassNowodeMapping<N>>,
 	pub javadoc: Option<JavadocMapping>,
 }
 
@@ -69,7 +69,7 @@ impl<const N: usize> Mappings<N> {
 			.with_context(|| anyhow!("failed to add class to mappings {:?}", self.info))
 	}
 
-	pub(crate) fn get_class_name(&self, class: &ClassNameSlice, namespace: Namespace<N>) -> Result<&ClassNameSlice> {
+	pub(crate) fn get_class_name(&self, class: &ObjClassNameSlice, namespace: Namespace<N>) -> Result<&ObjClassNameSlice> {
 		self.classes.get(class)
 			.with_context(|| anyhow!("no entry for class {class:?}"))?
 			.info
@@ -243,34 +243,34 @@ pub struct MappingInfo<const N: usize> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct ClassKey {
-	pub src: ClassName,
+	pub src: ObjClassName,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct ClassMapping<const N: usize> {
-	pub names: Names<N, ClassName>,
+	pub names: Names<N, ObjClassName>,
 }
 
-impl<const N: usize> ToKey<ClassName> for ClassMapping<N> {
-	fn get_key(&self) -> Result<ClassName> {
+impl<const N: usize> ToKey<ObjClassName> for ClassMapping<N> {
+	fn get_key(&self) -> Result<ObjClassName> {
 		self.names.first_name().cloned()
 	}
 }
 
-impl<const N: usize> FromKey<ClassName> for ClassMapping<N> {
-	fn from_key(key: ClassName) -> ClassMapping<N> {
+impl<const N: usize> FromKey<ObjClassName> for ClassMapping<N> {
+	fn from_key(key: ObjClassName) -> ClassMapping<N> {
 		ClassMapping {
 			names: Names::from_first_name(key),
 		}
 	}
 }
 
-impl<const N: usize> GetNames<N, ClassName> for ClassMapping<N> {
-	fn get_names(&self) -> &Names<N, ClassName> {
+impl<const N: usize> GetNames<N, ObjClassName> for ClassMapping<N> {
+	fn get_names(&self) -> &Names<N, ObjClassName> {
 		&self.names
 	}
 
-	fn get_names_mut(&mut self) -> &mut Names<N, ClassName> {
+	fn get_names_mut(&mut self) -> &mut Names<N, ObjClassName> {
 		&mut self.names
 	}
 }

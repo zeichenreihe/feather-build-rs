@@ -68,9 +68,9 @@ pub fn read_file<const N: usize>(path: impl AsRef<Path>) -> Result<Mappings<N>> 
 /// mappings.info.namespaces.check_that(["namespaceA", "namespaceB", "namespaceC"]).unwrap();
 /// assert_eq!(mappings.classes.len(), 1);
 ///
-/// use duke::tree::class::ClassNameSlice;
+/// use duke::tree::class::ObjClassNameSlice;
 /// assert_eq!(
-///     mappings.classes.get(ClassNameSlice::from_str("A")).unwrap()
+///     mappings.classes.get(unsafe { ObjClassNameSlice::from_inner_unchecked("A".into()) }).unwrap()
 ///         .javadoc.as_ref().map(|x| x.0.as_str()),
 ///     Some("A multiline\ncomment.")
 /// );
