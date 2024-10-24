@@ -2,9 +2,9 @@ use anyhow::Result;
 use indexmap::IndexMap;
 use java_string::{JavaStr, JavaString};
 use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
-use duke::tree::class::{ClassFile, ClassName, ClassNameSlice, ClassSignature, EnclosingMethod, InnerClass};
+use duke::tree::class::{ClassFile, ClassName, ClassSignature, EnclosingMethod, InnerClass, ObjClassName, ObjClassNameSlice};
 use duke::tree::field::{Field, FieldDescriptor, FieldRef, FieldSignature};
-use duke::tree::method::{Method, MethodDescriptor, MethodParameter, MethodRef, MethodSignature};
+use duke::tree::method::{Method, MethodDescriptor, MethodNameAndDesc, MethodParameter, MethodRef, MethodSignature};
 use duke::tree::method::code::{Code, ConstantDynamic, Exception, Handle, Instruction, InstructionListEntry, InvokeDynamic, Loadable, Lv};
 use duke::tree::type_annotation::TypeAnnotation;
 use duke::visitor::method::code::{StackMapData, VerificationTypeInfo};
@@ -49,7 +49,7 @@ pub fn remap_jar_entry_name(name: &str, remapper: &impl BRemapper) -> Result<Str
 pub fn remap_jar_entry_name_java(name: &JavaStr, remapper: &impl BRemapper) -> Result<JavaString> {
 	if let Some(name_without_class) = name.strip_suffix(".class") {
 		// SAFETY: todo
-		let class_name = unsafe { ClassNameSlice::from_inner_unchecked(name_without_class) };
+		let class_name = unsafe { ObjClassNameSlice::from_inner_unchecked(name_without_class) };
 		let name = remapper.map_class(class_name)?;
 		Ok(format!("{name}.class").into())
 	} else {
@@ -74,7 +74,7 @@ trait Mappable<Output = Self>: Sized {
 }
 
 trait MappableWithClassName<Output = Self>: Sized {
-	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Output>;
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ObjClassName) -> Result<Output>;
 }
 
 impl<T> Mappable for T where for<'a> &'a T: Mappable<T> {
@@ -89,7 +89,7 @@ impl<T, U> Mappable<Option<U>> for Option<T> where T: Mappable<U> {
 	}
 }
 impl<T, U> MappableWithClassName<Option<U>> for Option<T> where T: MappableWithClassName<U> {
-	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Option<U>> {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ObjClassName) -> Result<Option<U>> {
 		self.map(|x| x.remap_with_class_name(remapper, this_class)).transpose()
 	}
 }
@@ -102,7 +102,7 @@ impl<T, U> Mappable<Vec<U>> for Vec<T> where T: Mappable<U> {
 	}
 }
 impl<T, U> MappableWithClassName<Vec<U>> for Vec<T> where T: MappableWithClassName<U> {
-	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Vec<U>> {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ObjClassName) -> Result<Vec<U>> {
 		self.into_iter()
 			.map(|i| i.remap_with_class_name(remapper, this_class))
 			.collect()
@@ -111,6 +111,12 @@ impl<T, U> MappableWithClassName<Vec<U>> for Vec<T> where T: MappableWithClassNa
 
 impl Mappable<ClassName> for &ClassName {
 	fn remap(self, remapper: &impl BRemapper) -> Result<ClassName> {
+		remapper.map_class_any(self)
+	}
+}
+
+impl Mappable<ObjClassName> for &ObjClassName {
+	fn remap(self, remapper: &impl BRemapper) -> Result<ObjClassName> {
 		remapper.map_class(self)
 	}
 }
@@ -206,7 +212,7 @@ impl Mappable for MethodSignature {
 }
 
 impl MappableWithClassName for Field {
-	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Self> {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ObjClassName) -> Result<Self> {
 		let name_and_desc = remapper.map_field(this_class, &self.name, &self.descriptor)?;
 		Ok(Field {
 			access: self.access,
@@ -230,7 +236,7 @@ impl MappableWithClassName for Field {
 }
 
 impl MappableWithClassName for Method {
-	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Self> {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ObjClassName) -> Result<Self> {
 		let name_and_desc = remapper.map_method(this_class, &self.name, &self.descriptor)?;
 		Ok(Method {
 			access: self.access,
@@ -280,10 +286,26 @@ impl Mappable for InnerClass {
 
 impl Mappable for EnclosingMethod {
 	fn remap(self, remapper: &impl BRemapper) -> Result<Self> {
-		Ok(EnclosingMethod {
-			class: remapper.map_class(&self.class)?,
-			method: self.method.map(|method| remapper.map_method_name_and_desc(&self.class, &method)).transpose()?
-		})
+		if let Some(method) = self.method {
+			let method_ref = method.with_class(self.class);
+
+			let method_ref = remapper.map_method_ref(&method_ref)?;
+
+			let name_and_desc = MethodNameAndDesc {
+				name: method_ref.name,
+				desc: method_ref.desc,
+			};
+
+			Ok(EnclosingMethod {
+				class: method_ref.class,
+				method: Some(name_and_desc),
+			})
+		} else {
+			Ok(EnclosingMethod {
+				class: remapper.map_class_any(&self.class)?,
+				method: None,
+			})
+		}
 	}
 }
 
@@ -333,7 +355,7 @@ impl Mappable for ElementValue {
 }
 
 impl MappableWithClassName for Code {
-	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Self> {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ObjClassName) -> Result<Self> {
 		Ok(Code {
 			max_stack: self.max_stack,
 			max_locals: self.max_locals,
@@ -354,7 +376,7 @@ impl MappableWithClassName for Code {
 }
 
 impl MappableWithClassName for InstructionListEntry {
-	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Self> {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ObjClassName) -> Result<Self> {
 		Ok(InstructionListEntry {
 			label: self.label,
 			frame: self.frame.remap(remapper)?,
@@ -401,7 +423,7 @@ impl Mappable for VerificationTypeInfo {
 }
 
 impl MappableWithClassName for Instruction {
-	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Self> {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ObjClassName) -> Result<Self> {
 		use Instruction::*;
 		Ok(match self {
 			Nop |
@@ -478,7 +500,7 @@ impl MappableWithClassName for Instruction {
 }
 
 impl MappableWithClassName for Loadable {
-	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Self> {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ObjClassName) -> Result<Self> {
 		use Loadable::*;
 		Ok(match self {
 			Integer(_) | Float(_) | Long(_) | Double(_) => self,
@@ -509,7 +531,7 @@ impl Mappable for Handle {
 }
 
 impl MappableWithClassName for ConstantDynamic {
-	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Self> {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ObjClassName) -> Result<Self> {
 		Ok(ConstantDynamic {
 			name: self.name, // TODO: remap
 			descriptor: self.descriptor, // TODO: remap
@@ -520,7 +542,7 @@ impl MappableWithClassName for ConstantDynamic {
 }
 
 impl MappableWithClassName for InvokeDynamic {
-	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ClassName) -> Result<Self> {
+	fn remap_with_class_name(self, remapper: &impl BRemapper, this_class: &ObjClassName) -> Result<Self> {
 		Ok(InvokeDynamic {
 			name: self.name, // TODO: remap
 			descriptor: self.descriptor, // TODO: remap

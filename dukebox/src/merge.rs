@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 use indexmap::map::Entry;
 use java_string::JavaStr;
 use duke::tree::annotation::{Annotation, ElementValue, ElementValuePair};
-use duke::tree::class::{ClassFile, ClassName, ClassNameSlice};
+use duke::tree::class::{ClassFile, ClassNameSlice, ObjClassName};
 use duke::tree::field::{Field, FieldDescriptor};
 use duke::tree::method::Method;
 use crate::storage::{ClassRepr, IsClass, IsOther, Jar, JarEntry, JarEntryEnum, OpenedJar, ParsedJar, ParsedJarEntry};
@@ -217,7 +217,7 @@ fn class_merger_merge(client: ClassFile, server: ClassFile) -> Result<ClassFile>
 
 			let mut x = client.runtime_invisible_annotations;
 
-			fn make_annotation(i: &ClassName, side: Side) -> ElementValue {
+			fn make_annotation(i: &ObjClassName, side: Side) -> ElementValue {
 				ElementValue::AnnotationInterface(Annotation {
 					annotation_type: FieldDescriptor::from_class(ENVIRONMENT_INTERFACE),
 					element_value_pairs: vec![
@@ -233,7 +233,7 @@ fn class_merger_merge(client: ClassFile, server: ClassFile) -> Result<ClassFile>
 						},
 						ElementValuePair {
 							name: "itf".to_owned().into(),
-							value: ElementValue::Class(FieldDescriptor::from_class(i).into())
+							value: ElementValue::Class(FieldDescriptor::from_obj_class(i).into())
 						},
 					],
 				})

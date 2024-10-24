@@ -2,7 +2,7 @@ use std::convert::Infallible;
 use std::ops::ControlFlow;
 use anyhow::Result;
 use indexmap::{IndexMap, IndexSet};
-use duke::tree::class::{ClassAccess, ClassName};
+use duke::tree::class::{ClassAccess, ObjClassName};
 use duke::tree::version::Version;
 use duke::visitor::MultiClassVisitor;
 use quill::remapper::JarSuperProv;
@@ -53,7 +53,7 @@ pub trait OpenedJar {
 			type ClassVisitor = Infallible;
 			type ClassResidual = Infallible;
 
-			fn visit_class(mut self, _version: Version, _access: ClassAccess, name: ClassName, super_class: Option<ClassName>, interfaces: Vec<ClassName>)
+			fn visit_class(mut self, _version: Version, _access: ClassAccess, name: ObjClassName, super_class: Option<ObjClassName>, interfaces: Vec<ObjClassName>)
 				-> Result<ControlFlow<Self, (Self::ClassResidual, Self::ClassVisitor)>>
 			{
 				let mut set = IndexSet::new();
