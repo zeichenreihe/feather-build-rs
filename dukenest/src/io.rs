@@ -1,7 +1,7 @@
 use std::io::{BufRead, BufReader, Read};
 use anyhow::{anyhow, bail, Context, Result};
 use java_string::JavaString;
-use duke::tree::class::ClassName;
+use duke::tree::class::ObjClassName;
 use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc};
 use crate::{Nest, Nests, NestType};
 
@@ -12,7 +12,7 @@ impl Nests {
 	}
 
 	fn read_from_reader(reader: impl Read) -> Result<Nests> {
-		let mut nests = Nests::new();
+		let mut nests = Nests::default();
 
 		for (line_number, line) in BufReader::new(reader).lines().enumerate() {
 			let line_number = line_number + 1;
@@ -53,9 +53,9 @@ impl Nests {
 			} else {
 				NestType::Inner
 			},
-			class_name: ClassName::try_from(JavaString::from(class_name.to_owned()))
+			class_name: ObjClassName::try_from(JavaString::from(class_name.to_owned()))
 				.with_context(|| anyhow!("{class_name:?} is not a valid class name"))?,
-			encl_class_name: ClassName::try_from(JavaString::from(encl_class_name.to_owned()))
+			encl_class_name: ObjClassName::try_from(JavaString::from(encl_class_name.to_owned()))
 				.with_context(|| anyhow!("{encl_class_name:?} is not a valid class name"))?,
 			encl_method: if encl_method_name.is_empty() || encl_method_desc.is_empty() {
 				None

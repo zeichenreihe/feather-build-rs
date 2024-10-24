@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use anyhow::{Context, Result};
 use indexmap::{IndexMap, IndexSet};
 use java_string::{JavaCodePoint, JavaStr, JavaString};
-use duke::tree::class::{ClassAccess, ClassFile, ClassName, ClassNameSlice, EnclosingMethod, InnerClass, InnerClassFlags};
+use duke::tree::class::{ClassAccess, ClassFile, EnclosingMethod, InnerClass, InnerClassFlags, ObjClassName, ObjClassNameSlice};
 use duke::tree::method::{Method, MethodNameAndDesc};
 use dukebox::storage::{BasicFileAttributes, ClassRepr, IsClass, IsOther, Jar, JarEntry, JarEntryEnum, OpenedJar, ParsedJar, ParsedJarEntry};
 use quill::remapper::{ARemapper, ARemapperAsBRemapper, BRemapper, NoSuperClassProvider};
@@ -10,33 +10,34 @@ use quill::tree::mappings::Mappings;
 
 mod io;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) enum NestType {
 	Anonymous,
 	Inner,
 	Local,
 }
 
-pub(crate) struct Nest {
+#[derive(Clone, Debug)]
+pub struct Nest {
 	pub(crate) nest_type: NestType,
 
-	pub(crate) class_name: ClassName,
-	pub(crate) encl_class_name: ClassName,
+	pub(crate) class_name: ObjClassName,
+	pub encl_class_name: ObjClassName,
 	pub(crate) encl_method: Option<MethodNameAndDesc>,
 
-	pub(crate) inner_name: JavaString,
+	pub inner_name: JavaString,
 	pub(crate) inner_access: InnerClassFlags,
 }
 
+/// Represents nests.
+///
+/// The default is an empty map.
+#[derive(Clone, Debug, Default)]
 pub struct Nests {
-	pub(crate) all: IndexMap<ClassName, Nest>,
+	pub all: IndexMap<ObjClassName, Nest>,
 }
 
 impl Nests {
-	pub(crate) fn new() -> Nests {
-		Nests { all: IndexMap::new() }
-	}
-
 	pub(crate) fn add(&mut self, nest: Nest) {
 		self.all.insert(nest.class_name.clone(), nest);
 	}
@@ -68,8 +69,8 @@ impl NesterOptions {
 pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<ParsedJar<ClassRepr, Vec<u8>>> {
 	let mut class_version = None;
 	let mut jar_new_classes = IndexMap::new();
-	let mut methods_map: IndexMap<ClassName, HashSet<MethodNameAndDesc>> = IndexMap::new();
-	let mut classes_in_jar: IndexSet<ClassName> = IndexSet::new();
+	let mut methods_map: IndexMap<ObjClassName, HashSet<MethodNameAndDesc>> = IndexMap::new();
+	let mut classes_in_jar: IndexSet<ObjClassName> = IndexSet::new();
 
 	let mut opened_src = src.open()?;
 
@@ -116,7 +117,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 							..ClassAccess::default()
 						},
 						nest.encl_class_name.clone(),
-						Some(ClassName::JAVA_LANG_OBJECT.to_owned()),
+						Some(ObjClassName::JAVA_LANG_OBJECT.to_owned()),
 						vec![]
 					));
 
@@ -150,7 +151,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 	let mut dst_resulting_entries = IndexMap::new();
 
 	// only when remapping it's needed
-		fn remap(this_nests: &IndexMap<ClassName, Nest>, corresponding_nest: &Nest) -> ClassName {
+		fn remap(this_nests: &IndexMap<ObjClassName, Nest>, corresponding_nest: &Nest) -> ObjClassName {
 			let result = this_nests.get(&corresponding_nest.encl_class_name)
 				.map(|nest| remap(this_nests, nest))
 				.unwrap_or_else(|| corresponding_nest.encl_class_name.clone());
@@ -160,7 +161,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 			s.push_java_str(&corresponding_nest.inner_name);
 			// TODO: redo this safety comment
 			// SAFETY: Joining a class name with `$` and an inner name is always valid.
-			unsafe { ClassName::from_inner_unchecked(s) }
+			unsafe { ObjClassName::from_inner_unchecked(s) }
 		}
 
 		let map = this_nests.iter()
@@ -168,9 +169,9 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 			.filter(|(old_name, new_name)| old_name != new_name)
 			.collect();
 
-		struct MyRemapper<'a>(IndexMap<&'a ClassNameSlice, ClassName>);
+		struct MyRemapper<'a>(IndexMap<&'a ObjClassNameSlice, ObjClassName>);
 		impl ARemapper for MyRemapper<'_> {
-			fn map_class_fail(&self, class: &ClassNameSlice) -> Result<Option<ClassName>> {
+			fn map_class_fail(&self, class: &ObjClassNameSlice) -> Result<Option<ObjClassName>> {
 				Ok(self.0.get(class).cloned())
 			}
 		}
@@ -257,21 +258,21 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 
 }
 
-fn do_nested_class_attribute_class_visitor(this_nests: &IndexMap<ClassName, Nest>, mut class_node: ClassFile) -> ClassFile {
+fn do_nested_class_attribute_class_visitor(this_nests: &IndexMap<ObjClassName, Nest>, mut class_node: ClassFile) -> ClassFile {
 
 	if let Some(nest) = this_nests.get(&class_node.name) {
 		if matches!(nest.nest_type, NestType::Anonymous | NestType::Local) {
 			class_node.enclosing_method = Some(EnclosingMethod {
-				class: nest.encl_class_name.clone(),
+				class: nest.encl_class_name.clone().into(),
 				method: nest.encl_method.clone(),
 			});
 		}
 
 		class_node.inner_classes.get_or_insert_with(Vec::new)
 			.push(InnerClass {
-				inner_class: nest.class_name.clone(),
+				inner_class: nest.class_name.clone().into(),
 				outer_class: if matches!(nest.nest_type, NestType::Inner) {
-					Some(nest.encl_class_name.clone())
+					Some(nest.encl_class_name.clone().into())
 				} else {
 					None
 				},
@@ -300,10 +301,11 @@ fn strip_local_class_prefix(inner_name: &JavaStr) -> &JavaStr {
 	}
 }
 
+// implementation of NestsMapper.run()
 pub fn map_nests(mappings: &Mappings<2>, nests: Nests) -> Result<Nests> {
 	let remapper = mappings.remapper_b_first_to_second(NoSuperClassProvider::new())?;
 
-	let mut dst = Nests::new();
+	let mut dst = Nests::default();
 
 	for (_, nest) in nests.all {
 
@@ -312,7 +314,7 @@ pub fn map_nests(mappings: &Mappings<2>, nests: Nests) -> Result<Nests> {
 		let (encl_class_name, inner_name) = if let Some((encl_class_name, inner_name)) = mapped_name.as_inner().rsplit_once("__") {
 			// provided mappings already use nesting
 			// SAFETY: todo
-			(unsafe { ClassName::from_inner_unchecked(encl_class_name.to_owned()) }, inner_name.to_owned())
+			(unsafe { ObjClassName::from_inner_unchecked(encl_class_name.to_owned()) }, inner_name.to_owned())
 		} else {
 			let encl_class_name = remapper.map_class(&nest.encl_class_name)?;
 
