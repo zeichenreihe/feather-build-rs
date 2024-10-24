@@ -19,7 +19,7 @@ use std::hash::{Hash, Hasher};
 use anyhow::{bail, Result};
 use indexmap::{IndexMap, IndexSet};
 use java_string::{JavaCodePoint, JavaStr, JavaString};
-use duke::tree::class::{ClassName, ClassNameSlice, ObjClassName, ObjClassNameSlice};
+use duke::tree::class::{ArrClassName, ClassName, ClassNameSlice, ObjClassName, ObjClassNameSlice};
 use duke::tree::descriptor::{ReturnDescriptor, ReturnDescriptorSlice};
 use duke::tree::field::{FieldDescriptor, FieldDescriptorSlice, FieldNameAndDesc, FieldNameSlice, FieldRef};
 use duke::tree::method::{MethodDescriptor, MethodDescriptorSlice, MethodNameAndDesc, MethodNameSlice, MethodRef};
@@ -38,6 +38,25 @@ pub trait ARemapper {
 	/// Do not implement this yourself.
 	fn map_class(&self, class: &ObjClassNameSlice) -> Result<ObjClassName> {
 		Ok(self.map_class_fail(class)?.unwrap_or_else(|| class.to_owned()))
+	}
+
+	/// Maps [any class name][ClassName] (not just [`ObjClassName`]) to a new one.
+	///
+	/// See [`ARemapper::map_class`] for more details.
+	fn map_class_any(&self, class: &ClassNameSlice) -> Result<ClassName> {
+		match class.as_arr_and_obj() {
+			Ok(arr) => {
+				// SAFETY: `arr` is an array class name. Array class names are field descriptors.
+				unsafe { map_desc(self, arr.as_inner()) }
+					// SAFETY: The returned descriptor only has names in L...; changed. Therefore it is a valid array class name.
+					.map(|string| unsafe { ArrClassName::from_inner_unchecked(string) })
+					.map(From::from)
+			},
+			Err(obj) => {
+				self.map_class(obj)
+					.map(From::from)
+			},
+		}
 	}
 
 	/// Maps a field descriptor to a new one.
