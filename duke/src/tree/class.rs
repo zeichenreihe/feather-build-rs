@@ -366,7 +366,7 @@ impl ClassNameSlice {
 		self.as_inner().starts_with('[')
 	}
 
-	pub(crate) fn as_arr_and_obj(&self) -> Result<&ArrClassNameSlice, &ObjClassNameSlice> {
+	pub fn as_arr_and_obj(&self) -> Result<&ArrClassNameSlice, &ObjClassNameSlice> {
 		if self.is_array() {
 			// SAFETY: We just checked that it's an array class name.
 			Ok(unsafe { ArrClassNameSlice::from_inner_unchecked(self.as_inner()) })
@@ -645,6 +645,7 @@ impl From<InnerClassFlags> for u16 {
 	}
 }
 
+// TODO: convert this to an enum out of ClassName and MethodRef?
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnclosingMethod {
 	pub class: ClassName,

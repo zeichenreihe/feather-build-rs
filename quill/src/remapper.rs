@@ -325,13 +325,6 @@ impl<const N: usize, I> ARemapper for BRemapperImpl<'_, '_, N, I> {
 
 impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 'i, N, I> {
 	fn map_field_fail(&self, owner_name: &ObjClassNameSlice, field_name: &FieldNameSlice, field_desc: &FieldDescriptorSlice) -> Result<Option<FieldNameAndDesc>> {
-		if owner_name.as_inner().is_empty() {
-			bail!("expected owner name to not be empty: {owner_name:?}");
-		}
-		if owner_name.as_inner().starts_with('[') {
-			bail!("expected owner name to not start with '[': {owner_name:?} {field_name:?} {field_desc:?}, most likely this is a bug");
-		}
-
 		if let Some(class) = self.classes.get(owner_name) {
 			let key = TupleReq(field_name, field_desc);
 			if let Some(&TupleKey(name, ref desc)) = class.fields.get(&key) {
@@ -354,25 +347,6 @@ impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 
 
 	fn map_method_fail(&self, owner_name: &ObjClassNameSlice, method_name: &MethodNameSlice, method_desc: &MethodDescriptorSlice)
 			-> Result<Option<MethodNameAndDesc>> {
-		if owner_name.as_inner().is_empty() {
-			bail!("expected owner name to not be empty: {owner_name:?}");
-		}
-		// You can call [Ljava/lang/Object; . clone . ()Ljava/lang/Object;
-		// since that is completely fine, instead do the following:
-		// This is valid because arrays are considered to implement Cloneable and Serializable by default.
-		//if owner_name.as_str().starts_with('[') {
-		//	bail!("expected owner name to not start with '[': {owner_name:?} {method_name:?} {method_desc:?}, most likely this is a bug");
-		//}
-		// TODO: remapper tests should probably test against [L...; . clone . ()Ljava/lang/Object;
-		//  and also against other methods from Object
-		// TODO: reconsider the changes with owner name to ObjClassName (from just ClassName!)
-		if owner_name.as_inner().starts_with('[') {
-			return Ok(None);
-		}
-		if method_name.as_inner().is_empty() {
-			bail!("expected method name to not be empty: {method_name:?}");
-		}
-
 		if let Some(class) = self.classes.get(owner_name) {
 			let key = TupleReq(method_name, method_desc);
 			if let Some(&TupleKey(name, ref desc)) = class.methods.get(&key) {

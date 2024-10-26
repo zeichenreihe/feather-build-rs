@@ -332,7 +332,7 @@ async fn main() -> Result<()> {
 
             let namespaces = separated_mappings.info.namespaces.clone();
             let working_mappings = quill::enigma_dir::read(&working_mappings_dir, namespaces)
-                .context("enigma dir read!")?; // TODO: msg
+                .with_context(|| anyhow!("failed to read enigma directory from {working_mappings_dir:?}"))?;
 
             dbg!("reading enigma mappings took: {}", start.elapsed());
 
