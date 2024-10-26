@@ -6,7 +6,7 @@ use indexmap::map::Entry;
 use duke::tree::class::{ClassAccess, ObjClassName, ObjClassNameSlice};
 use duke::tree::descriptor::Type;
 use duke::tree::field::{FieldAccess, FieldDescriptor, FieldName};
-use duke::tree::method::{Method, MethodAccess, MethodDescriptor, MethodName, MethodRef};
+use duke::tree::method::{Method, MethodAccess, MethodDescriptor, MethodName, MethodRef, MethodRefObj};
 use duke::tree::method::code::Instruction;
 use duke::tree::version::Version;
 use duke::visitor::MultiClassVisitor;
@@ -20,7 +20,7 @@ use quill::tree::{NodeInfo, ToKey};
 #[derive(Default)]
 struct EntryIndex {
 	classes: IndexSet<ObjClassName>,
-	methods: IndexMap<MethodRef, MethodAccess>,
+	methods: IndexMap<MethodRefObj, MethodAccess>,
 }
 
 /// Stores parent and child class information
@@ -77,13 +77,13 @@ impl InheritanceIndex {
 /// Stores what method referees to what methods, by calling them
 #[derive(Default)]
 struct ReferenceIndex {
-	method_references: IndexMap<MethodRef, IndexSet<MethodRef>>,
+	method_references: IndexMap<MethodRefObj, IndexSet<MethodRefObj>>,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct SpecializedMethods {
-	pub(crate) bridge_to_specialized: IndexMap<MethodRef, MethodRef>,
-	specialized_to_bridge: IndexMap<MethodRef, MethodRef>,
+	pub(crate) bridge_to_specialized: IndexMap<MethodRefObj, MethodRefObj>,
+	specialized_to_bridge: IndexMap<MethodRefObj, MethodRefObj>,
 }
 
 impl SpecializedMethods {
@@ -91,14 +91,14 @@ impl SpecializedMethods {
 		Ok(SpecializedMethods {
 			bridge_to_specialized: self.bridge_to_specialized.into_iter()
 				.map(|(bridge, specialized)| Ok((
-					remapper.map_method_ref(&bridge)?,
-					remapper.map_method_ref(&specialized)?)
+					remapper.map_method_ref_obj(&bridge)?,
+					remapper.map_method_ref_obj(&specialized)?)
 				))
 				.collect::<Result<_>>()?,
 			specialized_to_bridge: self.specialized_to_bridge.into_iter()
 				.map(|(specialized, bridge)| Ok((
-					remapper.map_method_ref(&specialized)?,
-					remapper.map_method_ref(&bridge)?)
+					remapper.map_method_ref_obj(&specialized)?,
+					remapper.map_method_ref_obj(&bridge)?)
 				))
 				.collect::<Result<_>>()?,
 		})
@@ -150,7 +150,8 @@ impl MultiClassVisitorImpl {
 			}
 		}
 
-		fn is_potential_bridge(visitor: &MultiClassVisitorImpl, synthetic_method: &MethodRef, access: &MethodAccess, specialized_method: &MethodRef) -> Result<bool> {
+		fn is_potential_bridge(visitor: &MultiClassVisitorImpl, synthetic_method: &MethodRefObj, access: &MethodAccess, specialized_method: &MethodRefObj)
+				-> Result<bool> {
 			// Bridge methods only exist for inheritance purposes, if we're private, final, or static, we cannot be inherited
 			if access.is_private || access.is_final || access.is_static {
 				return Ok(false);
@@ -178,12 +179,11 @@ impl MultiClassVisitorImpl {
 			})
 		}
 
-		fn get_higher_method(inheritance: &InheritanceIndex, bridge_1: &MethodRef, bridge_2: &MethodRef) -> MethodRef {
-			// TODO: unwrap
-			if inheritance.get_descendants(bridge_1.class.as_obj().unwrap()).contains(&bridge_2.class.as_obj().unwrap()) {
-				bridge_1.clone()
+		fn get_higher_method<'a>(inheritance: &InheritanceIndex, bridge_1: &'a MethodRefObj, bridge_2: &'a MethodRefObj) -> &'a MethodRefObj {
+			if inheritance.get_descendants(&bridge_1.class).contains(&bridge_2.class.as_slice()) {
+				bridge_1
 			} else {
-				bridge_2.clone()
+				bridge_2
 			}
 		}
 
@@ -207,15 +207,15 @@ impl MultiClassVisitorImpl {
 			})
 			.map(|(bridge, _, specialized)| (bridge, specialized))
 		{
-			if let Some(other_bridge) = specialized_to_bridge.get(&specialized) {
+			let bridge_to_insert = if let Some(other_bridge) = specialized_to_bridge.get(&specialized) {
 				// we already have a bridge for this method, so we keep the one higher in the hierarchy
 				// can happen with a class inheriting from a superclass with one or more bridge method(s)
 
-				let higher_bridge = get_higher_method(&self.inheritance, bridge, other_bridge);
-				specialized_to_bridge.insert(specialized.clone(), higher_bridge);
+				get_higher_method(&self.inheritance, bridge, other_bridge)
 			} else {
-				specialized_to_bridge.insert(specialized.clone(), bridge.clone());
-			}
+				bridge
+			};
+			specialized_to_bridge.insert(specialized.clone(), bridge_to_insert.clone());
 
 			bridge_to_specialized.insert(bridge.clone(), specialized);
 		}
@@ -267,7 +267,7 @@ impl SimpleClassVisitor for ClassVisitorImpl {
 	}
 
 	fn finish_method(&mut self, method_visitor: Self::MethodVisitor) -> Result<()> {
-		let method_ref = method_visitor.as_name_and_desc().with_class(self.name.clone().into());
+		let method_ref = method_visitor.as_name_and_desc().with_class_obj(self.name.clone());
 
 		self.visitor.entry.methods.insert(method_ref.clone(), method_visitor.access);
 
@@ -281,7 +281,12 @@ impl SimpleClassVisitor for ClassVisitorImpl {
 					// I think InvokeDynamic can't appear in bridge methods
 					// TODO: it might can... seems like java 8 guava has quite a bunch of invokedynamic use
 					_ => None,
-				});
+				})
+				// Filter out array method references. Array method references can't appear since then this class itself
+				// would need to be an array class, which is impossible.
+				.filter_map(|MethodRef { class, name, desc }| class.into_obj()
+					.map(|class| MethodRefObj { class, name, desc })
+				);
 			self.visitor.reference.method_references.entry(method_ref)
 				.or_default()
 				.extend(references);
@@ -321,15 +326,14 @@ pub(crate) fn add_specialized_methods_to_mappings(
 	let mut mappings = mappings.clone();
 
 	for (bridge, specialized) in specialized_methods.bridge_to_specialized {
-		let named_specialized = remapper_named.map_method_ref(&bridge)?.name;
+		let named_specialized = remapper_named.map_method_ref_obj(&bridge)?.name;
 
 		let info = MethodMapping {
 			names: [specialized.name, named_specialized].into(),
 			desc: specialized.desc,
 		};
 
-		// TODO: unwrap
-		if let Some(class) = mappings.classes.get_mut(bridge.class.as_obj().unwrap()) {
+		if let Some(class) = mappings.classes.get_mut(&bridge.class) {
 			match class.methods.entry(info.get_key()?) {
 				Entry::Occupied(mut e) => {
 					// only replace the info, not the rest
@@ -364,8 +368,8 @@ mod testing {
 	use anyhow::Result;
 	use std::io::Cursor;
 	use indexmap::IndexMap;
-	use duke::tree::class::ClassName;
-	use duke::tree::method::{MethodDescriptor, MethodName, MethodRef};
+	use duke::tree::class::ObjClassName;
+	use duke::tree::method::{MethodDescriptor, MethodName, MethodRefObj};
 	use raw_class_file::{AttributeInfo, ClassFile, CpInfo, FieldInfo, flags, insn, MethodInfo};
 	use crate::specialized_methods::MultiClassVisitorImpl;
 
@@ -391,12 +395,12 @@ mod testing {
 		assert_eq!(
 			specialized_methods.bridge_to_specialized,
 			IndexMap::from([
-				(MethodRef {
-					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned().into()) },
+				(MethodRefObj {
+					class: unsafe { ObjClassName::from_inner_unchecked("MyNode".to_owned().into()) },
 					name: unsafe { MethodName::from_inner_unchecked("setData".to_owned().into()) },
 					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Object;)V".to_owned().into()) },
-				}, MethodRef {
-					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned().into()) },
+				}, MethodRefObj {
+					class: unsafe { ObjClassName::from_inner_unchecked("MyNode".to_owned().into()) },
 					name: unsafe { MethodName::from_inner_unchecked("setData".to_owned().into()) },
 					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Integer;)V".to_owned().into()) },
 				}),
@@ -405,12 +409,12 @@ mod testing {
 		assert_eq!(
 			specialized_methods.specialized_to_bridge,
 			IndexMap::from([
-				(MethodRef {
-					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned().into()) },
+				(MethodRefObj {
+					class: unsafe { ObjClassName::from_inner_unchecked("MyNode".to_owned().into()) },
 					name: unsafe { MethodName::from_inner_unchecked("setData".to_owned().into()) },
 					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Integer;)V".to_owned().into()) },
-				}, MethodRef {
-					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned().into()) },
+				}, MethodRefObj {
+					class: unsafe { ObjClassName::from_inner_unchecked("MyNode".to_owned().into()) },
 					name: unsafe { MethodName::from_inner_unchecked("setData".to_owned().into()) },
 					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Object;)V".to_owned().into()) },
 				}),
@@ -618,12 +622,12 @@ mod testing {
 		assert_eq!(
 			specialized_methods.bridge_to_specialized,
 			IndexMap::from([
-				(MethodRef {
-					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned().into()) },
+				(MethodRefObj {
+					class: unsafe { ObjClassName::from_inner_unchecked("MyNode".to_owned().into()) },
 					name: unsafe { MethodName::from_inner_unchecked("setData".to_owned().into()) },
 					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Object;)V".to_owned().into()) },
-				}, MethodRef {
-					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned().into()) },
+				}, MethodRefObj {
+					class: unsafe { ObjClassName::from_inner_unchecked("MyNode".to_owned().into()) },
 					name: unsafe { MethodName::from_inner_unchecked("specialized".to_owned().into()) },
 					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Integer;)V".to_owned().into()) },
 				}),
@@ -632,12 +636,12 @@ mod testing {
 		assert_eq!(
 			specialized_methods.specialized_to_bridge,
 			IndexMap::from([
-				(MethodRef {
-					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned().into()) },
+				(MethodRefObj {
+					class: unsafe { ObjClassName::from_inner_unchecked("MyNode".to_owned().into()) },
 					name: unsafe { MethodName::from_inner_unchecked("specialized".to_owned().into()) },
 					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Integer;)V".to_owned().into()) },
-				}, MethodRef {
-					class: unsafe { ClassName::from_inner_unchecked("MyNode".to_owned().into()) },
+				}, MethodRefObj {
+					class: unsafe { ObjClassName::from_inner_unchecked("MyNode".to_owned().into()) },
 					name: unsafe { MethodName::from_inner_unchecked("setData".to_owned().into()) },
 					desc: unsafe { MethodDescriptor::from_inner_unchecked("(Ljava/lang/Object;)V".to_owned().into()) },
 				}),

@@ -22,7 +22,7 @@ use java_string::{JavaCodePoint, JavaStr, JavaString};
 use duke::tree::class::{ArrClassName, ClassName, ClassNameSlice, ObjClassName, ObjClassNameSlice};
 use duke::tree::descriptor::{ReturnDescriptor, ReturnDescriptorSlice};
 use duke::tree::field::{FieldDescriptor, FieldDescriptorSlice, FieldNameAndDesc, FieldNameSlice, FieldRef};
-use duke::tree::method::{MethodDescriptor, MethodDescriptorSlice, MethodNameAndDesc, MethodNameSlice, MethodRef};
+use duke::tree::method::{MethodDescriptor, MethodDescriptorSlice, MethodNameAndDesc, MethodNameSlice, MethodRef, MethodRefObj};
 use crate::tree::mappings::Mappings;
 use crate::tree::names::Namespace;
 
@@ -252,6 +252,13 @@ pub trait BRemapper: ARemapper {
 		let class_name = self.map_class_any(&method_ref.class)?;
 
 		Ok(method_key.with_class(class_name))
+	}
+
+	fn map_method_ref_obj(&self, method_ref: &MethodRefObj) -> Result<MethodRefObj> {
+		let method_key = self.map_method(&method_ref.class, &method_ref.name, &method_ref.desc)?;
+		let class_name = self.map_class(&method_ref.class)?;
+
+		Ok(method_key.with_class_obj(class_name))
 	}
 }
 
@@ -514,4 +521,6 @@ impl SuperClassProvider for NoSuperClassProvider {
 #[cfg(test)]
 mod testing {
 	// TODO: test internals
+
+	// TODO: test all methods, with array classes as well!
 }

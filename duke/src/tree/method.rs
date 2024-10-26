@@ -7,7 +7,7 @@ use java_string::{JavaStr, JavaString};
 use crate::macros::{make_display, make_string_str_like};
 use crate::tree::annotation::{Annotation, ElementValue};
 use crate::tree::attribute::Attribute;
-use crate::tree::class::ClassName;
+use crate::tree::class::{ClassName, ObjClassName};
 use crate::tree::method::code::Code;
 use crate::tree::type_annotation::{TargetInfoMethod, TypeAnnotation};
 use crate::visitor::attribute::UnknownAttributeVisitor;
@@ -232,12 +232,24 @@ impl From<MethodAccess> for u16 {
 	}
 }
 
+/// A method reference. Can also reference array classes.
+///
+/// See [MethodRefObj] if you only want non-array classes.
+/// Note that as arrays have methods, such as `.clone()` that can be referenced.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct MethodRef {
 	/// Other than for fields, there can be references to methods on array classes.
 	/// One example is the `.clone()` method provided by `Object` and implemented (as any array `implements Cloneable`)
 	/// by any array.
 	pub class: ClassName,
+	pub name: MethodName,
+	pub desc: MethodDescriptor,
+}
+
+/// A [MethodRef] but with the extra requirement that it can only reference object classes.
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct MethodRefObj {
+	pub class: ObjClassName,
 	pub name: MethodName,
 	pub desc: MethodDescriptor,
 }
@@ -254,6 +266,11 @@ impl MethodNameAndDesc {
 	/// This is a [`ClassName`], as there can be references to methods on array classes, such as `.clone()`.
 	pub fn with_class(self, class: ClassName) -> MethodRef {
 		MethodRef { class, name: self.name, desc: self.desc }
+	}
+
+	/// Add a [`ObjClassName`] to this [`MethodNameAndDesc`] to make a [`MethodRefObj`].
+	pub fn with_class_obj(self, class: ObjClassName) -> MethodRefObj {
+		MethodRefObj { class, name: self.name, desc: self.desc }
 	}
 }
 

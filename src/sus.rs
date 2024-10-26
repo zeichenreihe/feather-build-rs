@@ -201,15 +201,14 @@ fn add_specialized_methods_to_mappings(
 	let mut mappings = mappings.clone();
 
 	for (bridge, specialized) in specialized_methods.bridge_to_specialized {
-		let named_specialized = remapper_named.map_method_ref(&bridge)?.name;
+		let named_specialized = remapper_named.map_method_ref_obj(&bridge)?.name;
 
 		let info = MethodMapping {
-			names: Names::try_from([specialized.name, named_specialized])?,
+			names: [specialized.name, named_specialized].into(),
 			desc: specialized.desc,
 		};
 
-		// TODO: unwrap
-		if let Some(class) = mappings.classes.get_mut(bridge.class.as_obj().unwrap()) {
+		if let Some(class) = mappings.classes.get_mut(&bridge.class) {
 			match class.methods.entry(info.get_key()?) {
 				Entry::Occupied(mut e) => {
 					if e.get().info != info {
