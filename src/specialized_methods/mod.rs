@@ -3,7 +3,7 @@ use anyhow::Result;
 use std::ops::ControlFlow;
 use indexmap::{IndexMap, IndexSet};
 use indexmap::map::Entry;
-use duke::tree::class::{ClassAccess, ClassName};
+use duke::tree::class::{ClassAccess, ObjClassName, ObjClassNameSlice};
 use duke::tree::descriptor::Type;
 use duke::tree::field::{FieldAccess, FieldDescriptor, FieldName};
 use duke::tree::method::{Method, MethodAccess, MethodDescriptor, MethodName, MethodRef};
@@ -19,21 +19,21 @@ use quill::tree::{NodeInfo, ToKey};
 /// Stores all known entries
 #[derive(Default)]
 struct EntryIndex {
-	classes: IndexSet<ClassName>,
+	classes: IndexSet<ObjClassName>,
 	methods: IndexMap<MethodRef, MethodAccess>,
 }
 
 /// Stores parent and child class information
 #[derive(Default)]
 struct InheritanceIndex {
-	parents: IndexMap<ClassName, IndexSet<ClassName>>,
-	children: IndexMap<ClassName, IndexSet<ClassName>>,
+	parents: IndexMap<ObjClassName, IndexSet<ObjClassName>>,
+	children: IndexMap<ObjClassName, IndexSet<ObjClassName>>,
 }
 
 impl InheritanceIndex {
-	fn store(&mut self, name: &ClassName, super_class: Option<ClassName>, interfaces: Vec<ClassName>) {
+	fn store(&mut self, name: &ObjClassName, super_class: Option<ObjClassName>, interfaces: Vec<ObjClassName>) {
 		if let Some(super_class) = super_class {
-			if super_class != ClassName::JAVA_LANG_OBJECT {
+			if super_class != ObjClassName::JAVA_LANG_OBJECT {
 				self.parents.entry(name.clone()).or_default().insert(super_class.clone());
 				self.children.entry(super_class).or_default().insert(name.clone());
 			}
@@ -45,28 +45,28 @@ impl InheritanceIndex {
 		}
 	}
 
-	fn get_ancestors(&self, class: &ClassName) -> Vec<&ClassName> {
+	fn get_ancestors(&self, class: &ObjClassNameSlice) -> Vec<&ObjClassNameSlice> {
 		let mut ancestors = Vec::new();
 		let mut queue = vec![class];
 		while let Some(ancestor) = queue.pop() {
 			if let Some(parents) = self.parents.get(ancestor) {
 				for parent in parents {
 					queue.push(parent);
-					ancestors.push(parent);
+					ancestors.push(parent.as_slice());
 				}
 			}
 		}
 		ancestors
 	}
 
-	fn get_descendants(&self, class: &ClassName) -> Vec<&ClassName> {
+	fn get_descendants(&self, class: &ObjClassNameSlice) -> Vec<&ObjClassNameSlice> {
 		let mut descendants = Vec::new();
 		let mut queue = vec![class];
 		while let Some(descendant) = queue.pop() {
 			if let Some(children) = self.children.get(descendant) {
 				for child in children {
 					queue.push(child);
-					descendants.push(child);
+					descendants.push(child.as_slice());
 				}
 			}
 		}
@@ -116,7 +116,7 @@ impl MultiClassVisitor for MultiClassVisitorImpl {
 	type ClassVisitor = ClassVisitorImpl;
 	type ClassResidual = ();
 
-	fn visit_class(mut self, _version: Version, _access: ClassAccess, name: ClassName, super_class: Option<ClassName>, interfaces: Vec<ClassName>)
+	fn visit_class(mut self, _version: Version, _access: ClassAccess, name: ObjClassName, super_class: Option<ObjClassName>, interfaces: Vec<ObjClassName>)
 				   -> Result<ControlFlow<Self, (Self::ClassResidual, Self::ClassVisitor)>> {
 		self.entry.classes.insert(name.clone());
 
@@ -138,7 +138,7 @@ impl MultiClassVisitorImpl {
 		fn are_types_bridge_compatible(visitor: &MultiClassVisitorImpl, bridge_desc: &Type, specialized_desc: &Type) -> bool {
 			match (bridge_desc, specialized_desc) {
 				(a, b) if a == b => true,
-				(Type::Object(bridge), Type::Object(_)) if bridge == ClassName::JAVA_LANG_OBJECT => true,
+				(Type::Object(bridge), Type::Object(_)) if bridge == ObjClassName::JAVA_LANG_OBJECT => true,
 				(Type::Object(bridge), Type::Object(_)) if !visitor.entry.classes.contains(bridge) => true,
 				(Type::Object(bridge), Type::Object(specialized)) => {
 					visitor.inheritance.get_ancestors(specialized).into_iter()
@@ -179,7 +179,8 @@ impl MultiClassVisitorImpl {
 		}
 
 		fn get_higher_method(inheritance: &InheritanceIndex, bridge_1: &MethodRef, bridge_2: &MethodRef) -> MethodRef {
-			if inheritance.get_descendants(&bridge_1.class).contains(&&bridge_2.class) {
+			// TODO: unwrap
+			if inheritance.get_descendants(bridge_1.class.as_obj().unwrap()).contains(&bridge_2.class.as_obj().unwrap()) {
 				bridge_1.clone()
 			} else {
 				bridge_2.clone()
@@ -246,7 +247,7 @@ impl MultiClassVisitorImpl {
 }
 
 struct ClassVisitorImpl {
-	name: ClassName,
+	name: ObjClassName,
 	visitor: MultiClassVisitorImpl,
 }
 
@@ -266,7 +267,7 @@ impl SimpleClassVisitor for ClassVisitorImpl {
 	}
 
 	fn finish_method(&mut self, method_visitor: Self::MethodVisitor) -> Result<()> {
-		let method_ref = method_visitor.as_name_and_desc().with_class(self.name.clone());
+		let method_ref = method_visitor.as_name_and_desc().with_class(self.name.clone().into());
 
 		self.visitor.entry.methods.insert(method_ref.clone(), method_visitor.access);
 
@@ -327,7 +328,8 @@ pub(crate) fn add_specialized_methods_to_mappings(
 			desc: specialized.desc,
 		};
 
-		if let Some(class) = mappings.classes.get_mut(&bridge.class) {
+		// TODO: unwrap
+		if let Some(class) = mappings.classes.get_mut(bridge.class.as_obj().unwrap()) {
 			match class.methods.entry(info.get_key()?) {
 				Entry::Occupied(mut e) => {
 					// only replace the info, not the rest

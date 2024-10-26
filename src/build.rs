@@ -5,7 +5,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use log::info;
 use zip::write::FileOptions;
 use zip::ZipWriter;
-use duke::tree::class::ClassName;
+use duke::tree::class::ObjClassName;
 use duke::tree::method::MethodName;
 use dukebox::storage::{FileJar, Jar, NamedMemJar};
 use crate::download::Downloader;
@@ -168,8 +168,8 @@ impl ApplyFix for Mappings<3> {
 		}
 
 
-		fn check_eq_num_of_dollar<const N: usize>(names: &Names<N, ClassName>, a: Namespace<N>, b: Namespace<N>) -> Result<()> {
-			fn count_dollars(x: &Option<ClassName>) -> usize {
+		fn check_eq_num_of_dollar<const N: usize>(names: &Names<N, ObjClassName>, a: Namespace<N>, b: Namespace<N>) -> Result<()> {
+			fn count_dollars(x: &Option<ObjClassName>) -> usize {
 				x.as_ref().map_or(0, |x| x.as_inner().chars().filter(|x| *x == '$').count())
 			}
 

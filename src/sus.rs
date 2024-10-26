@@ -208,7 +208,8 @@ fn add_specialized_methods_to_mappings(
 			desc: specialized.desc,
 		};
 
-		if let Some(class) = mappings.classes.get_mut(&bridge.class) {
+		// TODO: unwrap
+		if let Some(class) = mappings.classes.get_mut(bridge.class.as_obj().unwrap()) {
 			match class.methods.entry(info.get_key()?) {
 				Entry::Occupied(mut e) => {
 					if e.get().info != info {

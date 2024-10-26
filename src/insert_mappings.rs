@@ -7,7 +7,7 @@ use std::collections::{HashSet, VecDeque};
 use std::fmt::Debug;
 use indexmap::map::Entry;
 use java_string::{JavaStr, JavaString};
-use duke::tree::class::ClassName;
+use duke::tree::class::ObjClassName;
 use duke::tree::field::FieldNameAndDesc;
 use duke::tree::method::MethodNameAndDesc;
 use quill::tree::mappings::Mappings;
@@ -143,7 +143,7 @@ pub(crate) fn insert_mappings<'version>(
 											// to = "OperatingSystem" // "net/minecraft/client/Minecraft$OperatingSystem"
 											// from = "net/minecraft/isom/IsomPreviewCanvas__OS"?
 
-											fn make_class_name_stem_and_simple(class_name: &ClassName) -> (&JavaStr, &JavaStr) {
+											fn make_class_name_stem_and_simple(class_name: &ObjClassName) -> (&JavaStr, &JavaStr) {
 												let s = class_name.as_inner();
 												s.rfind('/').map_or((JavaStr::from_str(""), s), |i| s.split_at(i))
 											}
@@ -202,7 +202,7 @@ pub(crate) fn insert_mappings<'version>(
 												},
 											};
 
-											let to_new = unsafe { ClassName::from_inner_unchecked(to_inner) };
+											let to_new = unsafe { ObjClassName::from_inner_unchecked(to_inner) };
 
 											sibling_class.info = Action::from_tuple(Some(from.clone()), Some(to_new));
 										},
@@ -859,7 +859,7 @@ fn swap_if_side_b<T>(side: DiffSide, ab: (T, T)) -> (T, T) {
 	}
 }
 
-fn get_id_class(class_key: &ClassName) -> &JavaStr {
+fn get_id_class(class_key: &ObjClassName) -> &JavaStr {
 	let s = class_key.as_inner();
 
 	let last_section = s.rsplit_once('/')
@@ -887,12 +887,12 @@ fn get_id_method(method_key: &MethodNameAndDesc) -> &JavaStr {
 /// guarantees: either `simple.ends_with(sibling_simple)` or `sibling_simple.ends_with(simple)` (choosing the longer one for the `self` arg)
 fn find_class_sibling<'a>(
 	diff: &'a MappingsDiff,
-	class_key: &'a ClassName,
+	class_key: &'a ObjClassName,
 	diff_class: &'a ClassNowodeDiff,
 	change_class: &'a ClassNowodeDiff,
 	side: DiffSide,
 	mode: Mode,
-) -> Result<Option<(&'a ClassName, &'a ClassNowodeDiff)>> {
+) -> Result<Option<(&'a ObjClassName, &'a ClassNowodeDiff)>> {
 	let id = get_id_class(class_key);
 	let siblings: Vec<_> = diff.classes.iter()
 		.filter(|(key, diff)| get_id_class(key) == id && key != &class_key && diff.info.is_diff())
@@ -947,7 +947,7 @@ fn find_class_sibling<'a>(
 
 #[allow(clippy::too_many_arguments)]
 fn find_field_sibling<'a>(
-	class_key: &'a ClassName,
+	class_key: &'a ObjClassName,
 	field_key: &'a FieldNameAndDesc,
 	diff: &'a MappingsDiff,
 	diff_class: &'a ClassNowodeDiff,
@@ -956,7 +956,7 @@ fn find_field_sibling<'a>(
 	change_field: &'a FieldNowodeDiff,
 	side: DiffSide,
 	mode: Mode,
-) -> Result<Option<(&'a ClassName, &'a FieldNameAndDesc, &'a FieldNowodeDiff)>> {
+) -> Result<Option<(&'a ObjClassName, &'a FieldNameAndDesc, &'a FieldNowodeDiff)>> {
 	let id = get_id_field(field_key);
 
 	let sibling_parent = find_class_sibling(
@@ -1013,7 +1013,7 @@ fn find_field_sibling<'a>(
 
 #[allow(clippy::too_many_arguments)]
 fn find_method_sibling<'a>(
-	class_key: &'a ClassName,
+	class_key: &'a ObjClassName,
 	method_key: &'a MethodNameAndDesc,
 	diff: &'a MappingsDiff,
 	diff_class: &'a ClassNowodeDiff,
@@ -1022,7 +1022,7 @@ fn find_method_sibling<'a>(
 	change_method: &'a MethodNowodeDiff,
 	side: DiffSide,
 	mode: Mode,
-) -> Result<Option<(&'a ClassName, &'a MethodNameAndDesc, &'a MethodNowodeDiff)>> {
+) -> Result<Option<(&'a ObjClassName, &'a MethodNameAndDesc, &'a MethodNowodeDiff)>> {
 	let id = get_id_method(method_key);
 
 	let sibling_parent = find_class_sibling(
