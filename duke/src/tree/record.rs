@@ -101,6 +101,11 @@ impl RecordComponent {
 make_string_str_like!(
 	pub RecordName(JavaString);
 	pub RecordNameSlice(JavaStr);
-	is_valid(s) = Ok(()); // TODO: see JVMS
 );
 make_display!(RecordName, RecordNameSlice);
+
+impl RecordName {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		Ok(()) // TODO: see JVMS
+	}
+}

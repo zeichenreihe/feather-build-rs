@@ -391,8 +391,13 @@ impl ParsedMethodDescriptor {
 make_string_str_like!(
 	pub ReturnDescriptor(JavaString);
 	pub ReturnDescriptorSlice(JavaStr);
-	is_valid(s) = Ok(()); // TODO: impl
 );
+
+impl ReturnDescriptor {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		Ok(()) // TODO: impl
+	}
+}
 
 // TODO: rethink if we really want these examples with that amount of unsafe/JavaStr
 #[derive(Debug, Clone, Eq, PartialEq)]

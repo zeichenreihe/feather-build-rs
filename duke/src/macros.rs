@@ -16,13 +16,27 @@ macro_rules! make_display {
 	}
 }
 
+/// Creates implementations for [String]/[str] like types.
+///
+/// You need to have a function
+/// ```no_run
+/// # struct Owned;
+/// # struct BorrowedInner;
+/// # struct SomeErrorType;
+/// impl Owned {
+///     fn check_valid(inner: &BorrowedInner) -> Result<(), SomeErrorType> {
+///         // ...
+/// # Ok(())
+///     }
+/// }
+/// ```
+/// that checks if the contents are valid.
 macro_rules! make_string_str_like {
 	(
 		$( #[$owned_doc:meta] )*
 		$owned_vis:vis $owned:ident ( $owned_inner:ty ) ;
 		$( #[$borrowed_doc:meta] )*
 		$borrowed_vis:vis $borrowed:ident ( $borrowed_inner:ty );
-		is_valid($is_valid_param:ident) = $is_valid:expr;
 	) => {
 		$( #[$owned_doc] )*
 		#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
@@ -45,13 +59,20 @@ macro_rules! make_string_str_like {
 				stringify!($owned_inner), "`] without checking any content.")]
 			///
 			/// # Safety
-            #[doc = concat!("`s` must only contain valid contents for [`", stringify!($owned), "`].")]
+			#[doc = concat!("`s` must only contain valid contents for [`", stringify!($owned), "`]. See [`",
+				stringify!($owned), "::check_valid`] for the concrete values that are allowed.")]
 			pub const unsafe fn from_inner_unchecked(s: $owned_inner) -> $owned {
 				$owned(s)
 			}
 
-			pub fn is_valid($is_valid_param: &$borrowed_inner) -> anyhow::Result<()> {
-				$is_valid
+			/// Checks if a given value is valid for being represented by this type.
+			///
+			#[doc = concat!("This also applies to the slice type, [`", stringify!($borrowed), "`].")]
+			///
+			/// See [`Self::check_valid`] for the specification on what's valid.
+			pub fn is_valid(inner: &$borrowed_inner) -> bool {
+				let result: Result<(), _> = Self::check_valid(inner);
+				result.is_ok()
 			}
 		}
 
@@ -66,6 +87,7 @@ macro_rules! make_string_str_like {
 			///
 			/// # Safety
             #[doc = concat!("`s` must only contain valid contents for [`", stringify!($borrowed), "`].")]
+			/// See [`Self::check_valid`] for the concrete values that are allowed.
 			#[allow(clippy::needless_lifetimes)] // TODO: we're more explicit about the lifetime, switch to expect
 			pub const unsafe fn from_inner_unchecked<'a>(s: &'a $borrowed_inner) -> &'a $borrowed {
 				// SAFETY: &'a $borrowed and &'a $borrowed_inner have the same layout.
@@ -111,7 +133,7 @@ macro_rules! make_string_str_like {
 			type Error = anyhow::Error;
 
 			fn try_from(value: &'a $borrowed_inner) -> anyhow::Result<&'a $borrowed> {
-				match $owned::is_valid(value) {
+				match $owned::check_valid(value) {
 					// SAFETY: We just checked that `value` is valid for $owned.
 					Ok(()) => Ok(unsafe { $borrowed::from_inner_unchecked(value) }),
 					Err(e) => {
@@ -125,7 +147,7 @@ macro_rules! make_string_str_like {
 			type Error = anyhow::Error;
 
 			fn try_from(value: $owned_inner) -> anyhow::Result<$owned> {
-				match $owned::is_valid(&value) {
+				match $owned::check_valid(&value) {
 					// SAFETY: We just checked that `value` is valid for $owned.
 					Ok(()) => Ok(unsafe { $owned::from_inner_unchecked(value) }),
 					Err(e) => {

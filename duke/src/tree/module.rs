@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::fmt::{Debug, Display, Formatter};
 use java_string::{JavaStr, JavaString};
 use crate::macros::{make_display, make_string_str_like};
@@ -21,15 +22,25 @@ pub struct Module {
 make_string_str_like!(
 	pub ModuleName(JavaString);
 	pub ModuleNameSlice(JavaStr);
-	is_valid(s) = Ok(()); // TODO: see JVMS 4.2.3
 );
 make_display!(ModuleName, ModuleNameSlice);
+
+impl ModuleName {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		Ok(()) // TODO: see JVMS 4.2.3
+	}
+}
 
 make_string_str_like!(
 	pub PackageName(JavaString);
 	pub PackageNameSlice(JavaStr);
-	is_valid(s) = Ok(()); // TODO: see JVMS 4.2.3
 );
+
+impl PackageName {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		Ok(()) // TODO: see JVMS 4.2.3
+	}
+}
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct ModuleFlags {

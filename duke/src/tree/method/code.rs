@@ -103,13 +103,18 @@ impl Code {
 make_string_str_like!(
 	pub LocalVariableName(JavaString);
 	pub LocalVariableNameSlice(JavaStr);
-	is_valid(s) = if crate::tree::names::is_valid_unqualified_name(s) {
-		Ok(())
-	} else {
-		bail!("invalid local variable name: must be non-empty and not contain any of `.`, `;`, `[` and `/`")
-	};
 );
 make_display!(LocalVariableName, LocalVariableNameSlice);
+
+impl LocalVariableName {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		if crate::tree::names::is_valid_unqualified_name(inner) {
+			Ok(())
+		} else {
+			bail!("invalid local variable name: must be non-empty and not contain any of `.`, `;`, `[` and `/`")
+		}
+	}
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Exception {

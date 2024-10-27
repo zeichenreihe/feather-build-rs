@@ -212,26 +212,41 @@ impl FieldNameAndDesc {
 make_string_str_like!(
 	pub FieldName(JavaString);
 	pub FieldNameSlice(JavaStr);
-	is_valid(s) = if crate::tree::names::is_valid_unqualified_name(s) {
-		Ok(())
-	} else {
-		bail!("invalid field name: must be non-empty and not contain any of `.`, `;`, `[` and `/`")
-	};
 );
 make_display!(FieldName, FieldNameSlice);
+
+impl FieldName {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		if crate::tree::names::is_valid_unqualified_name(inner) {
+			Ok(())
+		} else {
+			bail!("invalid field name: must be non-empty and not contain any of `.`, `;`, `[` and `/`")
+		}
+	}
+}
 
 make_string_str_like!(
 	pub FieldDescriptor(JavaString);
 	pub FieldDescriptorSlice(JavaStr);
-	is_valid(__) = Ok(()); // TODO: parse the desc and fail if invalid
 );
 make_display!(FieldDescriptor, FieldDescriptorSlice);
+
+impl FieldDescriptor {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		Ok(()) // TODO: parse the desc and fail if invalid
+	}
+}
 
 make_string_str_like!(
 	pub FieldSignature(JavaString);
 	pub FieldSignatureSlice(JavaStr);
-	is_valid(__) = Ok(()); // TODO: signature format is even more complicated
 );
+
+impl FieldSignature {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		Ok(()) // TODO: signature format is even more complicated
+	}
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConstantValue {

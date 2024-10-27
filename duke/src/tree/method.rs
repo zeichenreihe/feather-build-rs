@@ -277,15 +277,18 @@ impl MethodNameAndDesc {
 make_string_str_like!(
 	pub MethodName(JavaString);
 	pub MethodNameSlice(JavaStr);
-	is_valid(s) = if crate::tree::names::is_valid_method_name(s) {
-		Ok(())
-	} else {
-		bail!("invalid method name: must be either `<init>`, `<clinit>`, or non-empty and not contain any of `.`, `;`, `[`, `/`, `<`, and `>`");
-	};
 );
 make_display!(MethodName, MethodNameSlice);
 
 impl MethodName {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		if crate::tree::names::is_valid_method_name(inner) {
+			Ok(())
+		} else {
+			bail!("invalid method name: must be either `<init>`, `<clinit>`, or non-empty and not contain any of `.`, `;`, `[`, `/`, `<`, and `>`");
+		}
+	}
+
 	pub const INIT: &'static MethodNameSlice = {
 		// SAFETY: `<init>` is a valid method name.
 		unsafe { MethodNameSlice::from_inner_unchecked(JavaStr::from_str("<init>")) }
@@ -299,15 +302,25 @@ impl MethodName {
 make_string_str_like!(
 	pub MethodDescriptor(JavaString);
 	pub MethodDescriptorSlice(JavaStr);
-	is_valid(s) = Ok(()); // TODO: parse the desc and fail if invalid
 );
 make_display!(MethodDescriptor, MethodDescriptorSlice);
+
+impl MethodDescriptor {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		Ok(()) // TODO: parse the desc and fail if invalid
+	}
+}
 
 make_string_str_like!(
 	pub MethodSignature(JavaString);
 	pub MethodSignatureSlice(JavaStr);
-	is_valid(s) = Ok(()); // TODO: signature format is even more complicated
 );
+
+impl MethodSignature {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		Ok(()) // TODO: signature format is even more complicated
+	}
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MethodParameter {
@@ -318,13 +331,18 @@ pub struct MethodParameter {
 make_string_str_like!(
 	pub ParameterName(JavaString);
 	pub ParameterNameSlice(JavaStr);
-	is_valid(s) = if crate::tree::names::is_valid_unqualified_name(s) {
-		Ok(())
-	} else {
-		bail!("invalid parameter name: must be non-empty and not contain any of `.`, `;`, `[` and `/`");
-	};
 );
 make_display!(ParameterName, ParameterNameSlice);
+
+impl ParameterName {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		if crate::tree::names::is_valid_unqualified_name(inner) {
+			Ok(())
+		} else {
+			bail!("invalid parameter name: must be non-empty and not contain any of `.`, `;`, `[` and `/`");
+		}
+	}
+}
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct ParameterFlags {

@@ -318,15 +318,18 @@ make_string_str_like!(
 	pub ClassName(JavaString);
 	/// A [`ClassName`] slice.
 	pub ClassNameSlice(JavaStr);
-	is_valid(s) = if crate::tree::names::is_valid_class_name(s) {
-		Ok(())
-	} else {
-		bail!("invalid class name: must be either array field descriptor; or must consist out of `/` separated non-empty parts, and not contain any of `.`, `;`, `[`")
-	};
 );
 make_display!(ClassName, ClassNameSlice);
 
 impl ClassName {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		if crate::tree::names::is_valid_class_name(inner) {
+			Ok(())
+		} else {
+			bail!("invalid class name: must be either array field descriptor; or must consist out of `/` separated non-empty parts, and not contain any of `.`, `;`, `[`")
+		}
+	}
+
 	pub(crate) fn into_arr_and_obj(self) -> Result<ArrClassName, ObjClassName> {
 		if self.is_array() {
 			// SAFETY: We just checked that it's an array class name.
@@ -406,13 +409,18 @@ make_string_str_like!(
 	pub ArrClassName(JavaString);
 	/// A [`ArrClassName`] slice.
 	pub ArrClassNameSlice(JavaStr);
-	is_valid(s) = if crate::tree::names::is_valid_arr_class_name(s) {
-		Ok(())
-	} else {
-		bail!("invalid array class name: must be an array field descriptor");
-	};
 );
 make_display!(ArrClassName, ArrClassNameSlice);
+
+impl ArrClassName {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		if crate::tree::names::is_valid_arr_class_name(inner) {
+			Ok(())
+		} else {
+			bail!("invalid array class name: must be an array field descriptor");
+		}
+	}
+}
 
 impl ArrClassNameSlice {
 	/// Returns the dimension of the array class.
@@ -448,15 +456,18 @@ make_string_str_like!(
 	pub ObjClassName(JavaString);
 	/// A [`ObjClassName`] slice.
 	pub ObjClassNameSlice(JavaStr);
-	is_valid(s) = if crate::tree::names::is_valid_obj_class_name(s) {
-		Ok(())
-	} else {
-		bail!("invalid array class name: must be an array field descriptor");
-	};
 );
 make_display!(ObjClassName, ObjClassNameSlice);
 
 impl ObjClassName {
+	pub fn check_valid(inner: &JavaStr) -> Result<()> {
+		if crate::tree::names::is_valid_obj_class_name(inner) {
+			Ok(())
+		} else {
+			bail!("invalid array class name: must be an array field descriptor");
+		}
+	}
+
 	/// A constant holding the class name of `Object`.
 	pub const JAVA_LANG_OBJECT: &'static ObjClassNameSlice = {
 		// SAFETY: `java/lang/Object` is a valid class name.
@@ -571,8 +582,14 @@ make_string_str_like!(
 	/// Represents a class signature, from a generic such as `Foo<T extends Bar>`.
 	pub ClassSignature(JavaString);
 	pub ClassSignatureSlice(JavaStr);
-	is_valid(__) = Ok(()); // TODO: signature format is even more complicated
 );
+
+impl ClassSignature {
+	fn check_valid(inner: &JavaStr) -> Result<()> {
+		// TODO: signature format is even more complicated
+		Ok(())
+	}
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct InnerClass {
