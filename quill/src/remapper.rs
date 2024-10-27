@@ -101,36 +101,36 @@ pub trait ARemapper {
 ///
 /// # Safety
 /// `desc` must be a valid field, method or return descriptor.
-// TODO: what about returning Cow<'a, str> ('a on the &'a str)? would return `desc` if no remapping
-//  was done, and a String if it was
 unsafe fn map_desc(remapper: &(impl ARemapper + ?Sized), desc: &JavaStr) -> Result<JavaString> {
-	let mut s = JavaString::new();
+	let mut s = JavaString::with_capacity(desc.len() * 2);
 
-	let mut iter = desc.chars();
+	let mut iter = desc.char_indices();
 
-	while let Some(ch) = iter.next() {
+	while let Some((_, ch)) = iter.next() {
+		// TODO: perhaps it could copy larger sections at once, instead of per char
 		s.push_java(ch);
 
 		if ch == 'L' {
-			let mut class_name = JavaString::new();
-			for ch in iter.by_ref() {
-				class_name.push_java(ch);
-				if ch == ';' {
-					break;
-				}
-			}
-			if class_name.pop() != Some(JavaCodePoint::from_char(';')) {
-				bail!("descriptor {desc:?} has a missing semicolon somewhere");
-			}
-			if class_name.is_empty() {
-				bail!("descriptor {desc:?} contained illegal `L;` somewhere");
-			}
+			let start = iter.next()
+				.filter(|(_, ch)| ch != &';') // may not directly end with `;`
+				.map(|x| x.0);
 
-			// TODO: construct the slice here without allocating new memory!
-			// String to ClassName doesn't allocate new memory, so it's fine
-			// SAFETY: `class_name` is a valid class name since it comes from a valid descriptor.
-			let old_class_name = unsafe { ObjClassName::from_inner_unchecked(class_name) };
-			let new_class_name = remapper.map_class(&old_class_name)?;
+			let end = iter.by_ref()
+				.find(|(_, ch)| ch == &';') // but ends at `;`
+				.map(|x| x.0);
+
+			let Some((start, end)) = Option::zip(start, end) else {
+				bail!("descriptor {desc:?} has a missing semicolon somewhere or contains an illegal `L;`")
+			};
+
+			let name = &desc[start..end];
+
+			// SAFETY: `name` is a valid object class name since it
+			// - comes from a valid descriptor,
+			// - is not empty, because of the `L;`-check above.
+			let old_class_name = unsafe { ObjClassNameSlice::from_inner_unchecked(name) };
+
+			let new_class_name = remapper.map_class(old_class_name)?;
 
 			s.push_java_str(new_class_name.as_inner());
 			s.push(';');
@@ -533,6 +533,8 @@ mod testing {
 		assert_eq!(unsafe { map_desc(&remapper, "ABCDEFGHIJK[LZ;XYZZ".into()) }?, "ABCDEFGHIJK[LB;XYZZ");
 		// SAFETY: nope
 		assert!(unsafe { map_desc(&remapper, "ABCLDEF".into()) }.is_err());
+		// SAFETY: nope
+		assert!(unsafe { map_desc(&remapper, "ABCDL".into()) }.is_err());
 		// SAFETY: nope
 		assert!(unsafe { map_desc(&remapper, "ABCDL;".into()) }.is_err());
 		// SAFETY: nope
