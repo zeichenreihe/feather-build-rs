@@ -59,8 +59,8 @@ macro_rules! make_string_str_like {
 				stringify!($owned_inner), "`] without checking any content.")]
 			///
 			/// # Safety
-			#[doc = concat!("`s` must only contain valid contents for [`", stringify!($owned), "`]. See [`",
-				stringify!($owned), "::check_valid`] for the concrete values that are allowed.")]
+			#[doc = concat!("`s` must only contain valid contents for [`", stringify!($owned), "`].")]
+			/// See [`Self::check_valid`] for the concrete values that are allowed.
 			pub const unsafe fn from_inner_unchecked(s: $owned_inner) -> $owned {
 				$owned(s)
 			}
@@ -86,8 +86,8 @@ macro_rules! make_string_str_like {
 				"] without checking any content.")]
 			///
 			/// # Safety
-            #[doc = concat!("`s` must only contain valid contents for [`", stringify!($borrowed), "`].")]
-			/// See [`Self::check_valid`] for the concrete values that are allowed.
+            #[doc = concat!("`s` must only contain valid contents for [`", stringify!($borrowed), "`]. See [`",
+				stringify!($owned), "::check_valid`] for the concrete values that are allowed.")]
 			#[allow(clippy::needless_lifetimes)] // TODO: we're more explicit about the lifetime, switch to expect
 			pub const unsafe fn from_inner_unchecked<'a>(s: &'a $borrowed_inner) -> &'a $borrowed {
 				// SAFETY: &'a $borrowed and &'a $borrowed_inner have the same layout.
