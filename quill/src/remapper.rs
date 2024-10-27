@@ -122,7 +122,11 @@ unsafe fn map_desc(remapper: &(impl ARemapper + ?Sized), desc: &JavaStr) -> Resu
 			if class_name.pop() != Some(JavaCodePoint::from_char(';')) {
 				bail!("descriptor {desc:?} has a missing semicolon somewhere");
 			}
+			if class_name.is_empty() {
+				bail!("descriptor {desc:?} contained illegal `L;` somewhere");
+			}
 
+			// TODO: construct the slice here without allocating new memory!
 			// String to ClassName doesn't allocate new memory, so it's fine
 			// SAFETY: `class_name` is a valid class name since it comes from a valid descriptor.
 			let old_class_name = unsafe { ObjClassName::from_inner_unchecked(class_name) };
@@ -494,6 +498,51 @@ impl SuperClassProvider for NoSuperClassProvider {
 
 #[cfg(test)]
 mod testing {
+	use pretty_assertions::assert_eq;
+	use anyhow::Result;
+	use indexmap::IndexMap;
+	use java_string::JavaStr;
+	use duke::tree::class::{ObjClassName, ObjClassNameSlice};
+	use crate::remapper::{ARemapper, map_desc};
+
+	#[test]
+	fn map_desc_test() -> Result<()> {
+		let remapper = IndexMap::from([
+			("B", "I"),
+			("I", "Z"),
+			("Z", "B"),
+		]);
+		impl ARemapper for IndexMap<&str, &str> {
+			fn map_class_fail(&self, class: &ObjClassNameSlice) -> anyhow::Result<Option<ObjClassName>> {
+				let s = class.as_inner().as_str()?;
+				self.get(s)
+					.map(|result| ObjClassName::try_from(JavaStr::from_str(result)))
+					.transpose()
+			}
+		}
+
+		// SAFETY: nope
+		assert_eq!(unsafe { map_desc(&remapper, "ABCDEFGHIJKLB;".into()) }?, "ABCDEFGHIJKLI;");
+		// SAFETY: nope
+		assert_eq!(unsafe { map_desc(&remapper, "ABCDEFGHIJKLIB;XYZ".into()) }?, "ABCDEFGHIJKLIB;XYZ");
+		// SAFETY: nope
+		assert_eq!(unsafe { map_desc(&remapper, "ABCDEFGHIJK[LIB;XYZ".into()) }?, "ABCDEFGHIJK[LIB;XYZ");
+		// SAFETY: nope
+		assert_eq!(unsafe { map_desc(&remapper, "ABCDEFGHIJKLZ;XYZZ".into()) }?, "ABCDEFGHIJKLB;XYZZ");
+		// SAFETY: nope
+		assert_eq!(unsafe { map_desc(&remapper, "ABCDEFGHIJK[LZ;XYZZ".into()) }?, "ABCDEFGHIJK[LB;XYZZ");
+		// SAFETY: nope
+		assert!(unsafe { map_desc(&remapper, "ABCLDEF".into()) }.is_err());
+		// SAFETY: nope
+		assert!(unsafe { map_desc(&remapper, "ABCDL;".into()) }.is_err());
+		// SAFETY: nope
+		assert!(unsafe { map_desc(&remapper, "ABCD[L;".into()) }.is_err());
+
+		// SAFETY: nope
+		assert_eq!(unsafe { map_desc(&remapper, "ABCDEFGHIJKLB;LB;LIB;[[I[[LZ;ABC".into()) }?, "ABCDEFGHIJKLI;LI;LIB;[[I[[LB;ABC");
+
+		Ok(())
+	}
 	// TODO: test internals
 
 	// TODO: test all methods, with array classes as well!

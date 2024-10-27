@@ -1,13 +1,22 @@
 
 use anyhow::Result;
 use indexmap::{IndexMap, IndexSet};
-use java_string::JavaString;
+use java_string::{JavaStr, JavaString};
 use pretty_assertions::assert_eq;
-use duke::tree::class::{ObjClassName, ObjClassNameSlice};
-use duke::tree::field::{FieldDescriptorSlice, FieldNameSlice};
-use duke::tree::method::{MethodDescriptorSlice, MethodNameSlice};
 use quill::remapper::{ARemapper, BRemapper, JarSuperProv};
 use quill::tree::mappings::Mappings;
+
+fn o<T>(s: &str) -> Result<T>
+	where T: TryFrom<JavaString, Error=anyhow::Error>
+{
+	JavaString::from(s.to_owned()).try_into()
+}
+
+fn b<T: ?Sized>(s: &str) -> Result<&T>
+	where for<'a> &'a T: TryFrom<&'a JavaStr, Error=anyhow::Error>
+{
+	<&JavaStr>::from(s).try_into()
+}
 
 #[test]
 fn remap() -> Result<()> {
@@ -15,35 +24,24 @@ fn remap() -> Result<()> {
 
 	let input_a: Mappings<2> = quill::tiny_v2::read(input_a.as_bytes())?;
 
+
 	let super_classes_provider = JarSuperProv { super_classes: IndexMap::from([
-		// SAFETY: is a valid class name
-		(unsafe { ObjClassName::from_inner_unchecked("classS1".to_owned().into()) }, IndexSet::from([
-			// SAFETY: is a valid class name
-			unsafe { ObjClassName::from_inner_unchecked("classS2".to_owned().into()) },
-			// SAFETY: is a valid class name
-			unsafe { ObjClassName::from_inner_unchecked("classS3".to_owned().into()) },
-			// SAFETY: is a valid class name
-			unsafe { ObjClassName::from_inner_unchecked("classS4".to_owned().into()) },
+		(o("classS1")?, IndexSet::from([
+			o("classS2")?,
+			o("classS3")?,
+			o("classS4")?,
 		])),
-		// SAFETY: is a valid class name
-		(unsafe { ObjClassName::from_inner_unchecked("classS2".to_owned().into()) }, IndexSet::from([
-			// SAFETY: is a valid class name
-			unsafe { ObjClassName::from_inner_unchecked("classS5".to_owned().into()) },
+		(o("classS2")?, IndexSet::from([
+			o("classS5")?,
 		])),
-		// SAFETY: is a valid class name
-		(unsafe { ObjClassName::from_inner_unchecked("classS3".to_owned().into()) }, IndexSet::from([
-			// SAFETY: is a valid class name
-			unsafe { ObjClassName::from_inner_unchecked("classS5".to_owned().into()) },
+		(o("classS3")?, IndexSet::from([
+			o("classS5")?,
 		])),
-		// SAFETY: is a valid class name
-		(unsafe { ObjClassName::from_inner_unchecked("classS4".to_owned().into()) }, IndexSet::from([
-			// SAFETY: is a valid class name
-			unsafe { ObjClassName::from_inner_unchecked("classS5".to_owned().into()) },
+		(o("classS4")?, IndexSet::from([
+			o("classS5")?,
 		])),
-		// SAFETY: is a valid class name
-		(unsafe { ObjClassName::from_inner_unchecked("classS5".to_owned().into()) }, IndexSet::from([
-			// SAFETY: is a valid class name
-			unsafe { ObjClassName::from_inner_unchecked("java/lang/Object".to_owned().into()) },
+		(o("classS5")?, IndexSet::from([
+			o("java/lang/Object")?,
 		])),
 	]) };
 
@@ -52,20 +50,18 @@ fn remap() -> Result<()> {
 	let remapper = input_a.remapper_b(from, to, &super_classes_provider)?;
 
 	let class = |class: &'static str| -> Result<JavaString> {
-		// SAFETY: below are only valid class names
-		let class = unsafe { ObjClassNameSlice::from_inner_unchecked(class.into()) };
-
-		let class_new = remapper.map_class(class)?;
-
-		Ok(class_new.into())
+		let a: JavaString = remapper.map_class(b(class)?).map(From::from)?;
+		let b: JavaString = remapper.map_class_any(b(class)?).map(From::from)?;
+		assert_eq!(a, b);
+		Ok(a)
+	};
+	let class_arr = |class: &'static str| -> Result<JavaString> {
+		remapper.map_class_any(b(class)?).map(From::from)
 	};
 	let field = |class: &'static str, field: &'static str, descriptor: &'static str| -> Result<(JavaString, JavaString, JavaString)> {
-		// SAFETY: below are only valid class names
-		let class = unsafe { ObjClassNameSlice::from_inner_unchecked(class.into()) };
-		// SAFETY: below are only valid field names
-		let field_name = unsafe { FieldNameSlice::from_inner_unchecked(field.into()) };
-		// SAFETY: below are only valid field descs
-		let field_desc = unsafe { FieldDescriptorSlice::from_inner_unchecked(descriptor.into()) };
+		let class = b(class)?;
+		let field_name = b(field)?;
+		let field_desc = b(descriptor)?;
 
 		let class_new = remapper.map_class(class)?;
 		let field_new = remapper.map_field(class, field_name, field_desc)?;
@@ -73,12 +69,9 @@ fn remap() -> Result<()> {
 		Ok((class_new.into(), field_new.name.into(), field_new.desc.into()))
 	};
 	let method = |class: &'static str, method: &'static str, descriptor: &'static str| -> Result<(JavaString, JavaString, JavaString)> {
-		// SAFETY: below are only valid class names
-		let class = unsafe { ObjClassNameSlice::from_inner_unchecked(class.into()) };
-		// SAFETY: below are only valid method names
-		let method_name = unsafe { MethodNameSlice::from_inner_unchecked(method.into()) };
-		// SAFETY: below are only valid method descs
-		let method_desc = unsafe { MethodDescriptorSlice::from_inner_unchecked(descriptor.into()) };
+		let class = b(class)?;
+		let method_name = b(method)?;
+		let method_desc = b(descriptor)?;
 
 		let class_new = remapper.map_class(class)?;
 		let method_new = remapper.map_method(class, method_name, method_desc)?;
@@ -91,6 +84,12 @@ fn remap() -> Result<()> {
 	assert_eq!(class("classA2$innerA1")?, "classB2$innerB1");
 	assert_eq!(class("classA3")?, "classB3");
 	assert_eq!(class("classA4L")?, "classB4L");
+
+	assert_eq!(class_arr("[LclassA1;")?, "[LclassB1;");
+	assert_eq!(class_arr("[[LclassA2;")?, "[[LclassB2;");
+	assert_eq!(class_arr("[[[LclassA2$innerA1;")?, "[[[LclassB2$innerB1;");
+	assert_eq!(class_arr("[I")?, "[I");
+	assert_eq!(class_arr("[[[D")?, "[[[D");
 
 	assert_eq!(field("classA1", "field1A1", "I")?,
 		("classB1".into(), "field1B1".into(), "I".into()));
