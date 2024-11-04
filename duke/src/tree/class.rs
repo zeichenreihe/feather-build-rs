@@ -355,14 +355,14 @@ impl ClassNameSlice {
 	///
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use duke::tree::class::{ClassName, ClassNameSlice};
+	/// use duke::tree::class::{ClassNameSlice, ObjClassName};
 	///
 	/// // SAFETY: This is a valid class name.
 	/// let array = unsafe { ClassNameSlice::from_inner_unchecked("[Ljava/lang/Object;".into()) };
 	///
 	/// assert_eq!(array.is_array(), true);
 	///
-	/// // assert_eq!(ClassName::JAVA_LANG_OBJECT.is_array(), false);
+	/// assert_eq!(ObjClassName::JAVA_LANG_OBJECT.as_class_name().is_array(), false);
 	/// ```
 	// TODO: code
 	pub fn is_array(&self) -> bool {
