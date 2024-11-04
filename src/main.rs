@@ -27,6 +27,7 @@ mod sus;
 
 mod dukelaunch;
 mod insert_mappings;
+mod nester_run;
 
 /*
 TODO: publish
@@ -386,10 +387,10 @@ struct PropagationOptions {
 struct MappingUtils;
 impl MappingUtils {
     fn apply_nests(mappings: Mappings<2>, nests: Nests) -> Result<Mappings<2>> {
-        todo!()
+        nester_run::nester_run(mappings, nests, true)
     }
-    fn undo_nests(working_mappings: Mappings<2>, nests: Nests) -> Result<Mappings<2>> {
-        todo!()
+    fn undo_nests(mappings: Mappings<2>, nests: Nests) -> Result<Mappings<2>> {
+        nester_run::nester_run(mappings, nests, false)
     }
 }
 
