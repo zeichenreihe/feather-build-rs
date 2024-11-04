@@ -464,6 +464,7 @@ impl ObjClassName {
 		if crate::tree::names::is_valid_obj_class_name(inner) {
 			Ok(())
 		} else {
+			// TODO: error msg
 			bail!("invalid array class name: must be an array field descriptor");
 		}
 	}

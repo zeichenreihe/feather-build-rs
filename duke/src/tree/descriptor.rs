@@ -95,9 +95,11 @@ fn read_field_type(chars: &mut Peekable<Chars>) -> Result<Type> {
 
 	let mut array_dimension = 0;
 	while chars.next_if_eq(&'[').is_some() {
+		if array_dimension == 255 {
+			bail!("array dimension must not be larger than 255");
+		}
 		array_dimension += 1;
 	}
-	// TODO: only valid if array_dimension is fitting into u8 and not overflowing (the addition above)
 
 	if array_dimension == 0 {
 		let char = chars.next().ok_or_else(|| anyhow!("unexpected abrupt ending of descriptor"))?;
@@ -620,23 +622,6 @@ mod testing {
 	}
 
 	#[test]
-	fn field_parse_err() -> Result<()> {
-		// TODO: move these to field desc creation tests
-		/*
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("".into()) }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("V".into()) }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("(".into()) }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked(")".into()) }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("()".into()) }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("[V".into()) }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("()V".into()) }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("(D)I".into()) }.parse().is_err());
-		assert!(unsafe { FieldDescriptorSlice::from_inner_unchecked("L;DV".into()) }.parse().is_err());
-		*/
-		Ok(())
-	}
-
-	#[test]
 	fn method_parse() -> Result<()> {
 		assert_eq!(
 			// SAFETY: This is a valid method descriptor.
@@ -686,26 +671,6 @@ mod testing {
 
 		Ok(())
 	}
-
-	#[test]
-	fn method_parse_err() -> Result<()> {
-		// TODO: move these to method desc creation tests
-		/*
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("".into()) }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(".into()) }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(D".into()) }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(V".into()) }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("()".into()) }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(I)".into()) }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(V)D".into()) }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(D)[".into()) }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(D)[V".into()) }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("[(D)V".into()) }.parse().is_err());
-		assert!(unsafe { MethodDescriptorSlice::from_inner_unchecked("(L;;)V".into()) }.parse().is_err());
-		*/
-		Ok(())
-	}
-
 	#[test]
 	fn method_get_arguments_size() -> Result<()> {
 		impl MethodDescriptorSlice {
@@ -784,22 +749,6 @@ mod testing {
 			"Ljava/lang/Object;",
 		);
 
-		Ok(())
-	}
-
-	#[test]
-	fn return_parse_err() -> Result<()> {
-		// TODO: move these to return desc creation tests
-		/*
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("".into()) }.parse().is_err());
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("(".into()) }.parse().is_err());
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked(")".into()) }.parse().is_err());
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("()".into()) }.parse().is_err());
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("[V".into()) }.parse().is_err());
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("()V".into()) }.parse().is_err());
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("(D)I".into()) }.parse().is_err());
-		assert!(unsafe { ReturnDescriptorSlice::from_inner_unchecked("L;DV".into()) }.parse().is_err());
-		 */
 		Ok(())
 	}
 

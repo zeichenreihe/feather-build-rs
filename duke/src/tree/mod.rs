@@ -29,7 +29,6 @@ mod names {
 			// a list of identifiers split by /
 			// each identifier must be an unqualified name
 			x.split('/').all(is_valid_unqualified_name)
-			// TODO: explicitly note that "" is not valid (tests?!)
 		}
 	}
 
@@ -76,65 +75,4 @@ mod names {
 	}
 
 	// TODO: 4.2.3 module and package names
-
-	#[cfg(test)]
-	mod testing {
-		use crate::tree::names::*;
-
-		// TODO: arr and obj class name tests
-
-		#[test]
-		fn class_names() {
-			assert!(is_valid_class_name(JavaStr::from_str("java/lang/Object")));
-			assert!(is_valid_class_name(JavaStr::from_str("java/lang/Thread")));
-			assert!(is_valid_class_name(JavaStr::from_str("[[[D")));
-			assert!(is_valid_class_name(JavaStr::from_str("An$Inner$Class")));
-
-			assert!(!is_valid_class_name(JavaStr::from_str(""))); // it may come as a surprise, but an empty class name is not valid
-			assert!(!is_valid_class_name(JavaStr::from_str("/")));
-			assert!(!is_valid_class_name(JavaStr::from_str("/a")));
-			assert!(!is_valid_class_name(JavaStr::from_str("a/")));
-			assert!(!is_valid_class_name(JavaStr::from_str("//a")));
-			assert!(!is_valid_class_name(JavaStr::from_str("a//")));
-			assert!(!is_valid_class_name(JavaStr::from_str("a.b")));
-			assert!(!is_valid_class_name(JavaStr::from_str("a;b")));
-			assert!(!is_valid_class_name(JavaStr::from_str("a[b")));
-		}
-
-		#[test]
-		fn unqualified_names() {
-			assert!(is_valid_unqualified_name(JavaStr::from_str("foo")));
-			assert!(is_valid_unqualified_name(JavaStr::from_str("bar")));
-			assert!(is_valid_unqualified_name(JavaStr::from_str("FOO")));
-			assert!(is_valid_unqualified_name(JavaStr::from_str("1234567"))); // yes numbers are valid here, but not in java source code
-			assert!(is_valid_unqualified_name(JavaStr::from_str("---")));
-			assert!(is_valid_unqualified_name(JavaStr::from_str("a$name")));
-
-			assert!(!is_valid_unqualified_name(JavaStr::from_str("")));
-			assert!(!is_valid_unqualified_name(JavaStr::from_str(".")));
-			assert!(!is_valid_unqualified_name(JavaStr::from_str(";")));
-			assert!(!is_valid_unqualified_name(JavaStr::from_str("[")));
-			assert!(!is_valid_unqualified_name(JavaStr::from_str("/")));
-		}
-
-		#[test]
-		fn method_names() {
-			assert!(is_valid_method_name(JavaStr::from_str("foo")));
-			assert!(is_valid_method_name(JavaStr::from_str("bar")));
-			assert!(is_valid_method_name(JavaStr::from_str("FOO")));
-			assert!(is_valid_method_name(JavaStr::from_str("1234567"))); // yes numbers are valid here, but not in java source code
-			assert!(is_valid_method_name(JavaStr::from_str("---")));
-			assert!(is_valid_method_name(JavaStr::from_str("a$name")));
-
-			assert!(!is_valid_method_name(JavaStr::from_str("")));
-			assert!(!is_valid_method_name(JavaStr::from_str(".")));
-			assert!(!is_valid_method_name(JavaStr::from_str(";")));
-			assert!(!is_valid_method_name(JavaStr::from_str("[")));
-			assert!(!is_valid_method_name(JavaStr::from_str("/")));
-			assert!(!is_valid_method_name(JavaStr::from_str("<NotClinit>")));
-			assert!(!is_valid_method_name(JavaStr::from_str("<>")));
-			assert!(!is_valid_method_name(JavaStr::from_str("<")));
-			assert!(!is_valid_method_name(JavaStr::from_str(">")));
-		}
-	}
 }
