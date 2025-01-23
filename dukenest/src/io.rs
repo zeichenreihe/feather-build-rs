@@ -3,7 +3,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use java_string::JavaString;
 use duke::tree::class::ObjClassName;
 use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc};
-use crate::{Nest, Nests, NestType};
+use crate::nest::{Nest, Nests, NestType};
 
 impl Nests {
 	pub fn read(vec: &Vec<u8>) -> Result<Nests> {

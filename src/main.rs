@@ -7,7 +7,7 @@ use clap::{ArgAction, Parser, Subcommand, ValueEnum};
 use log::{info, trace};
 use tokio::task::JoinSet;
 use dukebox::storage::{ClassRepr, Jar, ParsedJar};
-use dukenest::{NesterOptions, Nests};
+use dukenest::nest::Nests;
 use maven_dependency_resolver::coord::MavenCoord;
 use maven_dependency_resolver::{DependencyScope, FoundDependency};
 use maven_dependency_resolver::resolver::Resolver;
@@ -27,7 +27,6 @@ mod sus;
 
 mod dukelaunch;
 mod insert_mappings;
-mod nester_run;
 
 /*
 TODO: publish
@@ -293,7 +292,7 @@ async fn main() -> Result<()> {
                 .extend_inner_class_names("named")?;
 
             let mappings = if let Some(nests) = patch_nests(&downloader, version).await? {
-                MappingUtils::apply_nests(mappings, nests)?
+                MappingUtils::apply_nests(mappings, &nests)?
             } else {
                 mappings
             };
@@ -340,7 +339,7 @@ async fn main() -> Result<()> {
             let calamus_nests_file = patch_nests(&downloader, version).await?;
 
             let working_mappings = if let Some(nests) = calamus_nests_file {
-                MappingUtils::undo_nests(working_mappings, nests)?
+                MappingUtils::undo_nests(working_mappings, &nests)?
             } else {
                 working_mappings
             };
@@ -383,14 +382,14 @@ struct PropagationOptions {
     lenient: bool,
 }
 
-// TODO: implement these
+// TODO: clean up
 struct MappingUtils;
 impl MappingUtils {
-    fn apply_nests(mappings: Mappings<2>, nests: Nests) -> Result<Mappings<2>> {
-        nester_run::nester_run(mappings, nests, true)
+    fn apply_nests(mappings: Mappings<2>, nests: &Nests) -> Result<Mappings<2>> {
+        dukenest::apply_nests_to_mappings(mappings, nests)
     }
-    fn undo_nests(mappings: Mappings<2>, nests: Nests) -> Result<Mappings<2>> {
-        nester_run::nester_run(mappings, nests, false)
+    fn undo_nests(mappings: Mappings<2>, nests: &Nests) -> Result<Mappings<2>> {
+        dukenest::undo_nests_to_mappings(mappings, nests)
     }
 }
 
@@ -430,8 +429,8 @@ async fn nest_jar(downloader: &Downloader, version: VersionEntry<'_>, calamus_ja
         // calamus_jar is the "mainJar" remapped to calamus mappings
 
         let nested_jar = dukenest::nest_jar(
-            //NesterOptions::new().silent(true),
-            NesterOptions::default().silent(false),
+            false, // was true
+            true,
             calamus_jar,
             calamus_nests_file,
         )?;
@@ -447,7 +446,7 @@ async fn patch_nests(downloader: &Downloader, version: VersionEntry<'_>) -> Resu
     if let Some(nests) = downloader.download_nests(version).await? {
         let calamus = downloader.calamus_v2(version).await?;
 
-        let dst = dukenest::map_nests(&calamus, nests)?;
+        let dst = dukenest::remap_nests(nests, &calamus)?;
 
         Ok(Some(dst))
     } else {

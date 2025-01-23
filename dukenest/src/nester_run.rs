@@ -1,13 +1,13 @@
 use anyhow::Result;
 use indexmap::IndexMap;
 use duke::tree::class::{ObjClassName, ObjClassNameSlice};
-use dukenest::Nests;
+use crate::nest::Nests;
 use quill::remapper::ARemapper;
 use quill::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, FieldNowodeMapping, map_with_key_from_result_iter, Mappings, MethodMapping, MethodNowodeMapping};
 
-pub(crate) fn nester_run(mappings: Mappings<2>, nests: Nests, apply: bool) -> Result<Mappings<2>> {
+pub fn nester_run(mappings: Mappings<2>, nests: &Nests, apply: bool) -> Result<Mappings<2>> {
 	let mapped_nests = if apply {
-		dukenest::map_nests(&mappings, nests.clone() /* todo: remove this clone? */)?
+		crate::nests_mapper_run::map_nests(&mappings, nests.clone() /* todo: remove this clone? */)?
 	} else {
 		Nests::default()
 	};
@@ -19,7 +19,7 @@ pub(crate) fn nester_run(mappings: Mappings<2>, nests: Nests, apply: bool) -> Re
 		}
 	}
 
-	let translator = MyRemapper(build_translations(&nests, apply));
+	let translator = MyRemapper(build_translations(nests, apply));
 	let mapped_translator = MyRemapper(build_translations(&mapped_nests, apply));
 
 	// run

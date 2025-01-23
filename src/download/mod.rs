@@ -15,7 +15,7 @@ use crate::download::version_manifest::VersionManifest;
 use crate::download::versions_manifest::VersionsManifest;
 use crate::download::maven_metadata::MavenMetadata;
 use quill::tree::mappings::Mappings;
-use dukenest::Nests;
+use dukenest::nest::Nests;
 use maven_dependency_resolver::maven_pom::MavenPom;
 use crate::version_graph::{Environment, VersionEntry};
 
