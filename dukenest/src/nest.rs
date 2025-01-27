@@ -4,7 +4,7 @@ use java_string::JavaString;
 use duke::tree::class::{InnerClassFlags, ObjClassName};
 use duke::tree::method::MethodNameAndDesc;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum NestType {
 	Anonymous,
 	Inner,
@@ -19,7 +19,7 @@ pub struct Nest {
 	pub encl_class_name: ObjClassName,
 	pub encl_method: Option<MethodNameAndDesc>,
 
-	pub inner_name: JavaString,
+	pub inner_name: ObjClassName, // TODO: rethink this again!
 	pub inner_access: InnerClassFlags,
 }
 

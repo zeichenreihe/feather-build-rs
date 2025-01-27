@@ -432,7 +432,6 @@ async fn nest_jar(downloader: &Downloader, version: VersionEntry<'_>, calamus_ja
         // calamus_jar is the "mainJar" remapped to calamus mappings
 
         let nested_jar = dukenest::nest_jar(
-            false, // was true
             true,
             calamus_jar,
             calamus_nests_file,
@@ -449,7 +448,7 @@ async fn patch_nests(downloader: &Downloader, version: VersionEntry<'_>) -> Resu
     if let Some(nests) = downloader.download_nests(version).await? {
         let calamus = downloader.calamus_v2(version).await?;
 
-        let dst = dukenest::remap_nests(nests, &calamus)?;
+        let dst = dukenest::remap_nests(&nests, &calamus)?;
 
         Ok(Some(dst))
     } else {

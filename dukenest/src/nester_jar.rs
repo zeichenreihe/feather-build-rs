@@ -8,30 +8,9 @@ use dukebox::storage::{BasicFileAttributes, ClassRepr, IsClass, IsOther, Jar, Ja
 use quill::remapper::{ARemapper, ARemapperAsBRemapper};
 use crate::nest::{Nest, Nests, NestType};
 
-pub struct NesterOptions {
-	pub(crate) silent: bool,
-	pub(crate) remap: bool,
-}
-
-impl Default for NesterOptions {
-	fn default() -> Self {
-		NesterOptions { silent: false, remap: true }
-	}
-}
-
-impl NesterOptions {
-	pub fn silent(self, silent: bool) -> NesterOptions {
-		NesterOptions { silent, ..self }
-	}
-
-	pub fn remap(self, remap: bool) -> NesterOptions {
-		NesterOptions { remap, ..self }
-	}
-}
-
 // we assume class_node.name matches the name of the JarEntry
 
-pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<ParsedJar<ClassRepr, Vec<u8>>> {
+pub fn nest_jar(remap_option: bool, src: &impl Jar, nests: Nests) -> Result<ParsedJar<ClassRepr, Vec<u8>>> {
 	let mut class_version = None;
 	let mut jar_new_classes = IndexMap::new();
 	let mut methods_map: IndexMap<ObjClassName, HashSet<MethodNameAndDesc>> = IndexMap::new();
@@ -98,7 +77,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 			match nest.nest_type {
 				// anonymous class may have an enclosing method, they may not
 				// for anonymous classes, the inner name is typically a number: their anonymous class index
-				NestType::Anonymous => nest.inner_name.parse::<i32>().map_or(false, |x| x >= 1),
+				NestType::Anonymous => nest.inner_name.as_inner().parse::<i32>().map_or(false, |x| x >= 1),
 
 				// inner classes NEVER have an enclosing method
 				NestType::Inner => !has_encl_method,
@@ -108,10 +87,6 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 			}
 		})
 		.collect();
-
-	if !options.silent {
-		println!("Prepared {} nests...", this_nests.len());
-	}
 
 	let mut dst_resulting_entries = IndexMap::new();
 
@@ -123,7 +98,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 
 		let mut s: JavaString = result.into_inner();
 		s.push('$');
-		s.push_java_str(&corresponding_nest.inner_name);
+		s.push_java_str(corresponding_nest.inner_name.as_inner());
 		// TODO: redo this safety comment
 		// SAFETY: Joining a class name with `$` and an inner name is always valid.
 		unsafe { ObjClassName::from_inner_unchecked(s) }
@@ -149,7 +124,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 
 		let entry_attr = BasicFileAttributes::default();
 
-		let (name, class_node) = if options.remap {
+		let (name, class_node) = if remap_option {
 			let name = dukebox::remap::remap_jar_entry_name_java(&new_class_name, &remapper)?
 				.into_string().unwrap(); // TODO: unwrap
 			let class_node = do_nested_class_attribute_class_visitor(&this_nests, new_class);
@@ -185,7 +160,7 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 
 				let class_node = do_nested_class_attribute_class_visitor(&this_nests, class_node);
 
-				let (name, class_node) = if options.remap {
+				let (name, class_node) = if remap_option {
 					let name = dukebox::remap::remap_jar_entry_name(&name, &remapper)?;
 					let class_node = dukebox::remap::remap_class(&remapper, class_node)?;
 
@@ -206,17 +181,6 @@ pub fn nest_jar(options: NesterOptions, src: &impl Jar, nests: Nests) -> Result<
 		};
 
 		dst_resulting_entries.insert(name, entry);
-	}
-
-	// TODO: use log::_? also do we really need this?
-	if !options.silent {
-		println!("Applied nests...");
-		if options.remap {
-			println!("Remapped nested classes...");
-		}
-		println!("Moved over non-class files...");
-		println!("Sorted class files...");
-		println!("Done!");
 	}
 
 	Ok(ParsedJar { entries: dst_resulting_entries })
@@ -242,7 +206,7 @@ fn do_nested_class_attribute_class_visitor(this_nests: &IndexMap<ObjClassName, N
 					None
 				},
 				inner_name: if matches!(nest.nest_type, NestType::Inner | NestType::Local) {
-					Some(strip_local_class_prefix(&nest.inner_name).to_owned())
+					Some(strip_local_class_prefix(nest.inner_name.as_inner()).to_owned())
 				} else {
 					None
 				},

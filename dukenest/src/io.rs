@@ -67,7 +67,8 @@ impl Nests {
 						.with_context(|| anyhow!("{encl_method_name:?} is not a valid method descriptor"))?,
 				})
 			},
-			inner_name: inner_name.to_owned().into(),
+			inner_name: ObjClassName::try_from(JavaString::from(inner_name.to_owned()))
+				.with_context(|| anyhow!("{inner_name:?} is not a valid inner name (we require it to be an ObjClassName)"))?,
 			inner_access: Self::parse_u16_hex_binary_and_decimal(access_string)
 				.with_context(|| anyhow!("invalid access flags: {access_string:?}"))?
 				.into(),
