@@ -49,8 +49,10 @@ async fn sus(
 
 	match version.get_environment() {
 		Environment::Merged => {
-			let client = downloader.get_jar(&version_details.downloads.client.url).await?;
-			let server = downloader.get_jar(&version_details.downloads.server.url).await?;
+			// TODO: unwrap
+			let client = downloader.get_jar(&version_details.downloads.client.as_ref().unwrap().url).await?;
+			// TODO: unwrap
+			let server = downloader.get_jar(&version_details.downloads.server.as_ref().unwrap().url).await?;
 
 			let main_jar = dukebox::merge::merge(client, server)
 				.with_context(|| anyhow!("failed to merge jars for version {version:?}"))?;
@@ -58,12 +60,14 @@ async fn sus(
 			sus_inner(calamus_v2, libraries, version_graph, version, &main_jar)
 		},
 		Environment::Client => {
-			let main_jar = downloader.get_jar(&version_details.downloads.client.url).await?;
+			// TODO: unwrap
+			let main_jar = downloader.get_jar(&version_details.downloads.client.as_ref().unwrap().url).await?;
 
 			sus_inner(calamus_v2, libraries, version_graph, version, &main_jar)
 		},
 		Environment::Server => {
-			let main_jar = downloader.get_jar(&version_details.downloads.server.url).await?;
+			// TODO: unwrap
+			let main_jar = downloader.get_jar(&version_details.downloads.server.as_ref().unwrap().url).await?;
 
 			sus_inner(calamus_v2, libraries, version_graph, version, &main_jar)
 		},
@@ -77,6 +81,7 @@ fn sus_inner(
 	version: VersionEntry<'_>,
 	main_jar: &impl Jar
 ) -> Result<SusResult> {
+	// TODO: properly update based on build.rs
 
 	println!("sus!");
 

@@ -314,7 +314,7 @@ pub(crate) fn add_specialized_methods_to_mappings(
 	)?;
 	let x = JarSuperProv::remap(&remapper_calamus, &super_classes_provider)?;
 	let remapper_named = mappings.remapper_b(
-		mappings.get_namespace("calamus")?,
+		mappings.get_namespace("intermediary")?,
 		mappings.get_namespace("named")?,
 		&x
 	)?;

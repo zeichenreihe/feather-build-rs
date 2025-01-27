@@ -215,7 +215,7 @@ impl Downloader {
 	}
 
 	pub(crate) async fn get_versions_manifest(&self) -> Result<VersionsManifest> {
-		self.download("https://skyrising.github.io/mc-versions/version_manifest.json").await?
+		self.download("https://ornithemc.net/mc-versions/version_manifest.json").await?
 			.parse_as_json().context("versions manifest")
 	}
 
@@ -267,7 +267,7 @@ impl Downloader {
 	///
 	/// The namespaces are `official` to `intermediary` (aka `calamus`) here.
 	pub(crate) async fn calamus_v2(&self, version: VersionEntry<'_>) -> Result<Mappings<2>> {
-		let url = format!("https://maven.ornithemc.net/releases/net/ornithemc/calamus-intermediary/{version}/calamus-intermediary-{version}-v2.jar",
+		let url = format!("https://maven.ornithemc.net/releases/net/ornithemc/calamus-intermediary-gen2/{version}/calamus-intermediary-gen2-{version}-v2.jar",
 			version = version.as_str());
 
 		let mappings = self.download(&url).await?.mappings_from_zip_file()?;

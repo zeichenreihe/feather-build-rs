@@ -135,6 +135,7 @@ async fn main() -> Result<()> {
                     let version = version.make_owned();
                     async move {
                         build::build(&downloader, &v, &versions_manifest, version.make_borrowed()).await
+                            .with_context(|| anyhow!("while building version {:?}", version.make_borrowed().as_str()))
                     }
                 })
                 .collect();
@@ -399,8 +400,10 @@ async fn map_calamus_jar(downloader: &Downloader, version: VersionEntry<'_>) -> 
     let versions_manifest = downloader.get_versions_manifest().await?;
     let version_details = downloader.version_details(&versions_manifest, version).await?;
 
-    let client = downloader.get_jar(&version_details.downloads.client.url).await?;
-    let server = downloader.get_jar(&version_details.downloads.server.url).await?;
+    // TODO: unwrap
+    let client = downloader.get_jar(&version_details.downloads.client.as_ref().unwrap().url).await?;
+    // TODO: unwrap
+    let server = downloader.get_jar(&version_details.downloads.server.as_ref().unwrap().url).await?;
 
     // TODO: but don't merge for split versions
     let start = Instant::now();

@@ -10,13 +10,13 @@ pub(crate) struct VersionDetails {
 	pub(crate) shared_mappings: bool,
 	pub(crate) downloads: DownloadsInfo,
 	pub(crate) libraries: Vec<String>,
-	pub(crate) manifests: Vec<ManifestInfo>,
+	pub(crate) manifests: Option<Vec<ManifestInfo>>, // TODO: missing in https://ornithemc.net/mc-versions/version/1.4.6.json
 	#[serde(rename = "normalizedVersion")]
 	pub(crate) normalised_version: String,
 	pub(crate) previous: Vec<String>,
 	pub(crate) next: Vec<String>,
 	#[serde(rename = "releaseTarget")]
-	pub(crate) release_target: String,
+	pub(crate) release_target: Option<String>, // TODO: missing in https://skyrising.github.io/mc-versions/version/b1.5_01.json (url by now outdated)
 	#[serde(rename = "releaseTime")]
 	pub(crate) release_time: String,
 	pub(crate) protocol: ProtocolInfo,
@@ -26,8 +26,8 @@ pub(crate) struct VersionDetails {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct DownloadsInfo {
-	pub(crate) client: DownloadInfo,
-	pub(crate) server: DownloadInfo,
+	pub(crate) client: Option<DownloadInfo>, // TODO: missing in https://skyrising.github.io/mc-versions/version/b1.5_02.json (url by now outdated)
+	pub(crate) server: Option<DownloadInfo>, // TODO: missing in https://skyrising.github.io/mc-versions/version/b1.3_01.json (url by now outdated)
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -40,14 +40,14 @@ pub(crate) struct DownloadInfo {
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct ManifestInfo {
 	#[serde(rename = "assetHash")]
-	pub(crate) asset_hash: String,
+	pub(crate) asset_hash: Option<String>,// TODO: missing in https://skyrising.github.io/mc-versions/version/b1.5_01.json (url by now outdated)
 	#[serde(rename = "assetIndex")]
-	pub(crate) asset_index: String,
+	pub(crate) asset_index: Option<String>, // TODO: same
 	pub(crate) downloads: String,
 	#[serde(rename = "downloadsId")]
 	pub(crate) downloads_id: usize,
 	pub(crate) hash: String,
-	pub(crate) time: String,
+	pub(crate) time: Option<String>, // TODO: missing in https://skyrising.github.io/mc-versions/version/b1.5_01.json (url by now outdated)
 	#[serde(rename = "type")]
 	pub(crate) release_type: ReleaseType,
 	pub(crate) url: String,
@@ -88,7 +88,7 @@ pub(crate) enum ProtocolType {
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct WorldInfo {
 	pub(crate) format: WorldFormat,
-	// TODO: For 1.8, this is None. 1.8 uses anvil. Investigate this further.
+	// TODO: For 1.8, this is None. 1.8 uses anvil. Investigate this further. (url by now outdated)
 	pub(crate) version: Option<usize>,
 }
 
