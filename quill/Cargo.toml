@@ -14,7 +14,8 @@ workspace = true
 [dependencies]
 anyhow = { workspace = true }
 indexmap = { workspace = true }
-java_string = { workspace = true}
+java_string = { workspace = true }
+walkdir = { workspace = true }
 
 duke = { workspace = true }
 
