@@ -17,11 +17,18 @@ use crate::tree::NodeInfo;
 const MAPPING_EXTENSION: &str = "mapping";
 
 pub fn read(path: impl AsRef<Path>, namespaces: Namespaces<2>) -> Result<Mappings<2>> {
-	WalkDir::new(path.as_ref())
+	read_(path.as_ref(), namespaces)
+		.with_context(|| anyhow!("cannot read enigma mappings (directory based) from path {:?}", path.as_ref()))
+}
+fn read_(path: &Path, namespaces: Namespaces<2>) -> Result<Mappings<2>> {
+	if !path.try_exists().context("failed to check existence of path")? {
+		bail!("path doesn't exist") // verified not existing
+	}
+	WalkDir::new(path)
 		.sort_by_file_name() // make it deterministic
 		.into_iter()
-		.filter_entry(|entry| {
-			!entry.file_type().is_dir() &&
+		.filter_map(|res| {
+			res.map(|entry| {
 				// skip non enigma mapping files
 				entry.path().extension().is_some_and(|ex| ex == MAPPING_EXTENSION)
 		})

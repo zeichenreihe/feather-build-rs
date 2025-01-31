@@ -1,0 +1,20 @@
+CLASS org/example/foo/SimpleClass com/example/second/foo/SimpleClass
+	FIELD a aInSecond Lorg/example/foo/SimpleClass;
+	FIELD b bInSecond Ljava/lang/Object;
+	FIELD c cInSecond [[[[I
+	FIELD d dInSecond D
+	FIELD e eInSecond Z
+	METHOD <init> (Ljava/lang/Object;)V
+		ARG 1 object
+	METHOD <init> (Ljava/lang/Object;[[[[IDZLorg/example/foo/SimpleClass;)V
+		ARG 1 obj
+		ARG 2 arr
+		ARG 3 realNumber
+		ARG 4 bool
+		ARG 5 self
+	METHOD methodA methodAInSecond ()[[[[I
+	METHOD methodB methodBInSecond (I)I
+		ARG 1 sin
+	METHOD methodC methodCInSecond (II)V
+		ARG 0 staticMethod
+		ARG 1 secondArg

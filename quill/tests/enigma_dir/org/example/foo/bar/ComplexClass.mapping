@@ -1,0 +1,22 @@
+CLASS org/example/foo/bar/ComplexClass com/example/second/foo/bar/ComplexClass
+	CLASS 1234567 1234567
+		COMMENT An inner class\nthat\n\tis anonymous
+	CLASS 12345Local 12345LocalSecond
+		COMMENT An local class
+	CLASS ARealInner ARealInnerSecond
+		COMMENT A non-local, non-anonymous inner class
+	COMMENT It shouldn't matter where comments are
+	CLASS Foo1 Foo1Second
+		CLASS Foo2 Foo2Second
+			CLASS Foo3 Foo3Second
+				CLASS Foo4 Foo4Second
+					CLASS Foo5 Foo5Second
+						CLASS Foo6 Foo6Second
+							CLASS Foo7 Foo7Second
+								CLASS Foo8 Foo8Second
+									CLASS Foo9 Foo9Second
+										CLASS Foo10 Foo10Second
+											CLASS Foo11 Foo11Second
+												CLASS Foo12 Foo12Second
+													COMMENT deep nesting
+	COMMENT how are multiple comments handled?
