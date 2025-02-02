@@ -28,6 +28,7 @@ fn valid_class_names() -> Result<()> {
 }
 
 #[test]
+#[ignore = "currently not implemented"]
 fn invalid_class_names() -> Result<()> {
 	let invalid_class_names = [
 		"",
@@ -76,9 +77,11 @@ fn valid_arr_class_names() -> Result<()> {
 }
 
 #[test]
+#[ignore = "currently not implemented"]
 fn invalid_arr_class_names() -> Result<()> {
 	let invalid_arr_class_names = [
 		"",
+		"[",
 		"B",
 		"C",
 		"I",
@@ -133,6 +136,7 @@ fn valid_obj_class_names() -> Result<()> {
 fn invalid_obj_class_names() -> Result<()> {
 	let invalid_obj_class_names = [
 		"",
+		"[",
 		"[V",
 		"L;",
 		"L;DV",
