@@ -22,3 +22,5 @@ quill = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
+
+duke-macros = { workspace = true }
