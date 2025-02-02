@@ -368,7 +368,8 @@ async fn main() -> Result<()> {
             let mut f = std::fs::File::create(&output)
                 .with_context(|| anyhow!("failed to create file {output:?}"))?;
 
-            version_graph.write_as_dot(&mut f)?;
+            version_graph.write_as_dot(&mut f)
+                .with_context(|| anyhow!("failed to dump version graph to file {output:?}"))?;
 
             Ok(())
         },

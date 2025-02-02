@@ -112,7 +112,7 @@ const DIFF_EXTENSION: &str = ".tinydiff";
 #[derive(Clone, Debug)]
 struct NodeData {
 	name: String,
-	depth: Option<usize>,
+	depth: usize,
 }
 
 #[derive(Debug)]
@@ -160,7 +160,7 @@ impl NodeData {
 	fn new(name: &str) -> NodeData {
 		NodeData {
 			name: name.to_owned(),
-			depth: None,
+			depth: 0,
 		}
 	}
 }
@@ -256,11 +256,17 @@ impl VersionGraph {
 
 		let mut walkers: VecDeque<_> = [ (Vec::new(), root) ].into();
 		while let Some((path, head)) = walkers.pop_front() {
-			if let Some(old_depth) = graph[head].depth.replace(path.len()) {
-				// we get two (or more) depths for a node:
-				let new_depth = path.len();
-				let depth = new_depth.min(old_depth);
-				graph[head].depth = Some(depth);
+			if head != root {
+				if graph[head].depth == 0 {
+					graph[head].depth = path.len();
+				} else {
+					// we got two (or more) depths for a node:
+					let old_depth = graph[head].depth;
+					let new_depth = path.len();
+
+					graph[head].depth = new_depth.min(old_depth);
+				}
+				// since all nodes are connected, after this all of them will have their depth with them
 			}
 
 			for v in graph.neighbors_directed(head, Direction::Outgoing) {
@@ -348,7 +354,7 @@ impl VersionEntry<'_> {
 		&self.node_data.name
 	}
 
-	pub(crate) fn depth(&self) -> Option<usize> {
+	pub(crate) fn depth(&self) -> usize {
 		self.node_data.depth
 	}
 
