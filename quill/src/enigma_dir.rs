@@ -30,9 +30,13 @@ fn read_(path: &Path, namespaces: Namespaces<2>) -> Result<Mappings<2>> {
 		.filter_map(|res| {
 			res.map(|entry| {
 				// skip non enigma mapping files
-				entry.path().extension().is_some_and(|ex| ex == MAPPING_EXTENSION)
+				if !entry.file_type().is_dir() && entry.path().extension().is_some_and(|ex| ex == MAPPING_EXTENSION) {
+					Some(entry.into_path())
+				} else {
+					None
+				}
+			}).transpose()
 		})
-		.map(|res| res.map(|entry| entry.into_path()))
 		.try_fold(
 			Mappings::new(MappingInfo { namespaces }),
 			|mut mappings, path| {
