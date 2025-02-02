@@ -25,6 +25,7 @@ fn remap() -> Result<()> {
 	let input_a: Mappings<2> = quill::tiny_v2::read(input_a.as_bytes())?;
 
 
+	// TODO: use duke-macros
 	let super_classes_provider = JarSuperProv { super_classes: IndexMap::from([
 		(o("classS1")?, IndexSet::from([
 			o("classS2")?,

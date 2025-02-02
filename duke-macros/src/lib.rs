@@ -34,6 +34,55 @@ pub fn arr_class_name(tokens: TokenStream) -> TokenStream {
 	check(tokens, is_valid_arr_class_name, quote!{duke::tree::class::ArrClassNameSlice})
 }
 
+/// A compile-time checked object class name
+///
+/// ```
+/// # use pretty_assertions::assert_eq;
+/// use duke_macros::obj_class_name;
+/// let a = obj_class_name!("java/lang/Object");
+/// assert_eq!(a.as_inner(), "java/lang/Object");
+///
+/// obj_class_name!("foo");
+/// obj_class_name!("foo$bar");
+/// obj_class_name!("org/example/MyClassName");
+/// obj_class_name!("123456");
+/// ```
+///
+/// Array class names are not valid object class names (these won't compile):
+/// ```compile_fail
+/// duke_macros::obj_class_name!("[[[D");
+/// ```
+/// ```compile_fail
+/// duke_macros::obj_class_name!("[[Ljava/lang/Integer;");
+/// ```
+/// Other invalid object class names:
+/// ```compile_fail
+/// duke_macros::obj_class_name!("");
+/// ```
+/// The characters `.`, `;`, `[` and `/` are not allowed:
+/// ```compile_fail
+/// duke_macros::obj_class_name!(".");
+/// ```
+/// ```compile_fail
+/// # use duke_macros::obj_class_name;
+/// duke_macros::obj_class_name!(";");
+/// ```
+/// ```compile_fail
+/// duke_macros::obj_class_name!("[");
+/// ```
+/// ```compile_fail
+/// duke_macros::obj_class_name!("/");
+/// ```
+/// Empty segments are invalid:
+/// ```compile_fail
+/// duke_macros::obj_class_name!("a/");
+/// ```
+/// ```compile_fail
+/// duke_macros::obj_class_name!("/a");
+/// ```
+/// ```compile_fail
+/// duke_macros::obj_class_name!("a//a");
+/// ```
 #[proc_macro]
 pub fn obj_class_name(tokens: TokenStream) -> TokenStream {
 	check(tokens, is_valid_obj_class_name, quote!{duke::tree::class::ObjClassNameSlice})

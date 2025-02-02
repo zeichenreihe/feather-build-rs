@@ -16,5 +16,6 @@ anyhow = { workspace = true }
 java_string = { workspace = true }
 
 [dev-dependencies]
-duke-macros = { workspace = true }
 pretty_assertions = { workspace = true }
+
+duke-macros = { workspace = true }
