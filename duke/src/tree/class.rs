@@ -305,14 +305,16 @@ make_string_str_like!(
 	/// The java class `java.lang.Thread` would get:
 	/// ```
 	/// use duke::tree::class::ClassName;
-	/// let java_lang_thread = unsafe { ClassName::from_inner_unchecked("java/lang/Thread".into()) };
+	/// use duke_macros::class_name;
+	/// let java_lang_thread: ClassName = class_name!("java/lang/Thread").to_owned();
 	/// ```
 	/// Note that there's an associated constant holding the name of the `java.lang.Object` class:
 	/// ```
 	/// # // TODO: doc is invalid
 	/// use duke::tree::class::ObjClassName;
+	/// use duke_macros::obj_class_name;
 	/// let java_lang_object = ObjClassName::JAVA_LANG_OBJECT.clone();
-	/// assert_eq!(java_lang_object, unsafe { ObjClassName::from_inner_unchecked("java/lang/Object".into()) });
+	/// assert_eq!(java_lang_object, obj_class_name!("java/lang/Object"));
 	/// ```
 	// TODO: doc: array class names are also valid!
 	pub ClassName(JavaString);
@@ -355,13 +357,10 @@ impl ClassNameSlice {
 	///
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use duke::tree::class::{ClassNameSlice, ObjClassName};
+	/// use duke::tree::class::ObjClassName;
+	/// use duke_macros::class_name;
 	///
-	/// // SAFETY: This is a valid class name.
-	/// let array = unsafe { ClassNameSlice::from_inner_unchecked("[Ljava/lang/Object;".into()) };
-	///
-	/// assert_eq!(array.is_array(), true);
-	///
+	/// assert_eq!(class_name!("[Ljava/lang/Object;").is_array(), true);
 	/// assert_eq!(ObjClassName::JAVA_LANG_OBJECT.as_class_name().is_array(), false);
 	/// ```
 	// TODO: code
@@ -427,15 +426,10 @@ impl ArrClassNameSlice {
 	///
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use duke::tree::class::ArrClassNameSlice;
+	/// use duke_macros::arr_class_name;
 	///
-	/// // SAFETY: `[I` is a valid array class name.
-	/// let one_dimension = unsafe { ArrClassNameSlice::from_inner_unchecked("[I".into()) };
-	/// assert_eq!(one_dimension.dimension(), 1);
-	///
-	/// // SAFETY: `[[[D` is a valid array class name.
-	/// let three_dimensions = unsafe { ArrClassNameSlice::from_inner_unchecked("[[[D".into()) };
-	/// assert_eq!(three_dimensions.dimension(), 3);
+	/// assert_eq!(arr_class_name!("[I").dimension(), 1);
+	/// assert_eq!(arr_class_name!("[[[D").dimension(), 3);
 	/// ```
 	pub fn dimension(&self) -> u8 {
 		let dimension = self.as_inner().chars()
@@ -479,14 +473,13 @@ impl ObjClassName {
 	///
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use duke::tree::class::{ObjClassName, ObjClassNameSlice};
+	/// use duke::tree::class::ObjClassName;
+	/// use duke_macros::obj_class_name;
 	///
-	/// // SAFETY: This is a valid class name.
-	/// let parent = unsafe { ObjClassName::from_inner_unchecked("org/example/OuterClass".into()) };
-	/// let inner = unsafe { ObjClassNameSlice::from_inner_unchecked("InnerClass".into()) };
+	/// let parent: ObjClassName = obj_class_name!("org/example/OuterClass").to_owned();
+	/// let inner = obj_class_name!("InnerClass");
 	///
-	/// let expected = unsafe { ObjClassNameSlice::from_inner_unchecked("org/example/OuterClass$InnerClass".into()) };
-	/// assert_eq!(ObjClassName::from_inner_class(parent, inner), expected);
+	/// assert_eq!(ObjClassName::from_inner_class(parent, inner), obj_class_name!("org/example/OuterClass$InnerClass"));
 	/// ```
 	pub fn from_inner_class(parent: ObjClassName, inner_name: &ObjClassNameSlice) -> ObjClassName {
 		let mut s: JavaString = parent.into_inner();
@@ -506,6 +499,15 @@ impl ObjClassNameSlice {
 	}
 
 	/// Gets the simple name from a class name.
+	///
+	/// The simple name is the part after the last `/`.
+	/// ```
+	/// # use pretty_assertions::assert_eq;
+	/// use duke_macros::obj_class_name;
+	///
+	/// assert_eq!(obj_class_name!("org/example/ClassName").get_simple_name(), obj_class_name!("ClassName"));
+	/// assert_eq!(obj_class_name!("Foo").get_simple_name(), obj_class_name!("Foo"));
+	/// ```
 	pub fn get_simple_name(&self) -> &ObjClassNameSlice {
 		self.as_inner().rsplit_once('/')
 			// SAFETY: Each component in a object class name is itself a valid object class name.
@@ -521,13 +523,10 @@ impl ObjClassNameSlice {
 	/// and the inner class parent name with [`ClassName::from_inner_class`].
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use duke::tree::class::ObjClassNameSlice;
+	/// use duke_macros::obj_class_name;
 	///
-	/// // SAFETY: This is a valid object class name.
-	/// let class_name = unsafe { ObjClassNameSlice::from_inner_unchecked("org/example/OuterClass$InnerClass".into()) };
-	///
-	/// let expected = unsafe { ObjClassNameSlice::from_inner_unchecked("InnerClass".into()) };
-	/// assert_eq!(class_name.get_inner_class_name(), Some(expected));
+	/// assert_eq!(obj_class_name!("org/example/OuterClass$InnerClass").get_inner_class_parent(), Some(obj_class_name!("org/example/OuterClass")));
+	/// assert_eq!(obj_class_name!("org/example/OuterClass$InnerClass").get_inner_class_name(), Some(obj_class_name!("InnerClass")));
 	/// ```
 	pub fn get_inner_class_name(&self) -> Option<&ObjClassNameSlice> {
 		self.split_inner_class_parent_and_name().map(|(_, inner)| inner)
@@ -546,13 +545,10 @@ impl ObjClassNameSlice {
 	///
 	/// ```
 	/// # use pretty_assertions::assert_eq;
-	/// use duke::tree::class::ObjClassNameSlice;
+	/// use duke_macros::obj_class_name;
 	///
-	/// // SAFETY: This is a valid object class name.
-	/// let class_name = unsafe { ObjClassNameSlice::from_inner_unchecked("org/example/OuterClass$InnerClass".into()) };
-	///
-	/// let expected = unsafe { ObjClassNameSlice::from_inner_unchecked("org/example/OuterClass".into()) };
-	/// assert_eq!(class_name.get_inner_class_parent(), Some(expected));
+	/// assert_eq!(obj_class_name!("org/example/OuterClass$InnerClass").get_inner_class_parent(), Some(obj_class_name!("org/example/OuterClass")));
+	/// assert_eq!(obj_class_name!("org/example/OuterClass$InnerClass").get_inner_class_name(), Some(obj_class_name!("InnerClass")));
 	/// ```
 	pub fn get_inner_class_parent(&self) -> Option<&ObjClassNameSlice> {
 		self.split_inner_class_parent_and_name().map(|(parent, _)| parent)

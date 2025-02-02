@@ -34,6 +34,7 @@ zip = "2.1.3"
 
 # crates from workspace
 duke = { path = "duke" }
+duke-macros = { path = "duke-macros" }
 dukebox = { path = "dukebox" }
 dukenest = { path = "dukenest" }
 maven_dependency_resolver = { path = "maven_dependency_resolver" }
