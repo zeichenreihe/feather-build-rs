@@ -8,6 +8,7 @@ use zip::ZipWriter;
 use duke::tree::class::ObjClassName;
 use duke::tree::method::MethodName;
 use dukebox::storage::{FileJar, Jar, NamedMemJar};
+use dukenest::nest::Nests;
 use crate::download::Downloader;
 use crate::download::versions_manifest::VersionsManifest;
 use quill::tree::mappings::Mappings;
@@ -44,6 +45,7 @@ pub(crate) async fn build(
 
 	let calamus_v2 = downloader.calamus_v2(version).await?;
 	let libraries = downloader.mc_libs(versions_manifest, version).await?;
+	let nests = downloader.download_nests(version).await?;
 
 	// Get the jar from mojang. If it's a merged environment, then merge the two jars (client and server).
 	match version.get_environment() {
@@ -58,19 +60,19 @@ pub(crate) async fn build(
 				.with_context(|| anyhow!("failed to merge jars for version {version:?}"))?;
 			info!("{version:?} finished merging");
 
-			build_inner(feather_version, calamus_v2, libraries, version_graph, version, &main_jar)
+			build_inner(feather_version, calamus_v2, libraries, version_graph, version, nests, &main_jar)
 		},
 		Environment::Client => {
 			// TODO: unwrap
 			let main_jar = downloader.get_jar(&version_details.downloads.client.as_ref().unwrap().url).await?;
 
-			build_inner(feather_version, calamus_v2, libraries, version_graph, version, &main_jar)
+			build_inner(feather_version, calamus_v2, libraries, version_graph, version, nests, &main_jar)
 		},
 		Environment::Server => {
 			// TODO: unwrap
 			let main_jar = downloader.get_jar(&version_details.downloads.server.as_ref().unwrap().url).await?;
 
-			build_inner(feather_version, calamus_v2, libraries, version_graph, version, &main_jar)
+			build_inner(feather_version, calamus_v2, libraries, version_graph, version, nests, &main_jar)
 		},
 	}
 }
@@ -108,6 +110,7 @@ fn build_inner(
 	libraries: Vec<FileJar>,
 	version_graph: &VersionGraph,
 	version: VersionEntry<'_>,
+	nests: Option<Nests>, // offical
 	main_jar: &impl Jar
 ) -> Result<BuildResult> {
 	info!("{version:?} starting getting mappings from version graph");
@@ -115,6 +118,10 @@ fn build_inner(
 		.extend_inner_class_names("named")?
 		.remove_dummy("named")?;
 	info!("{version:?} finished getting mappings from version graph");
+	let mappings = if let Some(nests) = nests {
+		let nests = dukenest::remap_nests(&nests, &calamus_v2)?; // calamus
+		dukenest::undo_nests_to_mappings(mappings, &nests)?
+	} else { mappings };
 
 	let build_feather_tiny = crate::specialized_methods::add_specialized_methods_to_mappings(main_jar, &calamus_v2, &libraries, &mappings)
 		.context("failed to add specialized methods to mappings")?;
