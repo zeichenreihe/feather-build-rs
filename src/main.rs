@@ -293,13 +293,14 @@ async fn main() -> Result<()> {
                 .extend_inner_class_names("named")?;
 
             let mappings = if let Some(nests) = patch_nests(&downloader, version).await? {
-                MappingUtils::apply_nests(mappings, &nests)?
+                dukenest::apply_nests_to_mappings(mappings, &nests)?
             } else {
                 mappings
             };
 
             let mappings = mappings.remove_dummy("named")?;
 
+            // TODO: warn the user about potentially destroying progress when running this command
             quill::enigma_dir::write(&mappings, &working_mappings_dir)?;
 
             let arg = JavaRunConfig {
@@ -340,7 +341,7 @@ async fn main() -> Result<()> {
             let calamus_nests_file = patch_nests(&downloader, version).await?;
 
             let working_mappings = if let Some(nests) = calamus_nests_file {
-                MappingUtils::undo_nests(working_mappings, &nests)?
+                dukenest::undo_nests_to_mappings(working_mappings, &nests)?
             } else {
                 working_mappings
             };
@@ -350,12 +351,7 @@ async fn main() -> Result<()> {
             // TODO: (comment): this is the INSERT_DUMMY validator
             let changes = changes.insert_dummy_and_contract_inner_names()?;
 
-            let options = PropagationOptions {
-                direction,
-                lenient: true,
-            };
-
-            insert_mappings::insert_mappings(options, &version_graph, changes, version)?;
+            insert_mappings::insert_mappings(direction, true, &version_graph, changes, version)?;
 
             if !keep_directory {
                 std::fs::remove_dir_all(&working_mappings_dir)
@@ -374,23 +370,6 @@ async fn main() -> Result<()> {
 
             Ok(())
         },
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-struct PropagationOptions {
-    direction: PropagationDirection,
-    lenient: bool,
-}
-
-// TODO: clean up
-struct MappingUtils;
-impl MappingUtils {
-    fn apply_nests(mappings: Mappings<2>, nests: &Nests) -> Result<Mappings<2>> {
-        dukenest::apply_nests_to_mappings(mappings, nests)
-    }
-    fn undo_nests(mappings: Mappings<2>, nests: &Nests) -> Result<Mappings<2>> {
-        dukenest::undo_nests_to_mappings(mappings, nests)
     }
 }
 
@@ -529,6 +508,7 @@ enum Command {
     // propagate-mappings -> propagate-mappings both
     // propagate-mappings-up -> propagate-mappings up
     // propagate-mappings-down -> propagate-mappings down
+    // TODO: some kind of --only-propagate-method-names-as-far-as-parameters (as parameter names can only be propagated to arguments of the same type)
     PropagateMappings {
         /// The working mappings base directory to take the mappings from.
         ///

@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::hash::Hash;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::{IndexMap, IndexSet};
-use crate::{PropagationDirection, PropagationOptions};
+use crate::PropagationDirection;
 use std::collections::{HashSet, VecDeque};
 use std::fmt::Debug;
 use indexmap::map::Entry;
@@ -51,13 +51,14 @@ impl DiffSide {
 
 
 pub(crate) fn insert_mappings<'version>(
-	options: PropagationOptions,
+	propagation_direction: PropagationDirection,
+	propagate_lenient: bool,
 	version_graph: &'version VersionGraph,
 	changes: MappingsDiff,
 	version: VersionEntry<'version>,
 ) -> Result<()> {
 
-	let (direction_is_up, direction_is_down) = match options.direction {
+	let (direction_is_up, direction_is_down) = match propagation_direction {
 		PropagationDirection::None => (false, false),
 		PropagationDirection::Both => (true, true),
 		PropagationDirection::Up => (true, false),
@@ -87,7 +88,7 @@ pub(crate) fn insert_mappings<'version>(
 		for (version, changes) in working_changes {
 			for (class_key, change_class) in &changes.classes {
 				propagate_change(
-					options.lenient,
+					propagate_lenient,
 					&mut dirty,
 					&barriers,
 					version_graph,
@@ -232,7 +233,7 @@ pub(crate) fn insert_mappings<'version>(
 
 				for (field_key, change_field) in &change_class.fields {
 					propagate_change(
-						options.lenient,
+						propagate_lenient,
 						&mut dirty,
 						&barriers,
 						version_graph,
@@ -317,7 +318,7 @@ pub(crate) fn insert_mappings<'version>(
 				}
 				for (method_key, change_method) in &change_class.methods {
 					propagate_change(
-						options.lenient,
+						propagate_lenient,
 						&mut dirty,
 						&barriers,
 						version_graph,
@@ -399,7 +400,7 @@ pub(crate) fn insert_mappings<'version>(
 
 					for (parameter_key, change_parameter) in &change_method.parameters {
 						propagate_change(
-							options.lenient,
+							propagate_lenient,
 							&mut dirty,
 							&barriers,
 							version_graph,

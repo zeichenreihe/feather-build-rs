@@ -293,6 +293,7 @@ impl Downloader {
 		Ok(libs)
 	}
 
+	/// in `official` namespace
 	pub(crate) async fn download_nests(&self, version: VersionEntry<'_>) -> Result<Option<Nests>> {
 		let url = format!("https://github.com/OrnitheMC/nests/raw/main/nests/{version}.nest", version = version.as_str());
 
