@@ -15,22 +15,27 @@ use quill::tree::mappings::Mappings;
 use quill::tree::names::{Names, Namespace};
 use crate::version_graph::{Environment, VersionEntry, VersionGraph};
 
-fn inspect<const N: usize>(mappings: &Mappings<N>, path: &str) -> Result<()> {
-	info!("starting inspecting to {path:?}");
+trait Inspect {
+	fn inspect(self, path: &str) -> Result<Self> where Self: Sized;
+}
+impl<const N: usize> Inspect for Mappings<N> {
+	fn inspect(self, path: &str) -> Result<Self> {
+		info!("starting inspecting to {path:?}");
 
-	// fix the order of the other file being looked at, which makes diffing easier...
-	/*
-	let mut file = File::open("/tmp/original.tiny")?;
-	let mut file_out = File::create("/tmp/original_sorted_rs.tiny")?;
-	let m: Mappings<3> = reader::tiny_v2::read(&mut file)?;
-	writer::tiny_v2::write(&m, &mut file_out)?;
-	 */
+		// fix the order of the other file being looked at, which makes diffing easier...
+		/*
+		let mut file = File::open("/tmp/original.tiny")?;
+		let mut file_out = File::create("/tmp/original_sorted_rs.tiny")?;
+		let m: Mappings<3> = reader::tiny_v2::read(&mut file)?;
+		writer::tiny_v2::write(&m, &mut file_out)?;
+		 */
 
-	let mut file = File::create(path)?;
-	quill::tiny_v2::write(mappings, &mut file)?;
+		let mut file = File::create(path)?;
+		quill::tiny_v2::write(&self, &mut file)?;
 
-	info!("finished inspecting to {path:?}");
-	Ok(())
+		info!("finished inspecting to {path:?}");
+		Ok(self)
+	}
 }
 
 pub(crate) async fn build(
@@ -121,21 +126,26 @@ fn build_inner(
 	let mappings = if let Some(nests) = nests {
 		let nests = dukenest::remap_nests(&nests, &calamus_v2)?; // calamus
 		dukenest::undo_nests_to_mappings(mappings, &nests)?
-	} else { mappings };
+	} else { mappings }
+		.inspect("/tmp/inspect_mappings.tiny")?;
 
 	let build_feather_tiny = crate::specialized_methods::add_specialized_methods_to_mappings(main_jar, &calamus_v2, &libraries, &mappings)
 		.context("failed to add specialized methods to mappings")?;
 
 	// merge w.r.t. "intermediary", and then reorder from "intermediary -> official, named" to "official -> intermediary, named"
 	let merge_v2 = Mappings::merge(
-		&calamus_v2.reorder(["intermediary", "official"])?,
+		&calamus_v2
+			.inspect("/tmp/inspect_calamus.tiny")?
+			.reorder(["intermediary", "official"])?
+			.inspect("/tmp/inspect_calamus_.tiny")?,
 		&build_feather_tiny.clone()
-			.rename_namespaces(["calamus", "named"], ["intermediary", "named"])?
+			.rename_namespaces(["intermediary", "named"], ["intermediary", "named"])? // TODO: same names to same names
+			.inspect("/tmp/inspect_build_feather_.tiny")?
 	)?
+		.inspect("/tmp/inspect.tiny")?
 		.apply_our_fix()?
-		.reorder(["official", "intermediary", "named"])?;
-
-	inspect(&merge_v2, "/tmp/out.tiny")?;
+		.reorder(["official", "intermediary", "named"])?
+		.inspect("/tmp/out.tiny")?;
 
 	let name = format!("feather-{feather_version}-mergedv2.jar");
 	let data = tiny_v2_write_zip_file(&merge_v2)?;
