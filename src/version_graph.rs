@@ -189,6 +189,22 @@ impl VersionGraph {
 	pub(crate) fn write(&self) {
 		for v in &self.versions {
 			// TODO: call write_mappings or write_diffs depending on root/not root
+			/*
+			#[allow(clippy::collapsible_else_if)]
+			if root {
+				if mappings != null && dirty {
+					format.write_mappings(paths.get(this), mappings);
+				}
+			} else {
+				if dirty {
+					for version in diffs.keys() {
+						let diff = diffs.get(version);
+						let path = paths.get(version);
+
+						format.write_diff(path, diff);
+					}
+				}
+			}*/
 		}
 	}
 

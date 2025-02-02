@@ -8,12 +8,13 @@ bib.class
 vg.class
 /tmp
 /src/lookat.txt
+/src/unused.rs
+/mappings/tasks.dot
+/dukemakemc/javalib/
 /out.txt
 
-# these contain references to objweb
-/duke/tests
+/duke/tests_
 duke/objweb_code_read.java
-.gitignore
 /duke/benches
 
 /mappings/
