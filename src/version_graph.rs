@@ -9,6 +9,7 @@ use petgraph::{Direction, Graph};
 use petgraph::graph::NodeIndex;
 use quill::tree::mappings::Mappings;
 use quill::tree::mappings_diff::MappingsDiff;
+use crate::{Intermediary, Named};
 use crate::download::versions_manifest::MinecraftVersion;
 
 const VERSION_SHORTCUTS: [(&str, &str); 76] = [
@@ -122,7 +123,7 @@ struct EdgeData {
 
 pub(crate) struct VersionGraph {
 	root: NodeIndex,
-	root_mapping: Mappings<2>,
+	root_mapping: Mappings<2, (Intermediary, Named)>,
 
 	versions: IndexMap<String, NodeIndex>,
 
@@ -166,7 +167,7 @@ impl NodeData {
 }
 
 impl VersionGraph {
-	pub(crate) fn is_root_then_get_mappings(&self, version: VersionEntry<'_>) -> Option<&Mappings<2>> {
+	pub(crate) fn is_root_then_get_mappings(&self, version: VersionEntry<'_>) -> Option<&Mappings<2, (Intermediary, Named)>> {
 		if version.node_index == self.root {
 			Some(&self.root_mapping)
 		} else {
@@ -318,7 +319,7 @@ impl VersionGraph {
 			.collect()
 	}
 
-	pub(crate) fn apply_diffs(&self, target_version: VersionEntry<'_>) -> Result<Mappings<2>> {
+	pub(crate) fn apply_diffs(&self, target_version: VersionEntry<'_>) -> Result<Mappings<2, (Intermediary, Named)>> {
 		petgraph::algo::astar(
 			&self.graph,
 			self.root,

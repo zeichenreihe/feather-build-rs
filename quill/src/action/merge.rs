@@ -23,8 +23,22 @@ fn merge_javadoc<Target, Javadoc>(ab: Combination<&Target>) -> Result<Option<Jav
 		},
 	})
 }
+fn merge_javadoc_ab<TargetA, TargetB, Javadoc>(a: &TargetA, b: &TargetB) -> Result<Option<Javadoc>>
+	where
+		TargetA: NodeJavadocInfo<Option<Javadoc>>,
+		TargetB: NodeJavadocInfo<Option<Javadoc>>,
+		Javadoc: Clone + Debug + PartialEq,
+{
+	Ok(match (a.get_node_javadoc_info(), b.get_node_javadoc_info()) {
+		(None, None) => None,
+		(None, Some(b)) => Some(b.clone()),
+		(Some(a), None) => Some(a.clone()),
+		(Some(a), Some(b)) if a == b => Some(a.clone()),
+		(Some(a), Some(b)) => bail!("cannot merge: both left {a:?} and right {b:?} are given"),
+	})
+}
 
-fn merge_namespaces(a: &Namespaces<2>, b: &Namespaces<2>) -> Result<Namespaces<3>> {
+fn merge_namespaces<A, B, C>(a: &Namespaces<2, (A, B)>, b: &Namespaces<2, (A, C)>) -> Result<Namespaces<3, (A, B, C)>> {
 	let a: &[String; 2] = a.into();
 	let b: &[String; 2] = b.into();
 
@@ -63,16 +77,15 @@ fn merge_equal<T>(ab: Combination<&T>) -> Result<T>
 	}.clone())
 }
 
-impl Mappings<2> {
+impl<A, B, C> Mappings<2, (A, B, C)> {
 	// TODO: docs
-	pub fn merge(a: &Mappings<2>, b: &Mappings<2>) -> Result<Mappings<3>> {
-		let ab = Combination::AB(a, b);
+	pub fn merge(a: &Mappings<2, (A, B)>, b: &Mappings<2, (A, C)>) -> Result<Mappings<3, (A, B, C)>> {
 		Ok(Mappings {
 			info: MappingInfo {
 				namespaces: merge_namespaces(&a.info.namespaces, &b.info.namespaces).context("failed to merge namespaces")?,
 			},
 			classes: zip_map_combination(
-				ab.map(|x| &x.classes),
+				Combination::AB(&a.classes, &b.classes),
 				|ab| Ok(ClassNowodeMapping {
 					info: ClassMapping {
 						names: merge_names(ab.map(|x| &x.info.names)).context("cannot merge class names")?,
@@ -110,7 +123,7 @@ impl Mappings<2> {
 					javadoc: merge_javadoc(ab).context("cannot merge class javadoc")?,
 				})
 			)?,
-			javadoc: merge_javadoc(ab).context("cannot merge mappings javadoc")?,
+			javadoc: merge_javadoc_ab(a, b).context("cannot merge mappings javadoc")?,
 		})
 	}
 }

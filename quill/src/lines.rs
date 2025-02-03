@@ -115,7 +115,7 @@ pub(crate) mod tiny_line {
 			Ok(next)
 		}
 
-		pub(crate) fn into_namespaces<const N: usize>(self) -> Result<Namespaces<N>> {
+		pub(crate) fn into_namespaces<const N: usize, Ns>(self) -> Result<Namespaces<N, Ns>> {
 			<[String; N]>::try_from(self.fields.collect::<Vec<String>>())
 				.map_err(|vec| anyhow!("line contained more or less fields ({}) than the expected {N}: {:?}", vec.len(), vec))
 				.and_then(TryFrom::try_from)

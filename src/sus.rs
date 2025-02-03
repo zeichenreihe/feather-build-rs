@@ -11,6 +11,7 @@ use quill::tree::names::Names;
 use quill::tree::{NodeInfo, ToKey};
 use crate::download::Downloader;
 use crate::download::versions_manifest::VersionsManifest;
+use crate::{Intermediary, Named, Official};
 use crate::specialized_methods::GetSpecializedMethods;
 use crate::version_graph::{Environment, VersionEntry, VersionGraph};
 
@@ -75,7 +76,7 @@ async fn sus(
 }
 
 fn sus_inner(
-	calamus_v2: Mappings<2>,
+	calamus_v2: Mappings<2, (Official, Intermediary)>,
 	libraries: Vec<FileJar>,
 	version_graph: &VersionGraph,
 	version: VersionEntry<'_>,
@@ -97,14 +98,14 @@ fn sus_inner(
 
 	let merged = Mappings::merge(&mappings_b, &mappings_a)?.apply_our_fix()?;
 
-	let merge_v2 = merged.reorder(["official", "intermediary", "named"])?;
+	let merge_v2 = merged.reorder::<(Official, Intermediary, Named)>(["official", "intermediary", "named"])?;
 
 	Ok(SusResult)
 }
 
 trait ApplyFix: Sized { fn apply_our_fix(self) -> Result<Self>; }
 
-impl ApplyFix for Mappings<3> {
+impl ApplyFix for Mappings<3, (Intermediary, Official, Named)> {
 	fn apply_our_fix(mut self) -> Result<Self> {
 		let official = self.get_namespace("official")?;
 		let intermediary = self.get_namespace("intermediary")?;
@@ -178,10 +179,10 @@ impl ApplyFix for Mappings<3> {
 
 fn add_specialized_methods_to_mappings(
 	main_jar: &impl Jar, // official
-	calamus: &Mappings<2>, // official -> intermediary
+	calamus: &Mappings<2, (Official, Intermediary)>, // official -> intermediary
 	libraries: &[impl Jar], // official
-	mappings: Mappings<2> // intermediary -> named
-) -> Result<Mappings<2>> {
+	mappings: Mappings<2, (Intermediary, Named)> // intermediary -> named
+) -> Result<Mappings<2, (Intermediary, Named)>> {
 	let mut super_classes_provider = vec![main_jar.get_super_classes_provider()?];
 	for library in libraries {
 		super_classes_provider.push(library.get_super_classes_provider()?);

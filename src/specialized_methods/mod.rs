@@ -15,6 +15,7 @@ use dukebox::storage::{Jar, OpenedJar};
 use quill::remapper::{BRemapper, JarSuperProv};
 use quill::tree::mappings::{Mappings, MethodMapping, MethodNowodeMapping};
 use quill::tree::{NodeInfo, ToKey};
+use crate::{Intermediary, Named, Official};
 
 /// Stores all known entries
 #[derive(Default)]
@@ -298,10 +299,10 @@ impl SimpleClassVisitor for ClassVisitorImpl {
 
 pub(crate) fn add_specialized_methods_to_mappings(
 	main_jar: &impl Jar, // official
-	calamus: &Mappings<2>, // official -> intermediary
+	calamus: &Mappings<2, (Official, Intermediary)>, // official -> intermediary
 	libraries: &[impl Jar], // official
-	mappings: &Mappings<2> // intermediary -> named
-) -> Result<Mappings<2>> {
+	mappings: &Mappings<2, (Intermediary, Named)> // intermediary -> named
+) -> Result<Mappings<2, (Intermediary, Named)>> {
 	let mut super_classes_provider = vec![main_jar.get_super_classes_provider()?];
 	for library in libraries {
 		super_classes_provider.push(library.get_super_classes_provider()?);

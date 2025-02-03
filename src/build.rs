@@ -13,12 +13,13 @@ use crate::download::Downloader;
 use crate::download::versions_manifest::VersionsManifest;
 use quill::tree::mappings::Mappings;
 use quill::tree::names::{Names, Namespace};
+use crate::{Intermediary, Named, Official};
 use crate::version_graph::{Environment, VersionEntry, VersionGraph};
 
 trait Inspect {
 	fn inspect(self, path: &str) -> Result<Self> where Self: Sized;
 }
-impl<const N: usize> Inspect for Mappings<N> {
+impl<const N: usize, Ns> Inspect for Mappings<N, Ns> {
 	fn inspect(self, path: &str) -> Result<Self> {
 		info!("starting inspecting to {path:?}");
 
@@ -111,11 +112,11 @@ async fn next_feather_version(downloader: &Downloader, version: VersionEntry<'_>
 
 fn build_inner(
 	feather_version: String,
-	calamus_v2: Mappings<2>,
+	calamus_v2: Mappings<2, (Official, Intermediary)>,
 	libraries: Vec<FileJar>,
 	version_graph: &VersionGraph,
 	version: VersionEntry<'_>,
-	nests: Option<Nests>, // offical
+	nests: Option<Nests<Official>>,
 	main_jar: &impl Jar
 ) -> Result<BuildResult> {
 	info!("{version:?} starting getting mappings from version graph");
@@ -144,7 +145,7 @@ fn build_inner(
 	)?
 		.inspect("/tmp/inspect.tiny")?
 		.apply_our_fix()?
-		.reorder(["official", "intermediary", "named"])?
+		.reorder::<(Official, Intermediary, Named)>(["official", "intermediary", "named"])?
 		.inspect("/tmp/out.tiny")?;
 
 	let name = format!("feather-{feather_version}-mergedv2.jar");
@@ -158,7 +159,7 @@ fn build_inner(
 	Ok(BuildResult { merged_feather, unmerged_feather })
 }
 
-fn tiny_v2_write_zip_file<const N: usize>(mappings: &Mappings<N>) -> Result<Vec<u8>> {
+fn tiny_v2_write_zip_file<const N: usize, Ns>(mappings: &Mappings<N, Ns>) -> Result<Vec<u8>> {
 	let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
 
 	zip.start_file("mappings/mappings.tiny", FileOptions::<()>::default())?;
@@ -170,7 +171,7 @@ fn tiny_v2_write_zip_file<const N: usize>(mappings: &Mappings<N>) -> Result<Vec<
 
 trait ApplyFix: Sized { fn apply_our_fix(self) -> Result<Self>; }
 
-impl ApplyFix for Mappings<3> {
+impl ApplyFix for Mappings<3, (Intermediary, Official, Named)> {
 	fn apply_our_fix(mut self) -> Result<Self> {
 		let official = self.get_namespace("official")?;
 		let intermediary = self.get_namespace("intermediary")?;

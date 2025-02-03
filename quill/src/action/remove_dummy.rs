@@ -2,7 +2,7 @@ use anyhow::Result;
 use duke::tree::method::MethodName;
 use crate::tree::mappings::Mappings;
 
-impl<const N: usize> Mappings<N> {
+impl<const N: usize, Ns> Mappings<N, Ns> {
 	/// Removed so called "dummy" mappings.
 	///
 	/// Whether or not a mapping is considered a dummy mapping only depends on the mapping in the namespace given.

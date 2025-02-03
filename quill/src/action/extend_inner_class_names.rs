@@ -3,7 +3,7 @@ use duke::tree::class::{ObjClassName, ObjClassNameSlice};
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, Mappings};
 use crate::tree::names::{Names, Namespace};
 
-fn map<const N: usize>(mappings: &Mappings<N>, namespace: Namespace<N>, name: &ObjClassNameSlice, mapped: &ObjClassNameSlice) -> Result<ObjClassName> {
+fn map<const N: usize, Ns>(mappings: &Mappings<N, Ns>, namespace: Namespace<N>, name: &ObjClassNameSlice, mapped: &ObjClassNameSlice) -> Result<ObjClassName> {
 	Ok(if let Some(parent) = name.get_inner_class_parent() {
 		let mapped_parent = mappings.get_class_name(parent, namespace)?;
 
@@ -16,7 +16,7 @@ fn map<const N: usize>(mappings: &Mappings<N>, namespace: Namespace<N>, name: &O
 }
 
 impl<const N: usize> Names<N, ObjClassName> {
-	fn extend_inner_class_name(&self, mappings: &Mappings<N>, namespace: Namespace<N>) -> Result<Names<N, ObjClassName>> {
+	fn extend_inner_class_name<Ns>(&self, mappings: &Mappings<N, Ns>, namespace: Namespace<N>) -> Result<Names<N, ObjClassName>> {
 		let mut names = self.clone();
 
 		if let (src, Some(b)) = names.get_mut_with_src(namespace)? {
@@ -28,14 +28,14 @@ impl<const N: usize> Names<N, ObjClassName> {
 	}
 }
 
-impl<const N: usize> Mappings<N> {
+impl<const N: usize, Ns> Mappings<N, Ns> {
 	// TODO: document this
 	// this changes the names in the namespace "named" for inner classes:
 	// say you have mappings A -> a, A$B -> b, A$B$C -> c (which ofc is
 	// "wrong", since this moves inner classes around...), this produces
 	// the mappings A -> a, A$B -> a$b, A$B$C -> a$b$c, fixing this
 	// inconsistency
-	pub fn extend_inner_class_names(&self, namespace: &str) -> Result<Mappings<N>> {
+	pub fn extend_inner_class_names(&self, namespace: &str) -> Result<Mappings<N, Ns>> {
 		let namespace = self.get_namespace(namespace)?;
 		Ok(Mappings {
 			info: self.info.clone(),

@@ -118,7 +118,7 @@ fn gen_diff_names<Target, Name, Mapping>(ab: Combination<&Target>) -> Result<Act
 }
 
 impl MappingsDiff {
-	pub fn diff(a: &Mappings<2>, b: &Mappings<2>) -> Result<MappingsDiff> {
+	pub fn diff<Ns>(a: &Mappings<2, Ns>, b: &Mappings<2, Ns>) -> Result<MappingsDiff> {
 		if a.info.namespaces != b.info.namespaces {
 			bail!("namespaces don't match: {:?} vs {:?}", a.info.namespaces, b.info.namespaces);
 		}

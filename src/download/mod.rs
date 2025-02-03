@@ -17,6 +17,7 @@ use crate::download::maven_metadata::MavenMetadata;
 use quill::tree::mappings::Mappings;
 use dukenest::nest::Nests;
 use maven_dependency_resolver::maven_pom::MavenPom;
+use crate::{Intermediary, Official};
 use crate::version_graph::{Environment, VersionEntry};
 
 pub(crate) mod versions_manifest;
@@ -79,7 +80,7 @@ impl DownloadResult<'_> {
 		}
 	}
 
-	fn mappings_from_zip_file(self) -> Result<Mappings<2>> {
+	fn mappings_from_zip_file<A, B>(self) -> Result<Mappings<2, (A, B)>> {
 		match self.data {
 			DownloadData::NotCached { bytes } => {
 				let mut zip = ZipArchive::new(Cursor::new(bytes))?;
@@ -266,7 +267,7 @@ impl Downloader {
 	/// Downloads the feather intermediary, calamus, for a given version.
 	///
 	/// The namespaces are `official` to `intermediary` (aka `calamus`) here.
-	pub(crate) async fn calamus_v2(&self, version: VersionEntry<'_>) -> Result<Mappings<2>> {
+	pub(crate) async fn calamus_v2(&self, version: VersionEntry<'_>) -> Result<Mappings<2, (Official, Intermediary)>> {
 		let url = format!("https://maven.ornithemc.net/releases/net/ornithemc/calamus-intermediary-gen2/{version}/calamus-intermediary-gen2-{version}-v2.jar",
 			version = version.as_str());
 
@@ -294,7 +295,7 @@ impl Downloader {
 	}
 
 	/// in `official` namespace
-	pub(crate) async fn download_nests(&self, version: VersionEntry<'_>) -> Result<Option<Nests>> {
+	pub(crate) async fn download_nests(&self, version: VersionEntry<'_>) -> Result<Option<Nests<Official>>> {
 		let url = format!("https://github.com/OrnitheMC/nests/raw/main/nests/{version}.nest", version = version.as_str());
 
 		if let Some(nests) = self.download_with_special_404(&url, true).await? {

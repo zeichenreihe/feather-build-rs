@@ -154,7 +154,7 @@ impl<'a, const N: usize> ARemapper for ARemapperImpl<'a, N> {
 	}
 }
 
-impl<const N: usize> Mappings<N> {
+impl<const N: usize, Ns> Mappings<N, Ns> {
 	pub fn remapper_a(&self, from: Namespace<N>, to: Namespace<N>) -> Result<ARemapperImpl<'_, N>> {
 		let mut classes = IndexMap::new();
 		for class in self.classes.values() {
@@ -166,7 +166,7 @@ impl<const N: usize> Mappings<N> {
 	}
 }
 
-impl Mappings<2> {
+impl<Ns> Mappings<2, Ns> {
 	// TODO: this should probably not exist...
 	pub fn remapper_a_first_to_second(&self) -> Result<ARemapperImpl<'_, 2>> {
 		self.remapper_a(Namespace::new(0)?, Namespace::new(1)?)
@@ -373,7 +373,7 @@ impl<'i, const N: usize, I: SuperClassProvider> BRemapper for BRemapperImpl<'_, 
 }
 
 
-impl<const N: usize> Mappings<N> {
+impl<const N: usize, Ns> Mappings<N, Ns> {
 	pub fn remapper_b<'i, I>(&self, from: Namespace<N>, to: Namespace<N>, inheritance: &'i I) -> Result<BRemapperImpl<'_, 'i, N, I>> {
 		let remapper_a_from = self.remapper_a(Namespace::new(0)?, from)?;
 		let remapper_a_to = self.remapper_a(Namespace::new(0)?, to)?;
@@ -408,7 +408,7 @@ impl<const N: usize> Mappings<N> {
 	}
 }
 
-impl Mappings<2> {
+impl<Ns> Mappings<2, Ns> {
 	// TODO: this should probably not exist...
 	pub fn remapper_b_first_to_second<'i, I>(&self, inheritance: &'i I) -> Result<BRemapperImpl<'_, 'i, 2, I>> {
 		self.remapper_b(Namespace::new(0)?, Namespace::new(1)?, inheritance)

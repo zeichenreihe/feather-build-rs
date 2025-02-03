@@ -7,7 +7,7 @@ use crate::nest::{Nest, Nests};
 
 
 // implementation of NestsMapper.run()
-pub fn map_nests(nests: &Nests, mappings: &Mappings<2>) -> Result<Nests> {
+pub fn map_nests<A, B>(nests: &Nests<A>, mappings: &Mappings<2, (A, B)>) -> Result<Nests<B>> {
 	let remapper = mappings.remapper_b_first_to_second(NoSuperClassProvider::new())?;
 
 	let mut dst = Nests::default();

@@ -5,7 +5,7 @@ use crate::nest::Nests;
 use quill::remapper::ARemapper;
 use quill::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, FieldNowodeMapping, map_with_key_from_result_iter, Mappings, MethodMapping, MethodNowodeMapping};
 
-pub(crate) fn apply_nests_to_mappings(mappings: Mappings<2>, nests: &Nests) -> Result<Mappings<2>> {
+pub(crate) fn apply_nests_to_mappings<A, B>(mappings: Mappings<2, (A, B)>, nests: &Nests<A>) -> Result<Mappings<2, (A, B)>> {
 	let mapped_nests = crate::nests_mapper_run::map_nests(nests, &mappings)?;
 
 	let translator = MyRemapper::new(nests, true);
@@ -54,8 +54,8 @@ pub(crate) fn apply_nests_to_mappings(mappings: Mappings<2>, nests: &Nests) -> R
 		javadoc: mappings.javadoc,
 	})
 }
-pub(crate) fn undo_nests_to_mappings(mappings: Mappings<2>, nests: &Nests) -> Result<Mappings<2>> {
-	let mapped_nests = Nests::default();
+pub(crate) fn undo_nests_to_mappings<A, B>(mappings: Mappings<2, (A, B)>, nests: &Nests<A>) -> Result<Mappings<2, (A, B)>> {
+	let mapped_nests = Nests::<B>::default();
 
 	let translator = MyRemapper::new(nests, false);
 	let mapped_translator = MyRemapper::new(&mapped_nests, false);
@@ -115,10 +115,10 @@ pub(crate) fn undo_nests_to_mappings(mappings: Mappings<2>, nests: &Nests) -> Re
 struct MyRemapper(IndexMap<ObjClassName, ObjClassName>);
 
 impl MyRemapper {
-	fn new(nests: &Nests, apply: bool) -> Self {
+	fn new<A>(nests: &Nests<A>, apply: bool) -> Self {
 		let map = nests.all.iter()
 			.map(|(class_name, nest)| {
-				fn build_translation(nests: &Nests, class_name: &ObjClassName) -> ObjClassName {
+				fn build_translation<A>(nests: &Nests<A>, class_name: &ObjClassName) -> ObjClassName {
 					if let Some(nest) = nests.all.get(class_name) {
 						let a = build_translation(nests, &nest.encl_class_name);
 						ObjClassName::from_inner_class(a, &nest.inner_name)

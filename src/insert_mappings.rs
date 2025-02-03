@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::hash::Hash;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::{IndexMap, IndexSet};
-use crate::PropagationDirection;
+use crate::{Intermediary, Named, PropagationDirection};
 use std::collections::{HashSet, VecDeque};
 use std::fmt::Debug;
 use indexmap::map::Entry;
@@ -452,7 +452,7 @@ fn propagate_change<'version>(
 	version: VersionEntry<'version>,
 	op_is_not_none_mappings: bool,
 	op_is_not_none_javadocs: bool,
-	apply_to_mappings: impl Fn(&mut Mappings<2>, Mode) -> Result<Changed>,
+	apply_to_mappings: impl Fn(&mut Mappings<2, (Intermediary, Named)>, Mode) -> Result<Changed>,
 	apply_to_diffs: impl Fn(&mut MappingsDiff, bool, DiffSide, Mode) -> Result<Changed>,
 	mut queue_sibling_changes: impl FnMut(&MappingsDiff, DiffSide, PropDir, VersionEntry<'version>, Mode) -> Result<()>,
 ) -> Result<()> {

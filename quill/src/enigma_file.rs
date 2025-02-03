@@ -32,13 +32,14 @@ const COMMENT: &str = "COMMENT";
 /// use std::path::Path;
 /// use quill::tree::mappings::Mappings;
 ///
+/// struct NamespaceA; struct NamespaceB;
 /// let path = Path::new("tests/read_file_input_enigma.txt");
 /// let mut mappings = Mappings::from_namespaces(["namespaceA", "namespaceB"]).unwrap();
-/// quill::enigma_file::read_file_into(path, &mut mappings).unwrap();
+/// quill::enigma_file::read_file_into::<(NamespaceA, NamespaceB)>(path, &mut mappings).unwrap();
 ///
 /// assert_eq!(mappings.classes.len(), 10);
 /// ```
-pub fn read_file_into(path: impl AsRef<Path>, mappings: &mut Mappings<2>) -> Result<()> {
+pub fn read_file_into<Ns>(path: impl AsRef<Path>, mappings: &mut Mappings<2, Ns>) -> Result<()> {
 	read_into(File::open(&path)?, mappings)
 		.with_context(|| anyhow!("failed to read mappings file {:?} as enigma file", path.as_ref()))
 }
@@ -58,10 +59,11 @@ pub fn read_file_into(path: impl AsRef<Path>, mappings: &mut Mappings<2>) -> Res
 /// 	COMMENT A multiline
 /// 	COMMENT comment.
 /// ";
+/// struct NamespaceA; struct NamespaceB;
 ///
 /// let reader = &mut string.as_bytes();
 /// let mut mappings = Mappings::from_namespaces(["namespaceA", "namespaceB"]).unwrap();
-/// quill::enigma_file::read_into(reader, &mut mappings).unwrap();
+/// quill::enigma_file::read_into::<(NamespaceA, NamespaceB)>(reader, &mut mappings).unwrap();
 ///
 /// assert_eq!(mappings.classes.len(), 1);
 ///
@@ -72,7 +74,7 @@ pub fn read_file_into(path: impl AsRef<Path>, mappings: &mut Mappings<2>) -> Res
 ///     Some("A multiline\ncomment.")
 /// );
 /// ```
-pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
+pub fn read_into<Ns>(reader: impl Read, mappings: &mut Mappings<2, Ns>) -> Result<()> {
 	let mut lines = BufReader::new(reader)
 		.lines()
 		.enumerate()
@@ -86,8 +88,8 @@ pub fn read_into(reader: impl Read, mappings: &mut Mappings<2>) -> Result<()> {
 		match line.first_field.as_str() {
 			CLASS => {
 				// We use recursion here to parse classes contained in classes...
-				fn parse_class(
-					mappings: &mut Mappings<2>,
+				fn parse_class<Ns>(
+					mappings: &mut Mappings<2, Ns>,
 					iter: &mut WithMoreIdentIter<impl Iterator<Item=Result<EnigmaLine>>>,
 					line: EnigmaLine,
 					parent: Option<(&JavaString, &JavaString)>
@@ -379,7 +381,7 @@ impl Placement<'_> {
 }
 
 /// Creates a mapping from path for file to a tree of class nodes to put in there
-fn figure_out_files(mappings: &Mappings<2>) -> Result<Placement<'_>> {
+fn figure_out_files<Ns>(mappings: &Mappings<2, Ns>) -> Result<Placement<'_>> {
 	let mut child_map = IndexMap::new();
 	let mut file_map = IndexMap::new();
 
@@ -446,10 +448,11 @@ fn figure_out_files(mappings: &Mappings<2>) -> Result<Placement<'_>> {
 /// 	METHOD methodXa b (J)V
 /// 	METHOD methodXb b (J)V
 /// ";
+/// struct NamespaceA; struct NamespaceB;
 ///
 /// let reader = &mut input.as_bytes();
 /// let mut mappings = Mappings::from_namespaces(["namespaceA", "namespaceB"]).unwrap();
-/// quill::enigma_file::read_into(reader, &mut mappings).unwrap();
+/// quill::enigma_file::read_into::<(NamespaceA, NamespaceB)>(reader, &mut mappings).unwrap();
 ///
 /// let mut vec = Vec::new();
 /// quill::enigma_file::write_all(&mappings, &mut vec).unwrap();
@@ -503,7 +506,7 @@ fn figure_out_files(mappings: &Mappings<2>) -> Result<Placement<'_>> {
 ///
 /// assert_eq!(written, output);
 /// ```
-pub fn write_all(mappings: &Mappings<2>, w: &mut impl Write) -> Result<()> {
+pub fn write_all<Ns>(mappings: &Mappings<2, Ns>, w: &mut impl Write) -> Result<()> {
 	let f = figure_out_files(mappings)?;
 
 	for (file_name, node) in f.file_map {
@@ -514,8 +517,8 @@ pub fn write_all(mappings: &Mappings<2>, w: &mut impl Write) -> Result<()> {
 	Ok(())
 }
 
-pub(crate) fn write_all_for_each<W>(
-	mappings: &Mappings<2>,
+pub(crate) fn write_all_for_each<Ns, W>(
+	mappings: &Mappings<2, Ns>,
 	mut make_writer: impl FnMut(&str) -> Result<W>,
 ) -> Result<()>
 where
@@ -565,10 +568,11 @@ where
 /// 	METHOD methodXa b (J)V
 /// 	METHOD methodXb b (J)V
 /// ";
+/// struct NamespaceA; struct NamespaceB;
 ///
 /// let reader = &mut input.as_bytes();
 /// let mut mappings = Mappings::from_namespaces(["namespaceA", "namespaceB"]).unwrap();
-/// quill::enigma_file::read_into(reader, &mut mappings).unwrap();
+/// quill::enigma_file::read_into::<(NamespaceA, NamespaceB)>(reader, &mut mappings).unwrap();
 ///
 /// let mut vec = Vec::new();
 /// quill::enigma_file::write_one(&mappings, "B", &mut vec).unwrap();
@@ -596,7 +600,7 @@ where
 /// assert_eq!(written, output);
 /// ```
 /// Note how the [`write_one`] call up there gets `"B"` and not `"A"`.
-pub fn write_one(mappings: &Mappings<2>, dst_class_name: &str, w: &mut impl Write) -> Result<()> {
+pub fn write_one<Ns>(mappings: &Mappings<2, Ns>, dst_class_name: &str, w: &mut impl Write) -> Result<()> {
 	let f = figure_out_files(mappings)?;
 
 	let Some(&node) = f.file_map.get(dst_class_name) else {

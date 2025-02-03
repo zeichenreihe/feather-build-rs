@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
-use crate::tree::mappings::{ClassNowodeMapping, FieldNowodeMapping, Mappings, MethodNowodeMapping, ParameterNowodeMapping};
+use crate::tree::mappings::{ClassNowodeMapping, FieldNowodeMapping, MappingInfo, Mappings, MethodNowodeMapping, ParameterNowodeMapping};
 use crate::tree::mappings_diff::{Action, MappingsDiff};
 use crate::tree::names::Namespace;
 use crate::tree::{FromKey, GetNames, NodeInfo};
@@ -161,7 +161,7 @@ fn apply_diff_map<const N: usize, Key, Diff, Target, Name, Mapping>(
 
 impl MappingsDiff {
 	// TODO: docs
-	pub fn apply_to<const N: usize>(&self, target: Mappings<N>, namespace: &str) -> Result<Mappings<N>> {
+	pub fn apply_to<const N: usize, Ns, Ms>(&self, target: Mappings<N, Ns>, namespace: &str) -> Result<Mappings<N, Ms>> {
 		let namespace = target.get_namespace(namespace)?;
 		Ok(Mappings {
 			info: match &self.info {
@@ -171,9 +171,11 @@ impl MappingsDiff {
 					let mut t = target.info;
 					t.namespaces.change_name(namespace, a, b)
 						.with_context(|| anyhow!("cannot apply action {action:?}"))?;
-					t
+					MappingInfo {
+						namespaces: t.namespaces.change_type(),
+					}
 				},
-				Action::None => target.info,
+				Action::None => MappingInfo { namespaces: target.info.namespaces.change_type() },
 			},
 			javadoc: apply_diff_option(&self.javadoc, target.javadoc)?,
 			classes: apply_diff_map(namespace,

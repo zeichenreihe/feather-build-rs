@@ -5,13 +5,13 @@ use duke::tree::class::ObjClassName;
 use duke::tree::method::{MethodDescriptor, MethodName, MethodNameAndDesc};
 use crate::nest::{Nest, Nests, NestType};
 
-impl Nests {
-	pub fn read(vec: &Vec<u8>) -> Result<Nests> {
+impl<Namespace> Nests<Namespace> {
+	pub fn read(vec: &Vec<u8>) -> Result<Nests<Namespace>> {
 		let mut slice = vec.as_slice();
 		Self::read_from_reader(&mut slice)
 	}
 
-	fn read_from_reader(reader: impl Read) -> Result<Nests> {
+	fn read_from_reader(reader: impl Read) -> Result<Nests<Namespace>> {
 		let mut nests = Nests::default();
 
 		for (line_number, line) in BufReader::new(reader).lines().enumerate() {

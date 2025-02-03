@@ -30,6 +30,7 @@ pub trait GetNames<const N: usize, T> {
 
 pub mod names {
 	use std::fmt::{Debug, Formatter};
+	use std::marker::PhantomData;
 	use std::ops::{Index, IndexMut};
 	use anyhow::{anyhow, bail, Context, Error, Result};
 	use java_string::JavaStr;
@@ -53,12 +54,27 @@ pub mod names {
 	/// A struct storing the names of the namespaces.
 	///
 	/// Implements the [Index] and [IndexMut] traits for [Namespace].
-	#[derive(Clone, PartialEq)]
-	pub struct Namespaces<const N: usize> {
+	pub struct Namespaces<const N: usize, Ns> {
+		phantom: PhantomData<Ns>,
 		names: [String; N]
 	}
 
-	impl<const N: usize> Index<Namespace<N>> for Namespaces<N> {
+	// needed because with #[derive(Clone, PartialEq)] we get Ns: Clone/PartialEq
+	impl<const N: usize, Ns> Clone for Namespaces<N, Ns> {
+		fn clone(&self) -> Self {
+			Namespaces {
+				phantom: PhantomData,
+				names: self.names.clone(),
+			}
+		}
+	}
+	impl<const N: usize, Ns> PartialEq for Namespaces<N, Ns> {
+		fn eq(&self, other: &Self) -> bool {
+			self.names.eq(&other.names)
+		}
+	}
+
+	impl<const N: usize, Ns> Index<Namespace<N>> for Namespaces<N, Ns> {
 		type Output = String;
 
 		fn index(&self, index: Namespace<N>) -> &Self::Output {
@@ -66,13 +82,13 @@ pub mod names {
 		}
 	}
 
-	impl<const N: usize> IndexMut<Namespace<N>> for Namespaces<N> {
+	impl<const N: usize, Ns> IndexMut<Namespace<N>> for Namespaces<N, Ns> {
 		fn index_mut(&mut self, index: Namespace<N>) -> &mut Self::Output {
 			&mut self.names[index.0]
 		}
 	}
 
-	impl<const N: usize> Namespaces<N> {
+	impl<const N: usize, Ns> Namespaces<N, Ns> {
 		pub(crate) fn names(&self) -> &[String; N] {
 			&self.names
 		}
@@ -95,8 +111,9 @@ pub mod names {
 			Ok(())
 		}
 
-		pub(crate) fn reorder(&self, table: [Namespace<N>; N]) -> Namespaces<N> {
+		pub(crate) fn reorder<Ms>(&self, table: [Namespace<N>; N]) -> Namespaces<N, Ms> {
 			Namespaces {
+				phantom: PhantomData,
 				names: table.map(|namespace| self[namespace].clone()),
 			}
 		}
@@ -110,6 +127,13 @@ pub mod names {
 			Ok(old)
 		}
 
+		pub(crate) fn change_type<Ms>(self) -> Namespaces<N, Ms> {
+			Namespaces {
+				phantom: PhantomData,
+				names: self.names,
+			}
+		}
+
 		pub(crate) fn change_names(&mut self, from: [&str; N], to: [&str; N]) -> Result<()> {
 			if self.names.as_slice() != from {
 				bail!("cannot rename namespaces {self:?} to {to:?}: expected {from:?}");
@@ -120,7 +144,7 @@ pub mod names {
 		}
 	}
 
-	impl<const N: usize> Debug for Namespaces<N> {
+	impl<const N: usize, Ns> Debug for Namespaces<N, Ns> {
 		fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 			f.debug_list()
 				.entries(&self.names)
@@ -128,7 +152,7 @@ pub mod names {
 		}
 	}
 
-	impl<const N: usize> TryFrom<[String; N]> for Namespaces<N> {
+	impl<const N: usize, Ns> TryFrom<[String; N]> for Namespaces<N, Ns> {
 		type Error = Error;
 
 		fn try_from(value: [String; N]) -> Result<Self> {
@@ -136,17 +160,17 @@ pub mod names {
 				bail!("found empty namespace name in {value:?}, every namespace name must be non-empty");
 			}
 
-			Ok(Namespaces { names: value })
+			Ok(Namespaces { phantom: PhantomData, names: value })
 		}
 	}
 
-	impl<const N: usize> From<Namespaces<N>> for [String; N] {
-		fn from(value: Namespaces<N>) -> Self {
+	impl<const N: usize, Ns> From<Namespaces<N, Ns>> for [String; N] {
+		fn from(value: Namespaces<N, Ns>) -> Self {
 			value.names
 		}
 	}
-	impl<'a, const N: usize> From<&'a Namespaces<N>> for &'a [String; N] {
-		fn from(value: &'a Namespaces<N>) -> Self {
+	impl<'a, const N: usize, Ns> From<&'a Namespaces<N, Ns>> for &'a [String; N] {
+		fn from(value: &'a Namespaces<N, Ns>) -> Self {
 			&value.names
 		}
 	}

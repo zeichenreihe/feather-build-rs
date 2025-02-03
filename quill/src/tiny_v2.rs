@@ -34,13 +34,15 @@ use crate::tree::NodeInfo;
 /// use std::path::Path;
 /// use quill::tree::mappings::Mappings;
 ///
+/// struct NamespaceA; struct NamespaceB;
+///
 /// let path = Path::new("tests/read_file_input_tiny_v2.txt");
-/// let mappings: Mappings<2> = quill::tiny_v2::read_file(path).unwrap();
+/// let mappings: Mappings<2, (NamespaceA, NamespaceB)> = quill::tiny_v2::read_file(path).unwrap();
 ///
 /// mappings.info.namespaces.check_that(["namespaceA", "namespaceB"]).unwrap();
 /// assert_eq!(mappings.classes.len(), 2);
 /// ```
-pub fn read_file<const N: usize>(path: impl AsRef<Path>) -> Result<Mappings<N>> {
+pub fn read_file<const N: usize, Ns>(path: impl AsRef<Path>) -> Result<Mappings<N, Ns>> {
 	read(File::open(&path)?)
 		.with_context(|| anyhow!("failed to read mappings file {:?} as tiny v2 file", path.as_ref()))
 }
@@ -54,6 +56,7 @@ pub fn read_file<const N: usize>(path: impl AsRef<Path>) -> Result<Mappings<N>> 
 /// ```
 /// # use pretty_assertions::assert_eq;
 /// use quill::tree::mappings::Mappings;
+/// struct NamespaceA; struct NamespaceB; struct NamespaceC;
 /// let string = "\
 /// tiny	2	0	namespaceA	namespaceB	namespaceC
 /// c	A	B	C
@@ -63,7 +66,7 @@ pub fn read_file<const N: usize>(path: impl AsRef<Path>) -> Result<Mappings<N>> 
 /// ";
 ///
 /// let reader = &mut string.as_bytes();
-/// let mappings: Mappings<3> = quill::tiny_v2::read(reader).unwrap();
+/// let mappings: Mappings<3, (NamespaceA, NamespaceB, NamespaceC)> = quill::tiny_v2::read(reader).unwrap();
 ///
 /// mappings.info.namespaces.check_that(["namespaceA", "namespaceB", "namespaceC"]).unwrap();
 /// assert_eq!(mappings.classes.len(), 1);
@@ -75,7 +78,7 @@ pub fn read_file<const N: usize>(path: impl AsRef<Path>) -> Result<Mappings<N>> 
 ///     Some("A multiline\ncomment.")
 /// );
 /// ```
-pub fn read<const N: usize>(reader: impl Read) -> Result<Mappings<N>> {
+pub fn read<const N: usize, Ns>(reader: impl Read) -> Result<Mappings<N, Ns>> {
 	if N < 2 {
 		bail!("must read at least two namespaces, {N} is less than that");
 	}
@@ -191,7 +194,7 @@ fn add_comment(javadoc: &mut Option<JavadocMapping>, line: TinyLine) -> Result<(
 /// This is equivalent to first calling [`write_vec`] and then [`String::from_utf8`].
 ///
 /// This method is of most use in test cases, where you also use the `pretty_assertions` crate for viewing string diffs.
-pub fn write_string<const N: usize>(mappings: &Mappings<N>) -> Result<String> {
+pub fn write_string<const N: usize, Ns>(mappings: &Mappings<N, Ns>) -> Result<String> {
 	let vec = write_vec(mappings)?;
 	String::from_utf8(vec).context("failed to convert written mappings to utf8")
 }
@@ -202,13 +205,13 @@ pub fn write_string<const N: usize>(mappings: &Mappings<N>) -> Result<String> {
 /// This is equivalent to letting [`write`][fn@write] write into a `Vec<u8>`.
 ///
 /// Note that there's also the helper method [`write_string`] that also tries to convert the `Vec<u8>` into a `String`.
-pub fn write_vec<const N: usize>(mappings: &Mappings<N>) -> Result<Vec<u8>> {
+pub fn write_vec<const N: usize, Ns>(mappings: &Mappings<N, Ns>) -> Result<Vec<u8>> {
 	let mut vec = Vec::new();
 	write(mappings, &mut vec)?;
 	Ok(vec)
 }
 
-fn write_namespaces<const N: usize>(w: &mut impl Write, namespaces: &Namespaces<N>) -> Result<()> {
+fn write_namespaces<const N: usize, Ns>(w: &mut impl Write, namespaces: &Namespaces<N, Ns>) -> Result<()> {
 	for namespace in namespaces.names() {
 		write!(w, "\t{namespace}")?;
 	}
@@ -254,9 +257,10 @@ fn write_names<const N: usize>(w: &mut impl Write, names: &Names<N, impl Display
 /// 	m	(J)V	methodXb	a
 /// 	m	(J)V	methodXa	b
 /// ";
+/// struct NamespaceA; struct NamespaceB;
 ///
 /// let reader = &mut input.as_bytes();
-/// let mappings: Mappings<2> = quill::tiny_v2::read(reader).unwrap();
+/// let mappings: Mappings<2, (NamespaceA, NamespaceB)> = quill::tiny_v2::read(reader).unwrap();
 ///
 /// let mut buf: Vec<u8> = Vec::new();
 /// quill::tiny_v2::write(&mappings, &mut buf).unwrap();
@@ -286,7 +290,7 @@ fn write_names<const N: usize>(w: &mut impl Write, names: &Names<N, impl Display
 ///
 /// Note that there are also the helper methods [`write_vec`] for writing into a `Vec<u8>` directly,
 /// and the helper method [`write_string`] that also tries to convert that `Vec<u8>` into a `String`.
-pub fn write<const N: usize>(mappings: &Mappings<N>, w: &mut impl Write) -> Result<()> {
+pub fn write<const N: usize, Ns>(mappings: &Mappings<N, Ns>, w: &mut impl Write) -> Result<()> {
 	// the buffering makes it much faster
 	let mut w = BufWriter::new(w);
 	let w = &mut w;

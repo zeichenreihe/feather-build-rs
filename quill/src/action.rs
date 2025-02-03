@@ -10,8 +10,8 @@ use anyhow::Result;
 use crate::tree::mappings::Mappings;
 use crate::tree::names::Namespace;
 
-impl<const N: usize> Mappings<N> {
-	pub fn rename_namespaces(mut self, from: [&str; N], to: [&str; N]) -> Result<Self> {
+impl<const N: usize, Ns> Mappings<N, Ns> {
+	pub fn rename_namespaces(mut self, from: [&str; N], to: [&str; N]) -> Result<Mappings<N, Ns>> {
 		self.info.namespaces.change_names(from, to)?;
 		Ok(self)
 	}

@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 use std::hash::Hash;
 use anyhow::{anyhow, bail, Context, Result};
 use indexmap::IndexMap;
@@ -60,23 +60,34 @@ pub fn map_with_key_from_result_iter<Key, Node, Info>(iter: impl IntoIterator<It
 	Ok(map)
 }
 
-#[derive(Debug, Clone)]
-pub struct Mappings<const N: usize> {
-	pub info: MappingInfo<N>,
+pub struct Mappings<const N: usize, Ns> {
+	pub info: MappingInfo<N, Ns>,
 	pub classes: IndexMap<ObjClassName, ClassNowodeMapping<N>>,
 	pub javadoc: Option<JavadocMapping>,
 }
 
-impl<const N: usize> NodeInfo<MappingInfo<N>> for Mappings<N> {
-	fn get_node_info(&self) -> &MappingInfo<N> {
+// needed because with #[derive(Debug, Clone)] it requires Ns: Debug/Clone
+impl<const N: usize, Ns> Debug for Mappings<N, Ns> {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("Mappings").field("info", &self.info).field("classes", &self.classes).field("javadoc", &self.javadoc).finish()
+	}
+}
+impl<const N: usize, Ns> Clone for Mappings<N, Ns> {
+	fn clone(&self) -> Self {
+		Mappings { info: self.info.clone(), classes: self.classes.clone(), javadoc: self.javadoc.clone() }
+	}
+}
+
+impl<const N: usize, Ns> NodeInfo<MappingInfo<N, Ns>> for Mappings<N, Ns> {
+	fn get_node_info(&self) -> &MappingInfo<N, Ns> {
 		&self.info
 	}
 
-	fn get_node_info_mut(&mut self) -> &mut MappingInfo<N> {
+	fn get_node_info_mut(&mut self) -> &mut MappingInfo<N, Ns> {
 		&mut self.info
 	}
 
-	fn new(info: MappingInfo<N>) -> Self {
+	fn new(info: MappingInfo<N, Ns>) -> Self {
 		Mappings {
 			info,
 			classes: IndexMap::new(),
@@ -85,7 +96,7 @@ impl<const N: usize> NodeInfo<MappingInfo<N>> for Mappings<N> {
 	}
 }
 
-impl<const N: usize> NodeJavadocInfo<Option<JavadocMapping>> for Mappings<N> {
+impl<const N: usize, Ns> NodeJavadocInfo<Option<JavadocMapping>> for Mappings<N, Ns> {
 	fn get_node_javadoc_info(&self) -> &Option<JavadocMapping> {
 		&self.javadoc
 	}
@@ -95,8 +106,8 @@ impl<const N: usize> NodeJavadocInfo<Option<JavadocMapping>> for Mappings<N> {
 	}
 }
 
-impl<const N: usize> Mappings<N> {
-	pub fn from_namespaces(namespaces: [&str; N]) -> Result<Mappings<N>> {
+impl<const N: usize, Ns> Mappings<N, Ns> {
+	pub fn from_namespaces(namespaces: [&str; N]) -> Result<Mappings<N, Ns>> {
 		Namespaces::try_from(namespaces.map(|x| x.to_owned()))
 			.map(|namespaces| Mappings::new(MappingInfo { namespaces }))
 	}
@@ -273,9 +284,25 @@ impl<const N: usize> NodeJavadocInfo<Option<JavadocMapping>> for ParameterNowode
 	}
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct MappingInfo<const N: usize> {
-	pub namespaces: Namespaces<N>,
+pub struct MappingInfo<const N: usize, Ns> {
+	pub namespaces: Namespaces<N, Ns>,
+}
+
+// needed because with #[derive(Debug, Clone, PartialEq)] they depend on Ns: Debug/Clone/PartialEq
+impl<const N: usize, Ns> Debug for MappingInfo<N, Ns> {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("MappingInfo").field("namespaces", &self.namespaces).finish()
+	}
+}
+impl<const N: usize, Ns> Clone for MappingInfo<N, Ns> {
+	fn clone(&self) -> Self {
+		MappingInfo { namespaces: self.namespaces.clone() }
+	}
+}
+impl<const N: usize, Ns> PartialEq for MappingInfo<N, Ns> {
+	fn eq(&self, other: &Self) -> bool {
+		self.namespaces.eq(&other.namespaces)
+	}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

@@ -22,7 +22,7 @@ fn b<T: ?Sized>(s: &str) -> Result<&T>
 fn remap() -> Result<()> {
 	let input_a = include_str!("remap_input.tiny");
 
-	let input_a: Mappings<2> = quill::tiny_v2::read(input_a.as_bytes())?;
+	let input_a: Mappings<2, ()> = quill::tiny_v2::read(input_a.as_bytes())?;
 
 
 	// TODO: use duke-macros

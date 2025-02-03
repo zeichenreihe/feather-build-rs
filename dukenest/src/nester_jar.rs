@@ -10,7 +10,7 @@ use crate::nest::{Nest, Nests, NestType};
 
 // we assume class_node.name matches the name of the JarEntry
 
-pub fn nest_jar(remap_option: bool, src: &impl Jar, nests: Nests) -> Result<ParsedJar<ClassRepr, Vec<u8>>> {
+pub fn nest_jar<A>(remap_option: bool, src: &impl Jar, nests: Nests<A>) -> Result<ParsedJar<ClassRepr, Vec<u8>>> {
 	let mut class_version = None;
 	let mut jar_new_classes = IndexMap::new();
 	let mut methods_map: IndexMap<ObjClassName, HashSet<MethodNameAndDesc>> = IndexMap::new();

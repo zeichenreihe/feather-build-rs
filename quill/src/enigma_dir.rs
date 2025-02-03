@@ -16,11 +16,11 @@ use crate::tree::NodeInfo;
 
 const MAPPING_EXTENSION: &str = "mapping";
 
-pub fn read(path: impl AsRef<Path>, namespaces: Namespaces<2>) -> Result<Mappings<2>> {
+pub fn read<Ns>(path: impl AsRef<Path>, namespaces: Namespaces<2, Ns>) -> Result<Mappings<2, Ns>> {
 	read_(path.as_ref(), namespaces)
 		.with_context(|| anyhow!("cannot read enigma mappings (directory based) from path {:?}", path.as_ref()))
 }
-fn read_(path: &Path, namespaces: Namespaces<2>) -> Result<Mappings<2>> {
+fn read_<Ns>(path: &Path, namespaces: Namespaces<2, Ns>) -> Result<Mappings<2, Ns>> {
 	if !path.try_exists().context("failed to check existence of path")? {
 		bail!("path doesn't exist") // verified not existing
 	}
@@ -48,7 +48,7 @@ fn read_(path: &Path, namespaces: Namespaces<2>) -> Result<Mappings<2>> {
 }
 
 // TODO: doc
-pub fn write(mappings: &Mappings<2>, path: impl AsRef<Path>) -> Result<()> {
+pub fn write<Ns>(mappings: &Mappings<2, Ns>, path: impl AsRef<Path>) -> Result<()> {
 	let path = path.as_ref();
 
 	crate::enigma_file::write_all_for_each(mappings, |file_name| {

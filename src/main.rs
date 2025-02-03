@@ -71,6 +71,10 @@ pub(crate) fn setup_logger(verbose: u8) -> Result<()> {
         .with_context(|| anyhow!("failed to set logger config with log level filter {level_filter:?}"))
 }
 
+struct Official;
+struct Intermediary;
+struct Named;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli: Cli = Cli::parse();
@@ -378,7 +382,8 @@ async fn main() -> Result<()> {
 
 // output is `calamusJar`
 // maps the mainJar (either server/client/mergedJar, selected in dlVersionDetails) from "official" to "calamus", to calamusJar
-async fn map_calamus_jar(downloader: &Downloader, version: VersionEntry<'_>, calamus_v2: &Mappings<2>) -> Result<ParsedJar<ClassRepr, Vec<u8>>> {
+async fn map_calamus_jar(downloader: &Downloader, version: VersionEntry<'_>, calamus_v2: &Mappings<2, (Official, Intermediary)>)
+        -> Result<ParsedJar<ClassRepr, Vec<u8>>> {
     let versions_manifest = downloader.get_versions_manifest().await?;
     let version_details = downloader.version_details(&versions_manifest, version).await?;
 
@@ -404,7 +409,7 @@ async fn map_calamus_jar(downloader: &Downloader, version: VersionEntry<'_>, cal
     Ok(out_jar)
 }
 
-async fn nest_jar(downloader: &Downloader, version: VersionEntry<'_>, calamus_jar: &impl Jar, calamus_v2: &Mappings<2>)
+async fn nest_jar(downloader: &Downloader, version: VersionEntry<'_>, calamus_jar: &impl Jar, calamus_v2: &Mappings<2, (Official, Intermediary)>)
     -> Result<Option<ParsedJar<ClassRepr, Vec<u8>>>> {
 
     let calamus_nests_file = patch_nests(downloader, version, calamus_v2).await?;
@@ -425,7 +430,8 @@ async fn nest_jar(downloader: &Downloader, version: VersionEntry<'_>, calamus_ja
 }
 
 // note: `calamusNestsFile` is result of the `patchNests` task
-async fn patch_nests(downloader: &Downloader, version: VersionEntry<'_>, calamus_v2: &Mappings<2>) -> Result<Option<Nests>> {
+async fn patch_nests(downloader: &Downloader, version: VersionEntry<'_>, calamus_v2: &Mappings<2, (Official, Intermediary)>)
+        -> Result<Option<Nests<Intermediary>>> {
     if let Some(nests) = downloader.download_nests(version).await? {
         let dst = dukenest::remap_nests(&nests, &calamus_v2)?;
 

@@ -3,7 +3,7 @@ use crate::remapper::ARemapper;
 use crate::tree::names::Namespace;
 use crate::tree::mappings::{ClassMapping, ClassNowodeMapping, FieldMapping, FieldNowodeMapping, map_with_key_from_result_iter, MappingInfo, Mappings, MethodMapping, MethodNowodeMapping, ParameterMapping, ParameterNowodeMapping};
 
-impl<const N: usize> Mappings<N> {
+impl<const N: usize, Ns> Mappings<N, Ns> {
 	#[allow(clippy::tabs_in_doc_comments)]
 	/// Reorders the namespaces to the given order.
 	/// # Example
@@ -37,12 +37,13 @@ impl<const N: usize> Mappings<N> {
 	/// 	f	LA;	a	b	c
 	/// 	m	(LA;)V	a	b	c
 	/// ";
-	/// let b = quill::tiny_v2::read(input.as_bytes()).unwrap()
-	/// 	.reorder(["namespaceA", "namespaceB", "namespaceC"]).unwrap();
+	/// struct A; struct B; struct C;
+	/// let b = quill::tiny_v2::read::<3, (C, B, A)>(input.as_bytes()).unwrap()
+	/// 	.reorder::<(A, B, C)>(["namespaceA", "namespaceB", "namespaceC"]).unwrap();
 	/// let c = quill::tiny_v2::write_string(&b).unwrap();
 	/// assert_eq!(output, c);
 	/// ```
-	pub fn reorder(&self, namespaces: [&str; N]) -> Result<Mappings<N>> {
+	pub fn reorder<Ms>(&self, namespaces: [&str; N]) -> Result<Mappings<N, Ms>> {
 		// at each position we have the namespace (and therefore the old index) to look to find the name
 		let mut table = [Namespace::new(0)?; N];
 		for i in 0..N {

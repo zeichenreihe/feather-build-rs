@@ -12,7 +12,7 @@ fn read_dir() -> Result<()> {
 		"second".to_owned(),
 	])?;
 
-	let mappings = quill::enigma_dir::read(&path, namespaces)?;
+	let mappings = quill::enigma_dir::read::<()>(&path, namespaces)?;
 
 	//dbg!(&mappings);
 
