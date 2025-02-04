@@ -269,7 +269,8 @@ impl VersionGraph {
 		let (root, root_path) = root.context("version graph does not have a root")?;
 
 		let root_mapping = quill::tiny_v2::read_file(&root_path)
-			.with_context(|| anyhow!("failed to parse version mapping from {root_path:?}"))?;
+			.with_context(|| anyhow!("failed to parse version mapping from {root_path:?}"))?
+			.contract_inner_class_names("named")?;
 
 		let mut walkers: VecDeque<_> = [ (Vec::new(), root) ].into();
 		while let Some((path, head)) = walkers.pop_front() {

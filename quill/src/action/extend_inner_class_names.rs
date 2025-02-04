@@ -26,6 +26,15 @@ impl<const N: usize> Names<N, ObjClassName> {
 
 		Ok(names)
 	}
+
+	fn contract_inner_class_name(&self, namespace: Namespace<N>) -> Result<Names<N, ObjClassName>> {
+		let mut names = self.clone();
+
+		names[namespace] = self[namespace].as_ref()
+			.map(|b| b.get_inner_class_name().unwrap_or(b).to_owned());
+
+		Ok(names)
+	}
 }
 
 impl<const N: usize, Ns> Mappings<N, Ns> {
@@ -43,6 +52,23 @@ impl<const N: usize, Ns> Mappings<N, Ns> {
 				.map(|(key, c)| Ok((key.clone(), ClassNowodeMapping {
 					info: ClassMapping {
 						names: c.info.names.extend_inner_class_name(self, namespace)?
+					},
+					fields: c.fields.clone(),
+					methods: c.methods.clone(),
+					javadoc: c.javadoc.clone(),
+				})))
+				.collect::<Result<_>>()?,
+			javadoc: self.javadoc.clone(),
+		})
+	}
+	pub fn contract_inner_class_names(&self, namespace: &str) -> Result<Mappings<N, Ns>> {
+		let namespace = self.get_namespace(namespace)?;
+		Ok(Mappings {
+			info: self.info.clone(),
+			classes: self.classes.iter()
+				.map(|(key, c)| Ok((key.clone(), ClassNowodeMapping {
+					info: ClassMapping {
+						names: c.info.names.contract_inner_class_name(namespace)?
 					},
 					fields: c.fields.clone(),
 					methods: c.methods.clone(),
