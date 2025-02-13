@@ -1,0 +1,6 @@
+tiny	2	0	official	named
+c	a	org/example/ClassA
+c	b	org/example/ClassB
+	f	I	a	fieldA
+	m	()V	<init>	<init>
+	m	(La;Lb;)Lb;	a	methodA

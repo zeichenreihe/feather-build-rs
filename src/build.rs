@@ -121,7 +121,6 @@ fn build_inner(
 ) -> Result<BuildResult> {
 	info!("{version:?} starting getting mappings from version graph");
 	let mappings = version_graph.apply_diffs(version)? // calamus -> named
-		.extend_inner_class_names("named")?
 		.remove_dummy("named")?;
 	info!("{version:?} finished getting mappings from version graph");
 	let mappings = if let Some(nests) = nests {

@@ -1,0 +1,18 @@
+tiny	2	0
+c	a	org/example/ClassA
+c	b	org/example/ClassB
+c	e		ClassE
+c	f		ClassF
+c	f$g		ClassG
+c	f$g$h		ClassH
+	c		Comment for f$g$h
+	f	Lf$g$h;	i		fieldI
+		c		Comment for fieldI
+	m	()Lf$g;	j		methodJ
+		c		Comment for methodJ
+	m	()V	<init>		<init>
+		p	1			parameter1
+	m	(I)V	<init>		<init>
+		p	1			parameter1
+			c		Comment for parameter
+		p	2			parameter2

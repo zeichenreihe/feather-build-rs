@@ -22,7 +22,7 @@ pub(crate) async fn report_sus(mappings_dir: PathBuf, downloader: Downloader) ->
 
 	println!("graph took {:?}", start.elapsed());
 
-	let version = v.get("1.12.2").unwrap();
+	let (split, version) = v.get("1.12.2").unwrap();
 
 	let start = Instant::now();
 
@@ -87,7 +87,6 @@ fn sus_inner(
 	println!("sus!");
 
 	let mappings = version_graph.apply_diffs(version)?
-		.extend_inner_class_names("named")?
 		.remove_dummy("named")?;
 
 	let build_feather_tiny = add_specialized_methods_to_mappings(main_jar, &calamus_v2, &libraries, mappings)

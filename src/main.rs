@@ -121,7 +121,12 @@ async fn main() -> Result<()> {
             let versions: Vec<VersionEntry<'_>> = if all {
                 v.versions().collect()
             } else {
-                v.get_all(versions)?
+                v.get_all(versions.iter()
+                    .map(|potential_shortcut| version_graph::map_shortcut(&potential_shortcut))
+                )?
+                    .into_iter()
+                    .map(|(split, v)| v)
+                    .collect()
             };
 
             println!("graph took {:?}", start.elapsed());
@@ -274,7 +279,7 @@ async fn main() -> Result<()> {
             let classpath = make_classpath(&downloader, &resolvers, &dependencies, dependency_tree_cached).await?;
 
             let version_graph = VersionGraph::resolve(mappings_dir)?;
-            let version = version_graph.get(&version)?;
+            let (split, version) = version_graph.get(version_graph::map_shortcut(&version))?;
 
             let working_mappings_dir = working_mappings_dir(working_mappings_base_dir, version);
 
@@ -294,8 +299,7 @@ async fn main() -> Result<()> {
             let profile_json_path = enigma_profile.as_deref()
                 .unwrap_or(default_enigma_profile_json);
 
-            let mappings = version_graph.apply_diffs(version)? // calamus -> named
-                .extend_inner_class_names("named")?;
+            let mappings = version_graph.apply_diffs(version)?; // calamus -> named
 
             let mappings = if let Some(nests) = patch_nests(&downloader, version, &calamus_v2).await? {
                 dukenest::apply_nests_to_mappings(mappings, &nests)?
@@ -326,14 +330,13 @@ async fn main() -> Result<()> {
         Command::PropagateMappings { working_mappings_base_dir, keep_directory, direction, version } => {
             let version_graph = VersionGraph::resolve(mappings_dir)?;
 
-            let version = version_graph.get(&version)?;
+            let (split, version) = version_graph.get(version_graph::map_shortcut(&version))?;
 
             let working_mappings_dir = working_mappings_dir(working_mappings_base_dir, version);
 
             info!("saving mappings for {version:?}");
 
-            let separated_mappings = version_graph.apply_diffs(version)? // calamus -> named
-                .extend_inner_class_names("named")?;
+            let separated_mappings = version_graph.apply_diffs(version)?; // calamus -> named
 
             let start = Instant::now();
 

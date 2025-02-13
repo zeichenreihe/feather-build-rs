@@ -1,0 +1,12 @@
+tiny	2	0	official	named
+c	a	org/example/ClassA
+	c	This is a comment
+c	b	org/example/ClassB
+	f	I	a	fieldA
+		c	More comments
+	m	(La;Lb;)Lb;	a	methodA
+c	c	org/example/ClassCRenamed
+c	c$d	org/example/ClassCRenamed$ClassDRenamed
+	f	I	a	fieldARenamed
+	m	(Lc$d;)V	a	methodARenamed
+		c	Even more comments

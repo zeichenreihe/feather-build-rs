@@ -1,0 +1,16 @@
+tiny	2	0	official	named
+c	e	ClassE
+c	f	ClassF
+c	f$g	ClassF$ClassG
+c	f$g$h	ClassF$ClassG$ClassH
+	c	Comment for f$g$h
+	f	Lf$g$h;	i	fieldI
+		c	Comment for fieldI
+	m	()Lf$g;	j	methodJ
+		c	Comment for methodJ
+	m	()V	<init>	<init>
+		p	1		parameter1
+	m	(I)V	<init>	<init>
+		p	1		parameter1
+			c	Comment for parameter
+		p	2		parameter2

@@ -1,0 +1,12 @@
+tiny	2	0
+c	a
+	c	A comment.	This is a comment
+c	b	org/example/ClassB	org/example/ClassB
+	f	I	a
+		c		More comments
+	m	()V	<init>	<init>
+c	c	org/example/ClassC	org/example/ClassCRenamed
+c	c$d	ClassD	ClassDRenamed
+	f	I	a	fieldA	fieldARenamed
+	m	(Lc$d;)V	a	methodA	methodARenamed
+		c		Even more comments

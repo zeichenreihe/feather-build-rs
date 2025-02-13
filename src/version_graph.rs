@@ -97,7 +97,7 @@ const VERSION_SHORTCUTS: [(&str, &str); 76] = [
 	("1.RV-Pre1", "af-2016"),
 ];
 
-fn map_shortcut(version: &str) -> &str {
+pub(crate) fn map_shortcut(version: &str) -> &str {
 	for (shortcut, long) in VERSION_SHORTCUTS {
 		if shortcut == version {
 			return long
@@ -121,19 +121,29 @@ struct EdgeData {
 	path: PathBuf,
 }
 
+/// the version names are split at `~`
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Split {
+	None,
+	First,
+	Second,
+}
+
 pub(crate) struct VersionGraph {
 	root: NodeIndex,
 	root_mapping: Mappings<2, (Intermediary, Named)>,
 
-	versions: IndexMap<String, NodeIndex>,
+	/// A map to look up versions to build
+	versions: IndexMap<String, (Split, NodeIndex)>,
 
 	graph: Graph<NodeData, EdgeData>,
 }
 
-/// The version id without any `-client` or `-server`.
+/// The version id in a way that can be looked up in the Ornithe API
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct MinecraftVersionBorrowed<'a>(&'a str);
 
+#[deprecated]
 #[derive(Debug, PartialEq)]
 pub(crate) enum Environment {
 	Merged,
@@ -141,11 +151,11 @@ pub(crate) enum Environment {
 	Server,
 }
 
-/// A version.
+/// A version as in the version graph
+///
+/// This will be one like `a1.2.6~server-a0.2.8` or `1.0.0`
 ///
 /// PartialEq/Hash behave as if you'd do them on the version string.
-///
-/// This (with [`VersionEntry::as_str`]) can end in `-client` and `-server`, or not have any suffix at all.
 #[derive(Clone, Copy)]
 pub(crate) struct VersionEntry<'a> {
 	node_index: NodeIndex,
@@ -188,7 +198,7 @@ impl VersionGraph {
 	}
 
 	pub(crate) fn write(&self) {
-		for v in &self.versions {
+		for v in self.graph.node_indices() {
 			// TODO: call write_mappings or write_diffs depending on root/not root
 			/*
 			#[allow(clippy::collapsible_else_if)]
@@ -217,11 +227,17 @@ impl VersionGraph {
 
 	pub(crate) fn parents<'a>(&'a self, version: VersionEntry<'a>) -> impl Iterator<Item=VersionEntry<'a>> {
 		self.graph.neighbors_directed(version.node_index, Direction::Incoming)
-			.map(|index| VersionEntry::create(index, &self.graph[index]))
+			.map(|node_index| VersionEntry {
+				node_index,
+				node_data: &self.graph[node_index],
+			})
 	}
 	pub(crate) fn children<'a>(&'a self, version: VersionEntry<'a>) -> impl Iterator<Item=VersionEntry<'a>> {
 		self.graph.neighbors_directed(version.node_index, Direction::Outgoing)
-			.map(|index| VersionEntry::create(index, &self.graph[index]))
+			.map(|node_index| VersionEntry {
+				node_index,
+				node_data: &self.graph[node_index],
+			})
 	}
 	pub(crate) fn resolve(dir: impl AsRef<Path>) -> Result<VersionGraph> {
 		let mut graph: Graph<NodeData, EdgeData> = Graph::new();
@@ -240,9 +256,28 @@ impl VersionGraph {
 			let file_name = file.file_name().into_string()
 				.map_err(|file_name| anyhow!("failed to turn file name {file_name:?} into a string"))?;
 
+			fn add_node(
+				versions: &mut IndexMap<String, (Split, NodeIndex)>,
+				graph: &mut Graph<NodeData, EdgeData>,
+				version_str: &str
+			) -> NodeIndex {
+				if let Some((client, server)) = version_str.split_once('~') {
+					let node_index = versions.entry(client.to_owned())
+						.or_insert_with(|| (Split::First, graph.add_node(NodeData::new(version_str)))).1;
+
+					versions.entry(server.to_owned())
+						.or_insert((Split::Second, node_index));
+
+					node_index
+				} else {
+					versions.entry(version_str.to_owned())
+						.or_insert_with_key(|k| (Split::None, graph.add_node(NodeData::new(k)))).1
+				}
+			}
+
 			if let Some(version_str) = file_name.strip_suffix(MAPPINGS_EXTENSION) {
-				let v = *versions.entry(version_str.to_owned())
-					.or_insert_with_key(|k| graph.add_node(NodeData::new(k)));
+
+				let v = add_node(&mut versions, &mut graph, version_str);
 
 				if let Some((old_root, ref old_path)) = root {
 					bail!("multiple roots present: {old_version:?} ({old_path:?}) and {version_str:?} ({path:?})", old_version = &graph[old_root].name);
@@ -253,14 +288,10 @@ impl VersionGraph {
 					bail!("expected there to be exactly one `#` in the diff file name {file_name:?}");
 				};
 
-				let v = *versions.entry(version.to_owned())
-					.or_insert_with_key(|k| graph.add_node(NodeData::new(k)));
-				let p = *versions.entry(parent.to_owned())
-					.or_insert_with_key(|k| graph.add_node(NodeData::new(k)));
+				let v = add_node(&mut versions, &mut graph, version);
+				let p = add_node(&mut versions, &mut graph, parent);
 
-				let edge = EdgeData {
-					path,
-				};
+				let edge = EdgeData { path };
 
 				graph.add_edge(p, v, edge);
 			}
@@ -304,17 +335,22 @@ impl VersionGraph {
 
 	pub(crate) fn versions(&self) -> impl Iterator<Item=VersionEntry<'_>> {
 		self.graph.node_indices()
-			.map(|index| VersionEntry::create(index, &self.graph[index]))
+			.map(|node_index| VersionEntry {
+				node_index,
+				node_data: &self.graph[node_index],
+			})
 	}
 
-	pub(crate) fn get(&self, string: &str) -> Result<VersionEntry<'_>> {
-		let without_shortcut = map_shortcut(string);
-		self.versions.get(without_shortcut)
-			.map(|&index| VersionEntry::create(index, &self.graph[index]))
-			.with_context(|| anyhow!("unknown version {without_shortcut:?} (aka {string:?})"))
+	pub(crate) fn get(&self, string: &str) -> Result<(Split, VersionEntry<'_>)> {
+		self.versions.get(string)
+			.map(|&(split, node_index)| (split, VersionEntry {
+				node_index,
+				node_data: &self.graph[node_index],
+			}))
+			.with_context(|| anyhow!("unknown version {string:?}"))
 	}
 
-	pub(crate) fn get_all(&self, iter: impl IntoIterator<Item=impl AsRef<str>>) -> Result<Vec<VersionEntry<'_>>> {
+	pub(crate) fn get_all(&self, iter: impl IntoIterator<Item=impl AsRef<str>>) -> Result<Vec<(Split, VersionEntry<'_>)>> {
 		iter.into_iter()
 			.map(|string| self.get(string.as_ref()))
 			.collect()
@@ -347,7 +383,8 @@ impl VersionGraph {
 
 				diff.apply_to(m, "named")
 					.with_context(|| anyhow!("failed to apply diff from version {from:?} to version {to:?} to mappings, for version {:?}", target_version))
-			})
+			})?
+			.extend_inner_class_names("named")
 	}
 }
 
@@ -358,13 +395,6 @@ impl PartialEq<MinecraftVersionBorrowed<'_>> for MinecraftVersion {
 }
 
 impl VersionEntry<'_> {
-	fn create(node_index: NodeIndex, node_data: &NodeData) -> VersionEntry {
-		VersionEntry {
-			node_index,
-			node_data,
-		}
-	}
-
 	/// Gets the version string (possibly ending in `-client` or `-server`).
 	///
 	/// Do not use this for debug! This type implements [`Debug`].
@@ -383,6 +413,7 @@ impl VersionEntry<'_> {
 		}
 	}
 
+	#[deprecated]
 	pub(crate) fn get_minecraft_version(&self) -> MinecraftVersionBorrowed<'_> {
 		if let Some(without) = self.as_str().strip_suffix("-client") {
 			MinecraftVersionBorrowed(without)
@@ -393,6 +424,7 @@ impl VersionEntry<'_> {
 		}
 	}
 
+	#[deprecated]
 	pub(crate) fn get_environment(&self) -> Environment {
 		if self.as_str().ends_with("-client") {
 			Environment::Client
@@ -428,5 +460,71 @@ impl VersionEntryOwned {
 			node_index: self.node_index,
 			node_data: &self.node_data,
 		}
+	}
+}
+
+#[cfg(test)]
+mod testing {
+	use std::collections::HashSet;
+	use pretty_assertions::assert_eq;
+	use anyhow::Result;
+	use std::path::Path;
+	use quill::tree::NodeInfo;
+	use crate::version_graph::{Split, VersionGraph};
+
+	#[test]
+	fn versions() -> Result<()> {
+		let graph = VersionGraph::resolve(Path::new("tests/version-graph/graph"))?;
+
+		let mut vec = Vec::new();
+		graph.write_as_dot(&mut vec)?;
+		let s = String::from_utf8(vec)?;
+		println!("{s}");
+
+		let versions: HashSet<_> = graph.versions().map(|x| x.as_str().to_owned()).collect();;
+		assert_eq!(versions, HashSet::from([
+			"1.3",
+			"1.4~server-0.4",
+			"1.5",
+			"1.2~server-0.2",
+			"1.1~server-0.1",
+		].map(|x| x.to_owned())));
+
+		fn check_version(graph: &VersionGraph, get_string: Result<&str, (&str, &str)>, expected_version: &str, expected_mappings: &str) -> Result<()> {
+			let v = match get_string {
+				Ok(get_string) => {
+					let (split, v) = graph.get(get_string)?;
+					assert_eq!(split, Split::None);
+					assert_eq!(v.as_str(), expected_version);
+
+					v
+				},
+				Err((get_string_a, get_string_b)) => {
+					let (split, v) = graph.get(get_string_a)?;
+					assert_eq!(split, Split::First);
+					assert_eq!(v.as_str(), expected_version);
+
+					let (split, v) = graph.get(get_string_b)?;
+					assert_eq!(split, Split::Second);
+					assert_eq!(v.as_str(), expected_version);
+
+					v
+				},
+			};
+
+			let actual = graph.apply_diffs(v)?;
+			let actual = quill::tiny_v2::write_string(&actual)?;
+			assert_eq!(actual, expected_mappings, "mappings didn't match for version {expected_version:?}");
+
+			Ok(())
+		}
+
+		check_version(&graph, Ok("1.3"), "1.3", include_str!("../tests/version-graph/expected/1.3.tiny"))?;
+		check_version(&graph, Err(("1.4", "server-0.4")), "1.4~server-0.4", include_str!("../tests/version-graph/expected/1.4~server-0.4.tiny"))?;
+		check_version(&graph, Ok("1.5"), "1.5", include_str!("../tests/version-graph/expected/1.5.tiny"))?;
+		check_version(&graph, Err(("1.2", "server-0.2")), "1.2~server-0.2", include_str!("../tests/version-graph/expected/1.2~server-0.2.tiny"))?;
+		check_version(&graph, Err(("1.1", "server-0.1")), "1.1~server-0.1", include_str!("../tests/version-graph/expected/1.1~server-0.1.tiny"))?;
+
+		Ok(())
 	}
 }

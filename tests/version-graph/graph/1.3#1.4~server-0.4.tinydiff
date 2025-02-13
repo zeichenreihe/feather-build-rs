@@ -1,0 +1,7 @@
+tiny	2	0
+c	a
+	c		A comment.
+c	c		org/example/ClassC
+c	c$d		ClassD
+	f	I	a		fieldA
+	m	(Lc$d;)V	a		methodA
